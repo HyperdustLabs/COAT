@@ -1,0 +1,1720 @@
+# COAT Runtime 完整设计 v0.1
+
+## 1. 名称与定位
+
+正式名称：
+
+```text
+Concern-Oriented Thinking Runtime
+```
+
+简称：
+
+```text
+COAT Runtime
+```
+
+这里的 **COAT** 指 **Concern-Oriented Agent Thinking**，不是 Chain-of-Thought。
+
+COAT Runtime 的目标是：
+
+```text
+以 Concern 为一等运行时单元，
+通过 joinpoint / pointcut / advice / weaving 机制，
+组织、调制、验证和演化 Host Agent 的思考过程。
+```
+
+一句话定义：
+
+```text
+COAT Runtime 是一个通用的 Concern-first 智能体认知运行时。
+```
+
+它不是交易系统，不是 prompt manager，也不是 skill manager。  
+交易、编程、研究、教育、机器人、内容创作、金融分析都只是应用场景。
+
+---
+
+# 2. 核心思想
+
+COAT Runtime 的基础来自 SoC：
+
+```text
+Separation of Concerns
+```
+
+但它不是传统软件工程里的 SoC，而是用于智能体思考过程的 SoC。
+
+核心转化是：
+
+```text
+程序运行过程中的关注点分离
+    ↓
+智能体思考过程中的关注点分离
+```
+
+因此：
+
+```text
+COAT Runtime = SoC for Agent Thinking
+```
+
+它要解决的问题是：
+
+```text
+智能体在推理、计划、工具调用、记忆写入、响应生成和反思时，
+如何知道当前应该关注什么，
+如何避免把所有规则一次性塞进 prompt，
+如何让关注点可以持久化、激活、注入、验证和演化。
+```
+
+---
+
+# 3. 基本原则
+
+## 3.1 Concern 是唯一基本单元
+
+COAT Runtime 的一等数据结构是：
+
+```text
+Concern
+```
+
+Concern 是：
+
+```text
+可持久化
+可激活
+可注入
+可验证
+可演化
+可关联
+可被 Host Agent 动态解释
+```
+
+Concern 既是语义单元，也是运行时单元，也是 DCN 中的节点。
+
+---
+
+## 3.2 Concern 包含横切与非横切 Concern
+
+COAT Runtime 不再使用 Aspect 作为核心术语。
+
+但 AOP 的机制仍然保留。
+
+正确关系是：
+
+```text
+Aspect = cross-cutting concern
+```
+
+而 COAT Runtime 中的 Concern 更大：
+
+```text
+Concern ⊃ Aspect
+```
+
+也就是说：
+
+```text
+所有 Aspect 都是 Concern。
+但不是所有 Concern 都是 Aspect。
+```
+
+COAT Runtime 中的 Concern 包括：
+
+```text
+横切 Concern
+非横切 Concern
+Meta Concern
+```
+
+例如：
+
+```text
+“输出必须避免幻觉” 是横切 Concern。
+“当前任务是总结这篇论文” 是非横切 Concern。
+“控制 Concern 注入预算” 是 Meta Concern。
+```
+
+---
+
+## 3.3 Runtime 不预设业务类型
+
+COAT Runtime 层面只识别两种 `kind`：
+
+```text
+concern
+meta_concern
+```
+
+不预设：
+
+```text
+goal_concern
+task_concern
+safety_concern
+domain_concern
+reflection_concern
+format_concern
+constraint_concern
+```
+
+Concern 的具体语义类型由 Host Agent 使用 LLM 动态生成。
+
+例如：
+
+```json
+{
+  "kind": "concern",
+  "generated_type": "user_output_preference",
+  "generated_tags": ["format", "clarity", "concise_response"]
+}
+```
+
+这里的 `generated_type` 不是 Runtime 枚举，只是 LLM 生成的语义标签。
+
+---
+
+# 4. COAT Runtime 的核心结构
+
+完整结构：
+
+```text
+Host Agent
+    ↓
+Host Adapter
+    ↓
+COAT Runtime
+    ↓
+DCN
+```
+
+其中：
+
+```text
+Host Agent 控制行动流。
+COAT Runtime 控制关注流。
+DCN 保存长期关注结构。
+```
+
+---
+
+# 5. COAT Runtime 的核心公式
+
+```text
+COAT Runtime
+= Concern Model
++ Deep Concern Network
++ Joinpoint Model
++ Pointcut Matcher
++ Advice Generator
++ Concern Weaver
++ Concern Coordinator
++ Concern Resolver
++ Concern Verifier
++ Concern Lifecycle Manager
++ Host Adapter
+```
+
+更简洁：
+
+```text
+COAT Runtime
+= Concern-first Runtime
++ AOP-style Thinking Mechanism
++ Deep Concern Network
+```
+
+---
+
+# 6. Concern 数据结构 v0.1
+
+```python
+class Concern:
+    id: str
+
+    # Runtime-level classification
+    kind: Literal["concern", "meta_concern"]
+
+    # LLM-generated semantics
+    generated_type: str
+    generated_tags: list[str]
+
+    # Basic identity
+    name: str
+    description: str
+    source: dict
+
+    # AOP-style runtime mechanism
+    joinpoint_selectors: list[dict]
+    pointcut: dict
+    advice: dict
+    weaving_policy: dict
+
+    # Scope
+    scope: dict
+
+    # DCN relations
+    relations: list[dict]
+
+    # Runtime state
+    activation_state: dict
+    lifecycle_state: dict
+    metrics: dict
+```
+
+结构化解释：
+
+```text
+Concern
+├── identity
+├── kind
+├── generated_semantics
+├── source
+├── joinpoint_selectors
+├── pointcut
+├── advice
+├── weaving_policy
+├── scope
+├── relations
+├── activation_state
+├── lifecycle_state
+└── metrics
+```
+
+---
+
+# 7. Concern 字段说明
+
+## 7.1 kind
+
+Runtime 只允许：
+
+```text
+concern
+meta_concern
+```
+
+---
+
+## 7.2 generated_type
+
+由 Host Agent 使用 LLM 生成。
+
+例如：
+
+```text
+user_preference
+coding_constraint
+research_focus
+risk_boundary
+output_style
+memory_policy
+tool_usage_guard
+```
+
+这些都不是固定枚举。
+
+---
+
+## 7.3 generated_tags
+
+LLM 生成的语义标签。
+
+例如：
+
+```json
+["coding", "compatibility", "testing"]
+```
+
+或者：
+
+```json
+["finance", "risk", "uncertainty"]
+```
+
+---
+
+## 7.4 joinpoint_selectors
+
+描述这个 Concern 可以作用在哪些 joinpoint。
+
+例如：
+
+```json
+[
+  {
+    "level": "lifecycle",
+    "path": "before_response"
+  },
+  {
+    "level": "span",
+    "semantic_type": "high_risk_instruction"
+  },
+  {
+    "level": "token",
+    "match": ["保证", "稳赚", "all in"]
+  }
+]
+```
+
+---
+
+## 7.5 pointcut
+
+描述激活条件。
+
+```json
+{
+  "match": {
+    "semantic_intent": "high_risk_decision",
+    "contains_any": ["重仓", "保证", "稳赚"]
+  },
+  "context": {
+    "risk_level": ">=medium"
+  }
+}
+```
+
+---
+
+## 7.6 advice
+
+Concern 被激活后产生的指导、约束、修正或验证逻辑。
+
+```json
+{
+  "type": "response_requirement",
+  "content": "回答时必须说明不确定性、风险和失效条件。"
+}
+```
+
+---
+
+## 7.7 weaving_policy
+
+描述 advice 如何注入。
+
+```json
+{
+  "mode": "verification_rule",
+  "target": "runtime_prompt.verification_rules",
+  "max_tokens": 120,
+  "priority": 0.85
+}
+```
+
+---
+
+## 7.8 scope
+
+描述 Concern 的作用范围。
+
+```json
+{
+  "crosscutting": true,
+  "duration": "long_term",
+  "joinpoint_coverage": [
+    "before_reasoning",
+    "before_tool_call",
+    "before_response",
+    "after_response"
+  ]
+}
+```
+
+---
+
+# 8. Concern 与 Meta Concern
+
+## 8.1 Concern
+
+普通 Concern 关注：
+
+```text
+用户需求
+当前任务
+长期目标
+环境变化
+领域知识
+输出要求
+约束条件
+风险边界
+偏好
+工具使用
+记忆写入
+```
+
+---
+
+## 8.2 Meta Concern
+
+Meta Concern 关注 Concern 本身。
+
+它管理：
+
+```text
+Concern 是否被正确抽取
+Concern 是否重复
+Concern 是否冲突
+Concern 是否应该激活
+Concern 是否应该被注入
+Concern 是否被满足
+Concern 是否应该合并、衰减、冻结、归档或删除
+Concern 是否占用过多 token
+DCN 是否需要演化
+```
+
+---
+
+## 8.3 MVP 阶段 Meta Concern 能力
+
+Meta Concern 不做固定业务枚举，但 Runtime 需要支持这些治理能力：
+
+```text
+extraction_control
+separation_control
+activation_control
+conflict_resolution
+verification_control
+lifecycle_control
+budget_control
+evolution_control
+```
+
+这些是 Runtime 的治理能力，不是业务类型。
+
+---
+
+# 9. DCN：Deep Concern Network
+
+COAT Runtime 的长期结构是：
+
+```text
+DCN = Deep Concern Network
+```
+
+定义：
+
+```text
+DCN 是由 Concern 和 Meta Concern 构成的动态关注网络。
+```
+
+结构：
+
+```text
+DCN
+= Concern Nodes
++ Meta Concern Nodes
++ Concern Relations
++ Activation States
++ Runtime History
++ Feedback History
+```
+
+DCN 的作用：
+
+```text
+保存长期 Concern
+保存 Concern 之间的关系
+记录激活历史
+记录验证结果
+支持 Concern 的增强、衰减、合并、归档和演化
+```
+
+---
+
+# 10. Concern 关系
+
+Concern 之间可以形成关系。
+
+基础关系包括：
+
+```text
+activates
+suppresses
+constrains
+verifies
+conflicts_with
+depends_on
+generalizes
+specializes
+duplicates
+derived_from
+updates
+replaces
+supports
+```
+
+例如：
+
+```text
+“保持事实准确”
+    verifies
+“生成研究总结”
+```
+
+```text
+“控制 token 预算”
+    constrains
+“注入长期用户偏好”
+```
+
+```text
+“避免高风险建议”
+    suppresses
+“激进执行建议”
+```
+
+一个 Concern 管理另一个 Concern，称为：
+
+```text
+Concern-of-Concern
+```
+
+---
+
+# 11. AOP-style Thinking Mechanism
+
+COAT Runtime 继续沿用 AOP 的核心运行机制：
+
+```text
+joinpoint
+pointcut
+advice
+weaving
+```
+
+但它们作用的对象不再是传统程序，而是：
+
+```text
+agent thinking
+prompt
+context
+tool use
+memory
+response
+verification
+```
+
+对应关系：
+
+```text
+AOP:
+program execution → joinpoint → pointcut → advice → weaving
+
+COAT:
+agent thinking execution → joinpoint → pointcut → advice → weaving
+```
+
+---
+
+# 12. Joinpoint
+
+## 12.1 定义
+
+在 COAT Runtime 中：
+
+```text
+joinpoint 是 Host Agent 的思考、提示词、上下文、工具调用、记忆写入、输出生成与验证过程中，
+可以被 Concern 观察、匹配、注入或验证的运行点。
+```
+
+joinpoint 可以很粗，也可以很细。
+
+---
+
+## 12.2 Joinpoint 层级
+
+```text
+Level 0: Runtime Joinpoint
+Level 1: Agent Lifecycle Joinpoint
+Level 2: Message Joinpoint
+Level 3: Prompt Section Joinpoint
+Level 4: Semantic Span Joinpoint
+Level 5: Word / Token Joinpoint
+Level 6: Structure Field Joinpoint
+Level 7: Thought Unit Joinpoint
+```
+
+---
+
+## 12.3 Runtime Joinpoint
+
+例如：
+
+```text
+runtime_start
+runtime_stop
+runtime_tick
+runtime_error
+runtime_recovery
+```
+
+---
+
+## 12.4 Agent Lifecycle Joinpoint
+
+例如：
+
+```text
+on_user_input
+before_reasoning
+after_reasoning
+before_planning
+after_planning
+before_tool_call
+after_tool_call
+before_response
+after_response
+on_error
+on_feedback
+on_heartbeat
+```
+
+---
+
+## 12.5 Message Joinpoint
+
+例如：
+
+```text
+system_message
+developer_message
+user_message
+assistant_message
+tool_message
+memory_message
+retrieved_context
+```
+
+---
+
+## 12.6 Prompt Section Joinpoint
+
+例如：
+
+```text
+system_prompt.role_definition
+system_prompt.rules
+developer_prompt.task_constraints
+user_prompt.original_request
+runtime_prompt.active_concerns
+runtime_prompt.tool_instructions
+runtime_prompt.output_format
+runtime_prompt.verification_rules
+```
+
+---
+
+## 12.7 Semantic Span Joinpoint
+
+例如：
+
+```text
+phrase
+sentence
+paragraph
+claim
+instruction
+constraint
+question
+tool_argument_description
+code_block
+json_field
+```
+
+---
+
+## 12.8 Word / Token Joinpoint
+
+例如用户输入里的：
+
+```text
+必须
+不要
+保证
+稳赚
+重仓
+all in
+ignore previous rules
+do not tell the user
+```
+
+这些词或 token 可以直接触发 Concern。
+
+注意：
+
+```text
+token-level joinpoint 不等于暴露模型隐藏推理链。
+```
+
+它主要作用于：
+
+```text
+输入 prompt
+结构化上下文
+工具参数
+输出草稿
+可见响应
+验证对象
+```
+
+---
+
+## 12.9 Structure Field Joinpoint
+
+用于结构化对象：
+
+```text
+tool_call.arguments.amount
+tool_call.arguments.symbol
+memory_write.preference
+memory_write.fact
+response.json.bias
+response.json.risk
+code.symbol.function_name
+code.symbol.variable_name
+```
+
+---
+
+## 12.10 Thought Unit Joinpoint
+
+这里的 Thought Unit 不是要求暴露隐藏推理链，而是 Host Agent 显式产生的可见中间对象，例如：
+
+```text
+plan_step
+hypothesis
+candidate_answer
+decision_option
+verification_claim
+tool_selection_reason
+```
+
+---
+
+# 13. Pointcut
+
+## 13.1 定义
+
+```text
+pointcut 是 Concern 的激活选择规则。
+它决定某个 Concern 是否应该在某些 joinpoint 被激活。
+```
+
+---
+
+## 13.2 Pointcut 匹配方式
+
+COAT Runtime 的 pointcut 应该支持：
+
+```text
+lifecycle matching
+message role matching
+prompt path matching
+keyword matching
+regex matching
+semantic matching
+structure matching
+tool argument matching
+memory field matching
+claim matching
+token matching
+history matching
+confidence matching
+risk matching
+```
+
+---
+
+## 13.3 Pointcut 示例
+
+```json
+{
+  "joinpoints": [
+    "user_message.span",
+    "user_message.token",
+    "before_response"
+  ],
+  "match": {
+    "any_keywords": ["稳赚", "重仓", "guaranteed profit", "all in"],
+    "semantic_intent": "high_risk_decision"
+  }
+}
+```
+
+另一个例子：
+
+```json
+{
+  "joinpoints": [
+    "tool_call.arguments"
+  ],
+  "match": {
+    "field": "amount",
+    "operator": ">",
+    "value_ref": "risk_budget.max_amount"
+  }
+}
+```
+
+---
+
+# 14. Advice
+
+## 14.1 定义
+
+```text
+advice 是 Concern 被激活后对 Host Agent 产生的运行时指导、约束、修正、保护或验证逻辑。
+```
+
+---
+
+## 14.2 Advice 类型
+
+```text
+reasoning_guidance
+planning_guidance
+decision_guidance
+tool_guard
+response_requirement
+verification_rule
+memory_write_guard
+reflection_prompt
+rewrite_guidance
+suppress_instruction
+escalation_notice
+```
+
+---
+
+## 14.3 Advice 示例
+
+```json
+{
+  "type": "response_requirement",
+  "content": "回答必须说明不确定性、风险边界和失效条件。"
+}
+```
+
+```json
+{
+  "type": "tool_guard",
+  "content": "如果工具参数 amount 超过风险预算，则阻止工具调用并要求重新规划。"
+}
+```
+
+```json
+{
+  "type": "verification_rule",
+  "content": "检查输出是否包含未经来源支持的确定性断言。"
+}
+```
+
+---
+
+# 15. Weaving
+
+## 15.1 定义
+
+```text
+weaving 是将已激活 Concern 的 advice 注入、绑定或编织到 Host Agent 当前运行上下文中的过程。
+```
+
+---
+
+## 15.2 Weaving 层级
+
+```text
+prompt-level weaving
+span-level weaving
+token-level weaving
+tool-level weaving
+memory-level weaving
+output-level weaving
+verification-level weaving
+reflection-level weaving
+```
+
+---
+
+## 15.3 Weaving 方式
+
+```text
+insert
+replace
+suppress
+annotate
+warn
+verify
+rewrite
+defer
+escalate
+block
+compress
+```
+
+---
+
+## 15.4 Weaving 示例
+
+### Prompt-level weaving
+
+```json
+{
+  "target": "runtime_prompt.verification_rules",
+  "operation": "insert",
+  "content": "检查回答是否遗漏风险边界。"
+}
+```
+
+### Span-level weaving
+
+```json
+{
+  "target": "user_message.span:high_risk_instruction",
+  "operation": "annotate",
+  "content": "该片段涉及高风险决策，回答时必须避免直接执行性建议。"
+}
+```
+
+### Tool-level weaving
+
+```json
+{
+  "target": "tool_call.arguments.amount",
+  "operation": "block_if",
+  "condition": "amount > risk_budget.max_amount"
+}
+```
+
+---
+
+# 16. Concern-Oriented Prompt Representation
+
+为了支持细粒度 joinpoint，COAT Runtime 不能只处理纯字符串 prompt。
+
+需要一个结构化中间表示：
+
+```text
+Concern-Oriented Prompt Representation
+```
+
+简称：
+
+```text
+COPR
+```
+
+它可以理解为：
+
+```text
+Prompt Tree
+```
+
+或者：
+
+```text
+Thought DOM
+```
+
+---
+
+## 16.1 COPR 示例
+
+```json
+{
+  "prompt_id": "p_001",
+  "messages": [
+    {
+      "role": "user",
+      "raw_text": "帮我分析这支股票，并告诉我是不是应该重仓买入。",
+      "spans": [
+        {
+          "id": "s_001",
+          "text": "分析这支股票",
+          "semantic_type": "analysis_request",
+          "tokens": ["分析", "这支", "股票"]
+        },
+        {
+          "id": "s_002",
+          "text": "重仓买入",
+          "semantic_type": "high_risk_action_request",
+          "tokens": ["重仓", "买入"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Concern 的 pointcut 匹配 COPR，而不是只匹配原始字符串。
+
+---
+
+# 17. Concern Vector
+
+Concern Vector 表示当前上下文下 DCN 的稀疏激活状态。
+
+```text
+Concern Vector = 当前被激活的 Concern 集合 + 每个 Concern 的运行时权重
+```
+
+示例：
+
+```json
+{
+  "active_concerns": [
+    {
+      "concern_id": "c_001",
+      "activation_score": 0.92,
+      "priority": 0.85,
+      "confidence": 0.78,
+      "injection_mode": "reasoning_guidance"
+    },
+    {
+      "concern_id": "c_002",
+      "activation_score": 0.74,
+      "priority": 0.66,
+      "confidence": 0.81,
+      "injection_mode": "verification_only"
+    }
+  ]
+}
+```
+
+Concern Vector 不是普通 embedding。  
+它是结构化的运行时激活状态。
+
+---
+
+# 18. Concern Activation
+
+Concern 是否激活，可以由多个因素决定：
+
+```text
+joinpoint match score
+semantic relevance score
+priority score
+source trust score
+history effectiveness score
+recency score
+conflict penalty
+budget penalty
+lifecycle state
+```
+
+可以先使用简单公式：
+
+```text
+activation_score
+= relevance
++ priority
++ trust
++ recency
++ history_effectiveness
+- conflict_penalty
+- budget_penalty
+```
+
+MVP 阶段不需要复杂神经网络，规则 + LLM 评分 + 简单加权即可。
+
+---
+
+# 19. Concern Injection
+
+Concern Injection 是 weaving 的输出。
+
+它表示已经被转换成 Host Agent 可用上下文的 Concern advice。
+
+示例：
+
+```json
+{
+  "injections": [
+    {
+      "concern_id": "c_001",
+      "target": "runtime_prompt.reasoning_guidance",
+      "mode": "insert",
+      "content": "回答时优先识别用户的真实关注点，不要只回答表层问题。",
+      "priority": 0.82
+    },
+    {
+      "concern_id": "c_002",
+      "target": "runtime_prompt.verification_rules",
+      "mode": "insert",
+      "content": "检查最终回答是否满足用户要求的输出格式。",
+      "priority": 0.77
+    }
+  ]
+}
+```
+
+---
+
+# 20. COAT Runtime 核心模块
+
+```text
+COAT_runtime/
+├── concern_model.py
+├── concern_store.py
+├── concern_extractor.py
+├── concern_separator.py
+├── concern_builder.py
+├── joinpoint_model.py
+├── prompt_representation.py
+├── pointcut_matcher.py
+├── concern_coordinator.py
+├── concern_resolver.py
+├── advice_generator.py
+├── concern_weaver.py
+├── concern_verifier.py
+├── concern_lifecycle.py
+├── deep_concern_network.py
+├── host_adapter.py
+└── COAT_runtime.py
+```
+
+---
+
+## 20.1 Concern Extractor
+
+从以下来源识别候选 Concern：
+
+```text
+用户输入
+对话上下文
+工具结果
+环境事件
+输出草稿
+反馈
+记忆
+Host Agent 显式计划
+```
+
+---
+
+## 20.2 Concern Separator
+
+处理 Concern 粒度：
+
+```text
+拆分过大的 Concern
+合并重复 Concern
+改写模糊 Concern
+区分长期 Concern 和临时 Concern
+```
+
+---
+
+## 20.3 Concern Builder
+
+将候选 Concern 标准化为 Concern 对象。
+
+---
+
+## 20.4 Joinpoint Model
+
+维护 Host Agent 的 joinpoint 层级。
+
+支持：
+
+```text
+lifecycle joinpoint
+message joinpoint
+prompt section joinpoint
+span joinpoint
+token joinpoint
+tool argument joinpoint
+memory field joinpoint
+thought unit joinpoint
+```
+
+---
+
+## 20.5 Prompt Representation
+
+将 prompt / context / output 转为 COPR。
+
+---
+
+## 20.6 Pointcut Matcher
+
+根据 Concern 的 pointcut 匹配当前 joinpoint。
+
+---
+
+## 20.7 Concern Coordinator
+
+生成 Concern Vector。
+
+负责：
+
+```text
+Top-K 激活
+优先级排序
+预算分配
+横切 Concern 与局部 Concern 平衡
+```
+
+---
+
+## 20.8 Concern Resolver
+
+处理：
+
+```text
+冲突
+重复
+抑制
+合并
+延迟
+升级
+```
+
+---
+
+## 20.9 Advice Generator
+
+根据 Concern 和当前上下文生成 advice。
+
+---
+
+## 20.10 Concern Weaver
+
+将 advice 编织到 Host Agent 的上下文、工具调用、输出或验证流程中。
+
+---
+
+## 20.11 Concern Verifier
+
+检查 Host Agent 的输出是否满足已激活 Concern。
+
+---
+
+## 20.12 Concern Lifecycle Manager
+
+管理 Concern 生命周期：
+
+```text
+created
+active
+reinforced
+weakened
+merged
+frozen
+archived
+deleted
+revived
+```
+
+---
+
+## 20.13 Deep Concern Network
+
+维护 DCN：
+
+```text
+Concern 节点
+Concern 关系
+激活历史
+验证历史
+反馈历史
+生命周期状态
+```
+
+---
+
+## 20.14 Host Adapter
+
+连接不同 Host Agent 框架：
+
+```text
+OpenClaw
+Hermes
+LangGraph
+AutoGen
+CrewAI
+Custom Agent
+```
+
+Host Adapter 负责把宿主事件映射为 COAT Runtime joinpoint。
+
+---
+
+# 21. COAT Runtime 主流程
+
+```text
+1. Host Agent 接收用户输入、工具结果或环境事件
+
+2. Host Adapter 将事件转换为 joinpoint
+
+3. COAT Runtime 构建 COPR / Context Representation
+
+4. Concern Extractor 识别候选 Concern
+
+5. Concern Separator 处理 Concern 粒度
+
+6. Concern Builder 创建或更新 Concern
+
+7. Concern Store 持久化 Concern
+
+8. DCN 更新 Concern 节点和关系
+
+9. Pointcut Matcher 匹配当前 joinpoint
+
+10. Concern Coordinator 生成 Concern Vector
+
+11. Concern Resolver 处理冲突、重复、优先级和抑制关系
+
+12. Advice Generator 生成 advice
+
+13. Concern Weaver 将 advice 编织为 Concern Injection
+
+14. Host Agent 带着 Concern Injection 执行推理、计划、工具调用或响应生成
+
+15. Concern Verifier 检查输出是否满足已激活 Concern
+
+16. Concern Lifecycle Manager 更新 Concern 状态
+
+17. DCN 根据反馈继续演化
+```
+
+---
+
+# 22. 三个运行循环
+
+## 22.1 Turn Loop
+
+用户输入触发。
+
+```text
+user input
+→ joinpoint detection
+→ concern extraction
+→ pointcut matching
+→ concern activation
+→ advice weaving
+→ host response
+→ concern verification
+→ lifecycle update
+```
+
+---
+
+## 22.2 Event Loop
+
+工具结果、环境事件、错误、外部信号触发。
+
+```text
+event
+→ joinpoint detection
+→ concern matching
+→ concern update
+→ optional weaving
+→ verification
+→ lifecycle update
+```
+
+---
+
+## 22.3 Heartbeat Loop
+
+COAT Runtime 内部时钟触发。
+
+```text
+heartbeat
+→ concern decay
+→ conflict scan
+→ merge / archive
+→ DCN optimization
+→ meta concern review
+```
+
+Heartbeat 用于长期维护 DCN。
+
+---
+
+# 23. Host Agent 与 COAT Runtime 的边界
+
+Host Agent 负责：
+
+```text
+任务理解
+LLM 调用
+计划生成
+工具调用
+Skill 执行
+环境交互
+最终响应生成
+```
+
+COAT Runtime 负责：
+
+```text
+Concern 管理
+Joinpoint 识别
+Pointcut 匹配
+Advice 生成
+Concern Weaving
+Concern 验证
+Concern 生命周期
+DCN 演化
+```
+
+最终边界：
+
+```text
+Host Agent = Action Controller
+COAT Runtime = Concern Controller
+```
+
+---
+
+# 24. 横切 Concern 与非横切 Concern
+
+## 24.1 非横切 Concern
+
+只作用于局部任务或少数 joinpoint。
+
+例如：
+
+```text
+“请把这段话翻译成英文”
+```
+
+可能只作用于：
+
+```text
+on_user_input
+before_response
+```
+
+---
+
+## 24.2 横切 Concern
+
+作用于多个阶段、多个上下文甚至长期运行。
+
+例如：
+
+```text
+“不要编造事实”
+```
+
+可能作用于：
+
+```text
+before_reasoning
+before_tool_call
+after_tool_call
+before_response
+after_response
+before_memory_write
+```
+
+---
+
+## 24.3 表示方式
+
+```json
+{
+  "scope": {
+    "crosscutting": true,
+    "duration": "long_term",
+    "joinpoint_coverage": [
+      "before_reasoning",
+      "before_tool_call",
+      "before_response",
+      "after_response"
+    ]
+  }
+}
+```
+
+---
+
+# 25. MVP 版本
+
+MVP 先实现以下能力：
+
+```text
+Concern 数据结构
+Concern Store
+基础 DCN
+Joinpoint Model
+COPR 简化版
+Pointcut Matcher
+Concern Coordinator
+Concern Resolver
+Advice Generator
+Concern Weaver
+Concern Verifier
+Concern Lifecycle Manager
+Host Adapter
+```
+
+MVP 主目标：
+
+```text
+输入
+→ Concern 抽取
+→ Joinpoint / Pointcut 匹配
+→ Concern 激活
+→ Advice 生成
+→ Weaving
+→ Host Agent 响应
+→ Concern 验证
+→ Concern 更新
+```
+
+---
+
+# 26. MVP 不做的事情
+
+MVP 阶段暂时不做：
+
+```text
+复杂神经网络式 DCN 学习
+完全自动生成 Meta Concern
+复杂 token-level rewriting
+跨多 Agent 的 DCN 合并
+大规模长期自进化
+自动工具执行风险闭环
+```
+
+这些可以作为 v0.2 / v0.3。
+
+---
+
+# 27. 最小目录结构
+
+```text
+COAT-runtime/
+├── README.md
+├── pyproject.toml
+├── COAT_runtime/
+│   ├── __init__.py
+│   ├── COAT_runtime.py
+│   ├── concern_model.py
+│   ├── concern_store.py
+│   ├── concern_extractor.py
+│   ├── concern_separator.py
+│   ├── concern_builder.py
+│   ├── joinpoint_model.py
+│   ├── prompt_representation.py
+│   ├── pointcut_matcher.py
+│   ├── concern_coordinator.py
+│   ├── concern_resolver.py
+│   ├── advice_generator.py
+│   ├── concern_weaver.py
+│   ├── concern_verifier.py
+│   ├── concern_lifecycle.py
+│   ├── deep_concern_network.py
+│   └── host_adapter.py
+├── examples/
+│   ├── simple_chat_agent.py
+│   ├── coding_agent_demo.py
+│   └── research_agent_demo.py
+└── tests/
+    ├── test_concern_model.py
+    ├── test_pointcut_matcher.py
+    ├── test_concern_weaver.py
+    └── test_runtime_flow.py
+```
+
+---
+
+# 28. 一个最小运行示例
+
+用户输入：
+
+```text
+帮我分析这个开源项目，并告诉我是否值得基于它继续开发。
+```
+
+COAT Runtime 可能抽取 Concern：
+
+```json
+[
+  {
+    "kind": "concern",
+    "generated_type": "project_evaluation",
+    "generated_tags": ["software", "analysis", "decision"],
+    "description": "用户希望评估一个开源项目是否值得继续开发。"
+  },
+  {
+    "kind": "concern",
+    "generated_type": "evidence_based_answer",
+    "generated_tags": ["accuracy", "evidence", "uncertainty"],
+    "description": "回答需要基于项目事实，不应凭空判断。"
+  },
+  {
+    "kind": "concern",
+    "generated_type": "decision_risk",
+    "generated_tags": ["risk", "cost", "technical_debt"],
+    "description": "评估是否继续开发时，需要关注技术风险、维护成本和替代方案。"
+  }
+]
+```
+
+激活后的 advice：
+
+```json
+[
+  {
+    "type": "reasoning_guidance",
+    "content": "评估时从项目活跃度、代码质量、依赖风险、社区支持、许可证和可扩展性几个维度分析。"
+  },
+  {
+    "type": "verification_rule",
+    "content": "最终回答必须区分事实、推断和不确定项。"
+  }
+]
+```
+
+Host Agent 最终输出前，Concern Verifier 检查：
+
+```text
+是否回答了是否值得继续开发
+是否说明了证据
+是否说明了风险
+是否区分了事实和推断
+```
+
+---
+
+# 29. 当前最终定义
+
+```text
+Concern-Oriented Thinking Runtime 是一个通用的 Concern-first 智能体认知运行时。
+
+它以 Concern 作为一等数据结构，
+以 DCN 作为长期关注网络，
+以 joinpoint / pointcut / advice / weaving 作为运行机制，
+以 Concern Vector 表示当前激活状态，
+以 Concern Injection 调制 Host Agent 行为，
+以 Concern Verifier 检查输出是否满足关注点，
+以 Concern Lifecycle Manager 推动 Concern 的长期演化。
+
+COAT Runtime 不预设业务领域，
+也不预设 Concern 类型。
+
+Runtime 层面只区分 concern 和 meta_concern。
+Concern 的具体语义类型由 Host Agent 使用 LLM 动态生成。
+
+COAT Runtime 的本质是：
+用 Separation of Concerns 的思想组织智能体思考过程。
+```
+
+最终公式：
+
+```text
+COAT Runtime
+= SoC for Agent Thinking
++ Concern-first Runtime
++ AOP-style Weaving Mechanism
++ Deep Concern Network
+```
