@@ -28,6 +28,7 @@ from COAT_runtime_protocol.envelopes import ActiveConcern
 from ..concern.vector import ConcernVectorBuilder
 from ..config import RuntimeBudgets
 from ..resolver import ConcernResolver
+from ._util import clamp01
 from .budget import BudgetController
 from .priority import PriorityRanker
 from .topk import TopKSelector
@@ -99,17 +100,9 @@ class ConcernCoordinator:
         injection_mode = concern.advice.type if concern.advice is not None else None
         return ActiveConcern(
             concern_id=concern.id,
-            activation_score=_clamp01(score),
+            activation_score=clamp01(score),
             priority=priority,
             confidence=confidence,
             injection_mode=injection_mode,
             matched_joinpoint=joinpoint.name,
         )
-
-
-def _clamp01(value: float) -> float:
-    if value <= 0.0:
-        return 0.0
-    if value >= 1.0:
-        return 1.0
-    return float(value)

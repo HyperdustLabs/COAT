@@ -70,6 +70,24 @@ class TestBudgetController:
         )
         assert ctrl.estimate_tokens(concern) == 10
 
+    def test_oversized_higher_ranked_concern_does_not_yield_to_smaller_lower_ranked(
+        self,
+    ) -> None:
+        # Regression for the cutoff-vs-binpack contract:
+        # ``c-mid`` cannot fit in the remaining budget, so the controller
+        # must STOP — admitting the smaller ``c-low`` in its place would
+        # invert the ranker's order. After ``c-high`` (8 tokens) is in,
+        # 8 + 50 > 20, so ``c-mid`` is dropped. ``c-low`` would fit
+        # individually (8 + 5 = 13) but must NOT be promoted.
+        ctrl = BudgetController(
+            budgets=RuntimeBudgets(max_active_concerns=10, max_injection_tokens=20)
+        )
+        c_high = _concern("c-high", content="x" * 32)  # ~8 tokens
+        c_mid = _concern("c-mid", content="x" * 200)  # ~50 tokens
+        c_low = _concern("c-low", content="x" * 20)  # ~5 tokens
+        kept = ctrl.enforce([(c_high, 0.9), (c_mid, 0.7), (c_low, 0.3)])
+        assert [c.id for c, _ in kept] == ["c-high"]
+
     def test_rationale_counted_against_budget(self) -> None:
         ctrl = BudgetController(budgets=RuntimeBudgets())
         no_rationale = Concern(

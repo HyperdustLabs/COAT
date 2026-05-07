@@ -29,6 +29,8 @@ from dataclasses import dataclass
 
 from COAT_runtime_protocol import Concern
 
+from ._util import clamp01
+
 
 @dataclass(frozen=True)
 class RankWeights:
@@ -82,11 +84,11 @@ class PriorityRanker:
         w = self._weights
         priority = self._priority_signal(concern)
         trust = self._trust_signal(concern)
-        history_eff = _clamp01(history.get(concern.id, 0.0))
-        conflict_penalty = _clamp01(conflicts.get(concern.id, 0.0))
+        history_eff = clamp01(history.get(concern.id, 0.0))
+        conflict_penalty = clamp01(conflicts.get(concern.id, 0.0))
 
         weighted = (
-            w.relevance * _clamp01(relevance)
+            w.relevance * clamp01(relevance)
             + w.priority * priority
             + w.trust * trust
             + w.history * history_eff
@@ -94,27 +96,19 @@ class PriorityRanker:
         )
         denominator = w.total()
         normalised = weighted / denominator if denominator > 0 else 0.0
-        return _clamp01(normalised)
+        return clamp01(normalised)
 
     @staticmethod
     def _priority_signal(concern: Concern) -> float:
         if concern.weaving_policy is not None:
-            return _clamp01(concern.weaving_policy.priority)
+            return clamp01(concern.weaving_policy.priority)
         return 0.5  # neutral default
 
     @staticmethod
     def _trust_signal(concern: Concern) -> float:
         if concern.source is not None and concern.source.trust is not None:
-            return _clamp01(concern.source.trust)
+            return clamp01(concern.source.trust)
         return 0.5  # neutral default
-
-
-def _clamp01(value: float) -> float:
-    if value <= 0.0:
-        return 0.0
-    if value >= 1.0:
-        return 1.0
-    return float(value)
 
 
 __all__ = ["PriorityRanker", "RankWeights"]

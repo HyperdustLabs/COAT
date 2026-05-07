@@ -1,7 +1,13 @@
 """Budget controller — enforces token / count caps from :class:`RuntimeBudgets`.
 
-The controller drops trailing entries from a ranked list until both
-budgets are satisfied:
+The controller is a **ranking-preserving cutoff**: it walks the ranked
+list in order and stops as soon as either budget would be violated.
+There is no bin-packing — admitting a smaller, lower-ranked concern
+in place of a dropped higher-ranked one would silently invert the
+ranking that the rest of the pipeline (ranker, top-k) is designed to
+preserve.
+
+Budgets enforced:
 
 * ``max_active_concerns`` — hard cap on the number of activations.
 * ``max_injection_tokens`` — soft cap derived from per-concern token
@@ -44,8 +50,13 @@ class BudgetController:
             if len(kept) >= max_count:
                 break
             cost = self.estimate_tokens(concern)
+            # Cutoff, not bin-pack: once a higher-ranked concern won't
+            # fit, do not promote a smaller, lower-ranked one in its
+            # place — that would invert the ranking. The first entry
+            # is always admitted (``not kept``) so an oversized top
+            # concern never empties the vector.
             if kept and used_tokens + cost > max_tokens:
-                continue
+                break
             kept.append((concern, score))
             used_tokens += cost
         return kept
