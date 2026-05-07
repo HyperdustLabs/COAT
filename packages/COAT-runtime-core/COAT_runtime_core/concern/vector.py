@@ -3,6 +3,11 @@
 A Concern Vector is **not** a dense embedding — it is the sparse
 *activation snapshot* of the DCN for the current turn (set of active
 concerns + per-concern weights).
+
+This module is the single place that turns the coordinator's output into
+the schema-validated :class:`ConcernVector` envelope. Keeping the
+construction here means the coordinator does not need to know the wire
+format and tests can verify the mapping in isolation.
 """
 
 from __future__ import annotations
@@ -29,15 +34,24 @@ class ConcernVectorBuilder:
         active: list[ActiveConcern],
         ts: datetime | None = None,
     ) -> ConcernVector:
-        raise NotImplementedError
+        return ConcernVector(
+            turn_id=turn_id,
+            agent_session_id=agent_session_id,
+            ts=ts or datetime.now(UTC),
+            active_concerns=list(active),
+            budget=self._budget_envelope(),
+        )
 
     def empty(self, turn_id: str) -> ConcernVector:
         return ConcernVector(
             turn_id=turn_id,
             ts=datetime.now(UTC),
             active_concerns=[],
-            budget=VectorBudget(
-                max_active_concerns=self._budgets.max_active_concerns,
-                max_injection_tokens=self._budgets.max_injection_tokens,
-            ),
+            budget=self._budget_envelope(),
+        )
+
+    def _budget_envelope(self) -> VectorBudget:
+        return VectorBudget(
+            max_active_concerns=self._budgets.max_active_concerns,
+            max_injection_tokens=self._budgets.max_injection_tokens,
         )
