@@ -82,11 +82,17 @@ class JoinpointCatalog:
     def get(self, name: str) -> CatalogEntry | None:
         return self._entries.get(name)
 
+    def by_level(self, level: JoinpointLevel) -> list[CatalogEntry]:
+        return [e for e in self._entries.values() if e.level == level]
+
     def __contains__(self, name: str) -> bool:
         return name in self._entries
 
     def __iter__(self):
         return iter(self._entries.values())
+
+    def __len__(self) -> int:
+        return len(self._entries)
 
 
 JOINPOINT_CATALOG = JoinpointCatalog(_RUNTIME + _LIFECYCLE + _MESSAGE + _PROMPT_SECTION)

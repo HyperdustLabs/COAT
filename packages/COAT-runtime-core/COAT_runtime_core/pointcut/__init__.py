@@ -5,6 +5,7 @@ semantic / structure / token / claim / confidence / risk / history) and
 combined by :class:`PointcutMatcher`.
 """
 
+from . import strategies
 from .compiler import CompiledPointcut, PointcutCompiler
 from .matcher import PointcutMatcher
 
@@ -12,4 +13,5 @@ __all__ = [
     "CompiledPointcut",
     "PointcutCompiler",
     "PointcutMatcher",
+    "strategies",
 ]
