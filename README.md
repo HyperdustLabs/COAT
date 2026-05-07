@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/moss-coat.png" alt="COAT Runtime logo" width="180" />
+  <img src="docs/moss-coat.png" alt="COAT Runtime logo" width="300" />
 </p>
 
 <h1 align="center">COAT Runtime</h1>
