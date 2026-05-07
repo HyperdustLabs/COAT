@@ -1,0 +1,14 @@
+apiVersion: v2
+name: COAT-runtime
+description: Concern-Oriented Agent Thinking Runtime
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+home: https://github.com/HyperdustLab/COAT
+sources:
+  - https://github.com/HyperdustLab/COAT
+keywords:
+  - llm
+  - agents
+  - aop
+  - concerns

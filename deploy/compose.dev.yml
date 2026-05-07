@@ -1,0 +1,13 @@
+version: "3.9"
+
+# Local-development overlay. Mounts the source tree so changes show up
+# without rebuilding the image.
+
+services:
+  COAT-runtime:
+    extends:
+      file: docker-compose.yml
+      service: COAT-runtime
+    volumes:
+      - ../packages:/app/packages:ro
+    command: ["--config", "/etc/COAT-runtime/config.yaml"]

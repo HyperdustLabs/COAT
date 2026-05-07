@@ -1,0 +1,9 @@
+# Postgres deployment — M8 milestone.
+# This file is intentionally a placeholder so the kustomization graph
+# is complete on day one.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: COAT-postgres-placeholder
+data:
+  status: "M8 — populate this manifest before enabling postgres backend"

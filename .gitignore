@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+*.whl
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.cache/
+.hypothesis/
+
+# Virtual envs
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# uv / poetry / pdm
+uv.lock.local
+.pdm-python
+.pdm-build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs / runtime data
+*.log
+logs/
+data/
+runtime-data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Generated artifacts
+docs/_build/
+site/
+generated/
+.codex/
+.cursor/
+
+# OS
+Thumbs.db
+ehthumbs.db

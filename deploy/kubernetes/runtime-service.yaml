@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: COAT-runtime
+  labels:
+    app.kubernetes.io/name: COAT-runtime
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: COAT-runtime
+  ports:
+    - name: http
+      port: 7878
+      targetPort: http

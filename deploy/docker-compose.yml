@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  COAT-runtime:
+    build:
+      context: ..
+      dockerfile: packages/COAT-runtime-daemon/docker/Dockerfile
+    image: COAT-runtime:dev
+    container_name: COAT-runtime
+    environment:
+      COATR_LOG_LEVEL: INFO
+    ports:
+      - "127.0.0.1:7878:7878"
+    volumes:
+      - ./compose.dev.config.yaml:/etc/COAT-runtime/config.yaml:ro
+      - COAT-data:/var/lib/COAT-runtime
+    restart: unless-stopped
+
+volumes:
+  COAT-data: {}

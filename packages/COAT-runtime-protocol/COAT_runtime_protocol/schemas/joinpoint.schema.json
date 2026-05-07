@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperdustlab.github.io/COAT/schemas/joinpoint.schema.json",
+  "title": "JoinpointEvent",
+  "description": "Observable point in the host agent's thinking pipeline. 8 levels (v0.1 §12.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "level", "name", "host", "ts"],
+  "properties": {
+    "id":                { "type": "string", "minLength": 1 },
+    "level":             { "type": "integer", "minimum": 0, "maximum": 7 },
+    "name":              { "type": "string", "minLength": 1 },
+    "host":              { "type": "string" },
+    "agent_session_id":  { "type": "string" },
+    "turn_id":           { "type": "string" },
+    "ts":                { "type": "string", "format": "date-time" },
+    "payload":           { "$ref": "#/$defs/JoinpointPayload" }
+  },
+
+  "$defs": {
+    "JoinpointSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level":          { "type": "string", "enum": ["runtime", "lifecycle", "message", "prompt_section", "span", "token", "structure_field", "thought_unit"] },
+        "path":           { "type": "string", "description": "e.g. 'before_response' or 'runtime_prompt.verification_rules'" },
+        "name":           { "type": "string" },
+        "semantic_type":  { "type": "string" },
+        "match":          { "type": "array", "items": { "type": "string" }, "description": "literal token/keyword list" },
+        "field":          { "type": "string", "description": "for structure_field, e.g. 'tool_call.arguments.amount'" }
+      }
+    },
+
+    "JoinpointPayload": {
+      "oneOf": [
+        { "$ref": "#/$defs/RuntimePayload" },
+        { "$ref": "#/$defs/LifecyclePayload" },
+        { "$ref": "#/$defs/MessagePayload" },
+        { "$ref": "#/$defs/PromptSectionPayload" },
+        { "$ref": "#/$defs/SpanPayload" },
+        { "$ref": "#/$defs/TokenPayload" },
+        { "$ref": "#/$defs/StructureFieldPayload" },
+        { "$ref": "#/$defs/ThoughtUnitPayload" }
+      ]
+    },
+
+    "RuntimePayload": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind":    { "const": "runtime" },
+        "event":   { "type": "string", "enum": ["runtime_start", "runtime_stop", "runtime_tick", "runtime_error", "runtime_recovery"] },
+        "data":    { "type": "object", "additionalProperties": true }
+      }
+    },
+    "LifecyclePayload": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "const": "lifecycle" },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "on_user_input", "before_reasoning", "after_reasoning",
+            "before_planning", "after_planning",
+            "before_tool_call", "after_tool_call",
+            "before_response", "after_response",
+            "before_memory_write", "after_memory_write",
+            "on_error", "on_feedback", "on_heartbeat"
+          ]
+        },
+        "data": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "MessagePayload": {
+      "type": "object",
+      "required": ["kind", "role"],
+      "properties": {
+        "kind": { "const": "message" },
+        "role": {
+          "type": "string",
+          "enum": ["system", "developer", "user", "assistant", "tool", "memory", "retrieved_context"]
+        },
+        "raw_text": { "type": "string" },
+        "data":     { "type": "object", "additionalProperties": true }
+      }
+    },
+    "PromptSectionPayload": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "const": "prompt_section" },
+        "path": { "type": "string", "description": "e.g. 'runtime_prompt.verification_rules'" },
+        "raw_text": { "type": "string" }
+      }
+    },
+    "SpanPayload": {
+      "type": "object",
+      "required": ["kind", "span_id"],
+      "properties": {
+        "kind":          { "const": "span" },
+        "span_id":       { "type": "string" },
+        "text":          { "type": "string" },
+        "semantic_type": { "type": "string" },
+        "tokens":        { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "TokenPayload": {
+      "type": "object",
+      "required": ["kind", "token"],
+      "properties": {
+        "kind":      { "const": "token" },
+        "token":     { "type": "string" },
+        "position":  { "type": "integer" },
+        "context":   { "type": "string" }
+      }
+    },
+    "StructureFieldPayload": {
+      "type": "object",
+      "required": ["kind", "field"],
+      "properties": {
+        "kind":  { "const": "structure_field" },
+        "field": { "type": "string", "description": "e.g. 'tool_call.arguments.amount'" },
+        "value": { "description": "any JSON value" }
+      }
+    },
+    "ThoughtUnitPayload": {
+      "type": "object",
+      "required": ["kind", "unit_type"],
+      "properties": {
+        "kind":      { "const": "thought_unit" },
+        "unit_type": {
+          "type": "string",
+          "enum": ["plan_step", "hypothesis", "candidate_answer", "decision_option", "verification_claim", "tool_selection_reason"]
+        },
+        "content":   { "type": "string" }
+      }
+    }
+  }
+}

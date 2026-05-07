@@ -1,0 +1,22 @@
+[Unit]
+Description=COAT Runtime daemon
+Documentation=https://github.com/HyperdustLab/COAT
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/COAT-runtime-daemon --config /etc/COAT-runtime/config.yaml
+Restart=on-failure
+RestartSec=5
+User=COAT
+Group=COAT
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/COAT-runtime /run
+
+[Install]
+WantedBy=multi-user.target

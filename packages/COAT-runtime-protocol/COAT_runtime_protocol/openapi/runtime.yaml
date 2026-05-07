@@ -1,0 +1,161 @@
+openapi: 3.1.0
+info:
+  title: COAT Runtime Daemon API
+  version: 0.1.0
+  description: |
+    HTTP / JSON-RPC interface for the COAT Runtime daemon.
+    See `docs/design/v0.2-system-design.md` §6.1 for the canonical endpoint table.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://127.0.0.1:7878
+    description: Local daemon (default)
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        "200": { description: OK }
+
+  /readyz:
+    get:
+      summary: Readiness probe
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+
+  /v1/joinpoint:
+    post:
+      summary: Push a joinpoint event and get an optional ConcernInjection back
+      description: Synchronous turn-loop entrypoint. Maps to `runtime.on_joinpoint`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/joinpoint.schema.json"
+      responses:
+        "200":
+          description: Returns a ConcernInjection (may be empty) and the ConcernVector snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  injection:
+                    $ref: "../schemas/concern_injection.schema.json"
+                  vector:
+                    $ref: "../schemas/concern_vector.schema.json"
+
+  /v1/event:
+    post:
+      summary: Submit an asynchronous runtime event (event-loop)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, ts]
+              properties:
+                type: { type: string }
+                ts:   { type: string, format: date-time }
+                payload: { type: object, additionalProperties: true }
+      responses:
+        "202": { description: Accepted }
+
+  /v1/concerns:
+    get:
+      summary: List concerns
+      parameters:
+        - in: query
+          name: kind
+          schema: { type: string, enum: [concern, meta_concern] }
+        - in: query
+          name: tag
+          schema: { type: string }
+        - in: query
+          name: lifecycle_state
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: List of concerns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "../schemas/concern.schema.json"
+
+    post:
+      summary: Manually create or import a concern
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/concern.schema.json"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/concern.schema.json"
+
+  /v1/concerns/{id}:
+    get:
+      summary: Get a single concern
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Concern
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/concern.schema.json"
+        "404": { description: Not found }
+
+  /v1/dcn/snapshot:
+    get:
+      summary: Return a snapshot of the current Deep Concern Network
+      responses:
+        "200":
+          description: DCN graph snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /v1/injection/{turn_id}:
+    get:
+      summary: Replay the injection produced for a previous turn (debug)
+      parameters:
+        - in: path
+          name: turn_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Injection
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/concern_injection.schema.json"
+
+  /v1/admin/heartbeat:
+    post:
+      summary: Force a heartbeat tick (decay/conflict/merge/archive workers)
+      responses:
+        "204": { description: Tick scheduled }

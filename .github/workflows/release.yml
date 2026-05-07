@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    name: Build & publish (placeholder)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Build wheels
+        run: |
+          for pkg in packages/*/; do
+            (cd "$pkg" && uv build) || true
+          done
+      - name: List artefacts
+        run: ls -R packages/*/dist || true
+      # Real `pypi-publish` step lands at M2+.

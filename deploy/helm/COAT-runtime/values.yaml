@@ -1,0 +1,21 @@
+# Default values for the COAT Runtime helm chart. Refined at M8.
+
+image:
+  repository: COAT-runtime
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 7878
+
+resources: {}
+
+config:
+  storage:
+    concern_store: { kind: memory }
+    dcn_store:     { kind: memory }
+  llm:
+    provider: stub
