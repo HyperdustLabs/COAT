@@ -1,6 +1,15 @@
-# COAT Runtime
+<p align="center">
+  <img src="docs/moss-coat.png" alt="COAT Runtime logo" width="180" />
+</p>
 
-**Concern-Oriented Agent Thinking Runtime** — a general-purpose, Concern-first cognitive runtime for LLM agents.
+<h1 align="center">COAT Runtime</h1>
+
+<p align="center">
+  <strong>Concern-Oriented Agent Thinking Runtime</strong><br />
+  a general-purpose, Concern-first cognitive runtime for LLM agents.
+</p>
+
+---
 
 > COAT Runtime applies *Separation of Concerns* to **agent thinking** instead of program code,
 > using `joinpoint / pointcut / advice / weaving` to organize, modulate, verify and evolve
