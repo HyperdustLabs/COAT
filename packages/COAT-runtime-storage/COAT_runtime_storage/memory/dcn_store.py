@@ -163,7 +163,9 @@ class MemoryDCNStore(DCNStore):
             )
             snapshot = [dict(r) for r in records]
         if limit is not None:
-            snapshot = snapshot[-max(0, limit) :]
+            if limit <= 0:
+                return []
+            snapshot = snapshot[-limit:]
         return snapshot
 
     # ------------------------------------------------------------------

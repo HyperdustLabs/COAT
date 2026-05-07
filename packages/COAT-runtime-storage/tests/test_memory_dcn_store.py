@@ -185,6 +185,25 @@ def test_activation_log_filters_and_limits() -> None:
     assert [r["joinpoint_id"] for r in last_two_a] == ["jp3", "jp4"]
 
 
+def test_activation_log_zero_limit_returns_empty() -> None:
+    store = MemoryDCNStore()
+    store.add_node(_concern("a"))
+    for i in range(3):
+        store.log_activation("a", f"jp{i}", 0.1, _ts(i))
+
+    assert list(store.activation_log(limit=0)) == []
+    assert list(store.activation_log("a", limit=0)) == []
+
+
+def test_activation_log_negative_limit_returns_empty() -> None:
+    store = MemoryDCNStore()
+    store.add_node(_concern("a"))
+    store.log_activation("a", "jp", 0.5, _ts())
+
+    assert list(store.activation_log(limit=-1)) == []
+    assert list(store.activation_log("a", limit=-5)) == []
+
+
 def test_activation_log_returns_independent_records() -> None:
     store = MemoryDCNStore()
     store.add_node(_concern("a"))
