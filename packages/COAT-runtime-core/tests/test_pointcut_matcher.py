@@ -103,6 +103,41 @@ class TestJoinpointFilter:
 
 
 # ---------------------------------------------------------------------------
+# Inert match block (fail closed) — regression Codex PR #2 review
+# ---------------------------------------------------------------------------
+
+
+class TestInertMatchBlock:
+    def test_empty_keyword_lists_fail_closed_without_context(self) -> None:
+        pc = Pointcut(
+            joinpoints=["before_response"],
+            match=PointcutMatch(any_keywords=[], all_keywords=[]),
+        )
+        result = PointcutMatcher().match(pc, _jp("before_response"))
+        assert not result.matched
+        assert "miss:inert_match_block" in result.reasons
+
+    def test_inert_match_allowed_when_context_predicates_present(self) -> None:
+        pc = Pointcut(
+            joinpoints=["before_response"],
+            match=PointcutMatch(any_keywords=[], all_keywords=[]),
+            context_predicates=[
+                ContextPredicate(key="tier", op="==", value="gold"),
+            ],
+        )
+        assert PointcutMatcher().match(pc, _jp("before_response"), context={"tier": "gold"}).matched
+
+    def test_whitespace_only_semantic_intent_is_inert(self) -> None:
+        pc = Pointcut(
+            joinpoints=["before_response"],
+            match=PointcutMatch(semantic_intent="   "),
+        )
+        result = PointcutMatcher().match(pc, _jp("before_response"))
+        assert not result.matched
+        assert "miss:inert_match_block" in result.reasons
+
+
+# ---------------------------------------------------------------------------
 # Match block
 # ---------------------------------------------------------------------------
 

@@ -31,7 +31,7 @@ from ._context import (
     context_lookup,
     resolve_value,
 )
-from .compiler import CompiledPointcut, PointcutCompiler
+from .compiler import CompiledPointcut, PointcutCompiler, match_block_is_executable
 from .strategies import (
     claim,
     confidence,
@@ -71,6 +71,18 @@ class PointcutMatcher(MatcherPlugin):
     ) -> MatchResult:
         if not _joinpoint_passes(compiled, joinpoint):
             return MatchResult(matched=False, score=0.0, reasons=())
+
+        raw_match = compiled.source.match
+        if (
+            raw_match is not None
+            and not match_block_is_executable(raw_match)
+            and not compiled.has_context_predicates
+        ):
+            return MatchResult(
+                matched=False,
+                score=0.0,
+                reasons=("miss:inert_match_block",),
+            )
 
         scores: list[float] = []
         reasons: list[str] = []

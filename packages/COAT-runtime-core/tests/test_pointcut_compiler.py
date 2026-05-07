@@ -6,7 +6,7 @@ import re
 
 import pytest
 from COAT_runtime_core.errors import PointcutCompileError
-from COAT_runtime_core.pointcut import CompiledPointcut, PointcutCompiler
+from COAT_runtime_core.pointcut import CompiledPointcut, PointcutCompiler, match_block_is_executable
 from COAT_runtime_protocol import (
     ContextPredicate,
     JoinpointSelector,
@@ -63,6 +63,26 @@ def test_compile_invalid_regex_raises() -> None:
     pc = Pointcut(match=PointcutMatch(regex="[unclosed"))
     with pytest.raises(PointcutCompileError):
         PointcutCompiler().compile(pc)
+
+
+def test_empty_keyword_lists_are_not_an_executable_match_block() -> None:
+    """Regression: Codex PR review — empty lists must not activate `has_match_block`.
+
+    Previously ``any_keywords=[]`` was truthy for ``is not None`` but the compiler
+    skipped keyword compilation, leaving zero strategies and a spurious 1.0 score.
+    """
+    pc = Pointcut(match=PointcutMatch(any_keywords=[], all_keywords=[]))
+    compiled = PointcutCompiler().compile(pc)
+    assert compiled.has_match_block is False
+    assert compiled.any_keywords_lower is None
+    assert compiled.all_keywords_lower is None
+
+
+def test_match_block_is_executable_helper() -> None:
+    assert not match_block_is_executable(PointcutMatch(any_keywords=[], all_keywords=[]))
+    assert not match_block_is_executable(PointcutMatch(semantic_intent="   "))
+    assert match_block_is_executable(PointcutMatch(any_keywords=["x"]))
+    assert match_block_is_executable(PointcutMatch(regex=r"."))
 
 
 def test_has_context_predicates() -> None:

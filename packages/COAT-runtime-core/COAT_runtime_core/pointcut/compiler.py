@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from COAT_runtime_protocol import JoinpointSelector, Pointcut
+from COAT_runtime_protocol import JoinpointSelector, Pointcut, PointcutMatch
 
 from ..errors import PointcutCompileError
 
@@ -64,7 +64,7 @@ class PointcutCompiler:
             regex=compiled_regex,
             any_keywords_lower=any_lower,
             all_keywords_lower=all_lower,
-            has_match_block=_has_match_block(pointcut),
+            has_match_block=match_block_is_executable(pointcut.match),
             has_context_predicates=bool(pointcut.context_predicates),
         )
 
@@ -86,24 +86,35 @@ def _split_joinpoints(
     return names, selectors
 
 
-def _has_match_block(pointcut: Pointcut) -> bool:
-    block = pointcut.match
+def match_block_is_executable(block: PointcutMatch | None) -> bool:
+    """Return True when ``block`` carries at least one criterion the matcher runs.
+
+    Empty ``any_keywords`` / ``all_keywords`` lists are **ignored** — they must
+    mirror the compiler's ``if match_block.any_keywords:`` guards so we never
+    mark a match block "active" when no keyword strategy will execute.
+
+    A whitespace-only ``semantic_intent`` is likewise treated as absent (the
+    semantic strategy rejects it at runtime).
+    """
     if block is None:
         return False
-    return any(
-        getattr(block, attr) is not None
-        for attr in (
-            "any_keywords",
-            "all_keywords",
-            "regex",
-            "semantic_intent",
-            "structure",
-            "confidence",
-            "risk",
-            "history",
-            "claim",
-        )
-    )
+    if block.any_keywords:
+        return True
+    if block.all_keywords:
+        return True
+    if block.regex is not None:
+        return True
+    if block.semantic_intent is not None and block.semantic_intent.strip():
+        return True
+    if block.structure is not None:
+        return True
+    if block.confidence is not None:
+        return True
+    if block.risk is not None:
+        return True
+    if block.history is not None:
+        return True
+    return block.claim is not None
 
 
-__all__ = ["CompiledPointcut", "PointcutCompiler"]
+__all__ = ["CompiledPointcut", "PointcutCompiler", "match_block_is_executable"]
