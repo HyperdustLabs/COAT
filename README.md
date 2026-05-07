@@ -35,7 +35,7 @@ Pre-alpha. We are working through the milestones defined in
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
-| **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | in progress |
+| **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | complete |
 | M1 | In-proc happy path (memory + stub-llm) | pending |
 | M2 | Real LLM (OpenAI / Anthropic) | pending |
 | M3 | Persistence (sqlite + jsonl replay) | pending |
@@ -91,6 +91,21 @@ uv run python tools/schema_check.py
 ```
 
 There is nothing to run end-to-end yet — that arrives at M1.
+
+---
+
+## Contributing
+
+From **M1 onwards** all changes land via pull request. The full workflow,
+branching model, PR sizing, and local verification steps are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+```bash
+git switch -c feat/m1-<scope>
+# ... edit ...
+./scripts/verify.sh        # local mirror of CI
+git push -u origin HEAD     # then open a PR on GitHub
+```
 
 ---
 
