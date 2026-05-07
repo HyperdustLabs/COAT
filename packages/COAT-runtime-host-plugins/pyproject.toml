@@ -5,7 +5,7 @@ description = "First-party host adapters for the COAT Runtime: openclaw, hermes,
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "HyperdustLab" }]
+authors = [{ name = "HyperdustLabs" }]
 dependencies = [
   "COAT-runtime-protocol",
   "COAT-runtime-core",

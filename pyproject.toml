@@ -5,7 +5,7 @@ description = "Concern-Oriented Agent Thinking Runtime — workspace root"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "HyperdustLab" }]
+authors = [{ name = "HyperdustLabs" }]
 # The workspace root is not a publishable package.
 # It only depends on its workspace members so `uv sync` installs them all in editable mode.
 dependencies = [

@@ -1,6 +1,6 @@
 [Unit]
 Description=COAT Runtime daemon
-Documentation=https://github.com/HyperdustLab/COAT
+Documentation=https://github.com/HyperdustLabs/COAT
 After=network.target
 
 [Service]
