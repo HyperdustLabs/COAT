@@ -11,11 +11,20 @@ modern SQLite library, but the bootstrap falls back gracefully to
 the default journal mode on platforms where WAL isn't allowed.
 """
 
-from ._schema import SCHEMA_VERSION, bootstrap_sql
+from ._schema import (
+    DCN_SCHEMA_VERSION,
+    SCHEMA_VERSION,
+    bootstrap_dcn_sql,
+    bootstrap_sql,
+)
 from .concern_store import SqliteConcernStore
+from .dcn_store import SqliteDCNStore
 
 __all__ = [
+    "DCN_SCHEMA_VERSION",
     "SCHEMA_VERSION",
     "SqliteConcernStore",
+    "SqliteDCNStore",
+    "bootstrap_dcn_sql",
     "bootstrap_sql",
 ]
