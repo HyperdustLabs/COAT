@@ -297,9 +297,11 @@ class AnthropicLLMClient(BaseLLMClient):
         effective_temp = temperature if temperature is not None else self._default_temperature
         if effective_temp is not None:
             kwargs["temperature"] = effective_temp
-        # Anthropic requires max_tokens; the per-call value wins, then the
-        # client-wide default. Both are guaranteed positive by the
-        # constructor so we never send ``max_tokens<=0`` over the wire.
+        # Anthropic requires ``max_tokens`` on every request; the per-call
+        # value wins, then the client-wide default. The constructor only
+        # rejects negatives — ``0`` is permitted — so this value can be
+        # ``0`` when the host configured it that way; if the API rejects it,
+        # the SDK surfaces the error.
         kwargs["max_tokens"] = max_tokens if max_tokens is not None else self._default_max_tokens
         if stop:
             # SDK expects ``stop_sequences`` here, not ``stop``.

@@ -85,11 +85,14 @@ host doesn't have to:
   `messages`. Hosts that pass an OpenAI-style mixed list keep
   working — the adapter splits the system rows out and concatenates
   multiple of them with blank lines.
-* **`max_tokens` is always set.** Anthropic 4xxs without it, so the
-  adapter validates `default_max_tokens > 0` and `score_max_tokens > 0`
-  at construction time. There is no equivalent of OpenAI's
-  "`score_max_tokens=None` to omit"; pass an explicit positive int
-  if you need a different cap.
+* **`max_tokens` is always set on the wire.** Every ``messages.create``
+  carries ``max_tokens``; if you omit it per-call, the client fills in
+  ``default_max_tokens`` (1024 by default). The constructor rejects only
+  **negative** values — ``0`` is permitted at construction (Codex review
+  on PR-8); if Anthropic rejects ``0`` for a given route the SDK still
+  surfaces a clean error. There is no equivalent of OpenAI's
+  ``score_max_tokens=None`` to omit the score cap; bump ``score_max_tokens``
+  if you need more headroom.
 * **`structured()` uses forced tool use.** Claude has no JSON-schema
   `response_format`, so the adapter defines a single `respond` tool
   whose `input_schema` IS your schema, pins the model to it via
@@ -97,20 +100,6 @@ host doesn't have to:
   dict. This is the same reliability tier as OpenAI strict-mode.
 * **`stop` becomes `stop_sequences`.** Renamed at the kwarg layer; the
   abstract `LLMClient.complete()` surface is unchanged.
-
-## Stub client for tests
-
-The deterministic in-process stub used by the M1 example and the
-test suite lives in `COAT_runtime_core.llm.StubLLMClient` and is
-re-exported here for backwards compatibility:
-
-```python
-from COAT_runtime_llm import StubLLMClient
-```
-
-The stub has no upstream-SDK dependency — it ships in the core
-runtime so the in-proc happy path stays runnable without any of the
-provider extras installed.
 
 ## Stub client for tests
 
@@ -144,7 +133,7 @@ that doesn't care which SDK it's wired up to can catch the base.
 * `ANTHROPIC_API_KEY` not set and no `api_key=` passed,
 * the optional `anthropic` extra not installed,
 * `default_max_tokens` / `score_max_tokens` constructed with a
-  non-positive value (Anthropic always requires `max_tokens > 0`),
+  negative value,
 * the model declined to call the forced `respond` tool in
   `structured()`.
 
