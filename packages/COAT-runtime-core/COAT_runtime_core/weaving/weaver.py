@@ -74,8 +74,15 @@ class ConcernWeaver:
         concerns: dict[str, Concern],
         advices: dict[str, Advice],
     ) -> ConcernInjection:
-        candidates: list[Injection] = []
-        for active in vector.active_concerns:
+        # We carry (vector_index, activation_score, injection) so the sort
+        # can preserve the coordinator's ranked order (its activation_score
+        # is the *primary* signal). Without this the cutoff in
+        # ``_enforce_budget`` could drop a coordinator-top concern whose
+        # weaving_policy.priority happens to be unset while keeping a
+        # lower-ranked one with an explicit higher policy priority — a
+        # silent ranking inversion across the pipeline boundary.
+        candidates: list[tuple[int, float, Injection]] = []
+        for index, active in enumerate(vector.active_concerns):
             concern = concerns.get(active.concern_id)
             advice = advices.get(active.concern_id)
             if concern is None or advice is None:
@@ -83,16 +90,22 @@ class ConcernWeaver:
             injection = self._render_one(active, concern, advice)
             if injection is None:
                 continue
-            candidates.append(injection)
+            candidates.append((index, active.activation_score, injection))
 
-        ordered = sorted(
-            candidates,
-            key=lambda inj: (
-                -(inj.priority if inj.priority is not None else 0.0),
-                inj.concern_id,
-                inj.target,
-            ),
+        # Sort key: highest activation_score first (the coordinator's
+        # truth), then highest weaving priority, then the coordinator's
+        # original index (stable preservation of ties), then concern_id /
+        # target for full determinism.
+        candidates.sort(
+            key=lambda triple: (
+                -triple[1],
+                -(triple[2].priority if triple[2].priority is not None else 0.0),
+                triple[0],
+                triple[2].concern_id,
+                triple[2].target,
+            )
         )
+        ordered = [inj for _, _, inj in candidates]
         kept, totals = self._enforce_budget(ordered)
 
         return ConcernInjection(

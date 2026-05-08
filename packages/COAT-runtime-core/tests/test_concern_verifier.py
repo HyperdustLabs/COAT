@@ -110,6 +110,18 @@ class TestVerifierRules:
         assert not result.satisfied
         assert "invalid regex" in result.notes
 
+    def test_non_string_regex_param_does_not_crash_pass(self) -> None:
+        # Regression: ``advice.params`` is untyped runtime data; a non-string
+        # ``regex`` value used to bubble TypeError out of the verifier and
+        # take down the whole pass.
+        verifier = ConcernVerifier()
+        for bad in (None, 42, ["a"], {"x": 1}):
+            c = _concern(params={"regex": bad})
+            result = verifier.verify_one(c, host_output="x")
+            assert not result.satisfied
+            assert result.score == 0.0
+            assert "invalid regex" in result.notes
+
     def test_must_contain_accepts_string_or_list(self) -> None:
         verifier = ConcernVerifier()
         single = _concern("a", params={"must_contain": "alpha"})

@@ -110,10 +110,22 @@ class ConcernVerifier:
 
     @staticmethod
     def _verify_regex(concern_id: str, output: str, params: dict) -> VerificationResult:
+        # ``advice.params`` is untyped runtime data, so guard against both
+        # the syntactic (re.error) and the type-shape (TypeError on
+        # non-string input) failure modes. A bad rule should fail the
+        # *concern*, not the whole verification pass.
+        raw = params.get("regex")
+        if not isinstance(raw, str):
+            return VerificationResult(
+                concern_id=concern_id,
+                satisfied=False,
+                score=0.0,
+                notes=f"invalid regex: expected str, got {type(raw).__name__}",
+            )
         flags = 0 if params.get("case_sensitive") else re.IGNORECASE
         try:
-            pattern = re.compile(params["regex"], flags)
-        except re.error as exc:
+            pattern = re.compile(raw, flags)
+        except (re.error, TypeError) as exc:
             return VerificationResult(
                 concern_id=concern_id,
                 satisfied=False,

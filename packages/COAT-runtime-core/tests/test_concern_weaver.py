@@ -109,11 +109,15 @@ class TestConcernWeaverOrdering:
         )
         assert [i.concern_id for i in out.injections] == ["c-high", "c-mid", "c-low"]
 
-    def test_id_breaks_priority_ties_deterministically(self) -> None:
+    def test_vector_order_breaks_score_and_priority_ties(self) -> None:
+        # When activation_score and weaving priority both tie the weaver
+        # falls back to the coordinator's emitted order (= the vector's
+        # index). This preserves the coordinator's own tiebreakers
+        # (concern_id ascending, per PR-3) instead of re-sorting them.
         weaver = ConcernWeaver(budgets=RuntimeBudgets())
         vector = _vector(
-            _active("c-b", priority=0.5),
             _active("c-a", priority=0.5),
+            _active("c-b", priority=0.5),
         )
         out = weaver.build(
             turn_id="t",
@@ -122,6 +126,69 @@ class TestConcernWeaverOrdering:
             advices={cid: _advice(cid) for cid in ["c-a", "c-b"]},
         )
         assert [i.concern_id for i in out.injections] == ["c-a", "c-b"]
+
+    def test_preserves_coordinator_ranking_when_policy_priority_unset(self) -> None:
+        # Regression for the post-PR-4 review finding: previously the
+        # weaver sorted purely by ``inj.priority``, defaulting missing
+        # values to 0.0. Two concerns ranked by the coordinator (different
+        # activation_scores) but lacking ``weaving_policy.priority`` would
+        # tie and re-order by concern_id, breaking the cutoff under
+        # ``max_injection_tokens``. The coordinator's activation_score
+        # must be the primary sort signal.
+        weaver = ConcernWeaver(budgets=RuntimeBudgets(max_active_concerns=10))
+        # ``c-z`` was top-ranked by the coordinator (score 0.9) but its
+        # id sorts last; ``c-a`` was bottom-ranked (score 0.1).
+        vector = _vector(
+            _active("c-z", score=0.9),
+            _active("c-a", score=0.1),
+        )
+        out = weaver.build(
+            turn_id="t",
+            vector=vector,
+            concerns={cid: _concern(cid) for cid in ["c-z", "c-a"]},
+            advices={cid: _advice(cid) for cid in ["c-z", "c-a"]},
+        )
+        assert [i.concern_id for i in out.injections] == ["c-z", "c-a"]
+
+    def test_coordinator_top_concern_survives_token_cutoff(self) -> None:
+        # Same scenario as above but pushed through the budget cutoff:
+        # if the sort lost the activation_score signal, ``c-z`` (the
+        # coordinator's #1) would lose to ``c-a`` and get dropped.
+        # Token math (~4 chars/token): "x"*32 -> ~8 tokens. Budget=10
+        # admits the first injection, the second pushes us past 10.
+        budgets = RuntimeBudgets(max_active_concerns=10, max_injection_tokens=10)
+        weaver = ConcernWeaver(budgets=budgets)
+        vector = _vector(
+            _active("c-z", score=0.9),
+            _active("c-a", score=0.1),
+        )
+        out = weaver.build(
+            turn_id="t",
+            vector=vector,
+            concerns={cid: _concern(cid) for cid in ["c-z", "c-a"]},
+            advices={
+                "c-z": _advice("c-z", text="x" * 32),
+                "c-a": _advice("c-a", text="x" * 32),
+            },
+        )
+        assert [i.concern_id for i in out.injections] == ["c-z"]
+
+    def test_explicit_policy_priority_breaks_activation_score_tie(self) -> None:
+        # When the coordinator returns identical activation_scores the
+        # weaver should fall back to ``weaving_policy.priority`` for
+        # ordering — that's the field's stated purpose.
+        weaver = ConcernWeaver(budgets=RuntimeBudgets())
+        vector = _vector(
+            _active("c-low-pri", score=0.5, priority=0.1),
+            _active("c-high-pri", score=0.5, priority=0.9),
+        )
+        out = weaver.build(
+            turn_id="t",
+            vector=vector,
+            concerns={cid: _concern(cid) for cid in ["c-low-pri", "c-high-pri"]},
+            advices={cid: _advice(cid) for cid in ["c-low-pri", "c-high-pri"]},
+        )
+        assert [i.concern_id for i in out.injections] == ["c-high-pri", "c-low-pri"]
 
     def test_skips_active_concerns_missing_from_advice_or_concern_map(self) -> None:
         weaver = ConcernWeaver(budgets=RuntimeBudgets())

@@ -74,6 +74,27 @@ class TestAdviceGenerator:
         assert out.type == AdviceType.VERIFICATION_RULE
         assert "Cite sources" in out.content
 
+    def test_empty_llm_reply_never_leaks_raw_template_placeholders(self) -> None:
+        # Regression for the post-PR-4 review finding: when the LLM
+        # returns an empty string we must NOT fall back to the raw
+        # ``template.template`` (which still contains literal
+        # ``{concern_name}`` etc.). The renderer is invoked again so any
+        # surviving placeholders are substituted; if even that comes out
+        # empty, the concern's name is the safety net.
+        original = ADVICE_TEMPLATES[AdviceType.REASONING_GUIDANCE]
+        ADVICE_TEMPLATES[AdviceType.REASONING_GUIDANCE] = AdviceTemplate(
+            type=AdviceType.REASONING_GUIDANCE,
+            template="",  # forces the LLM branch
+        )
+        try:
+            stub = _StubLLM(reply="   ")  # whitespace -> empty after strip
+            gen = AdviceGenerator(llm=stub)
+            out = gen.generate(_concern(name="My concern"))
+            assert "{" not in out.content and "}" not in out.content
+            assert out.content == "My concern"
+        finally:
+            ADVICE_TEMPLATES[AdviceType.REASONING_GUIDANCE] = original
+
     def test_falls_back_to_llm_when_no_template_registered(self) -> None:
         # Drop the template for the inferred type to force the LLM path.
         original = ADVICE_TEMPLATES.pop(AdviceType.REASONING_GUIDANCE)

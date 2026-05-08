@@ -25,7 +25,7 @@ from COAT_runtime_protocol import Advice, AdviceType, Concern
 from ..ports import LLMClient
 from ..ports.advice_plugin import AdvicePlugin
 from ..types import JSON
-from .templates import ADVICE_TEMPLATES
+from .templates import ADVICE_TEMPLATES, AdviceTemplate
 
 
 class AdviceGenerator(AdvicePlugin):
@@ -61,8 +61,25 @@ class AdviceGenerator(AdvicePlugin):
         prompt = self._llm_prompt(concern, advice_type, context)
         generated = self._llm.complete(prompt, max_tokens=200).strip()
         if not generated:
-            generated = template.template if template else concern.name
+            # NEVER leak the raw, unsubstituted template (literal
+            # ``{concern_name}``…). If the template renders to non-empty
+            # text use that, otherwise fall back to the concern's name —
+            # always something a human reader can parse.
+            generated = self._safe_fallback(concern, template)
         return Advice(type=advice_type, content=generated)
+
+    @staticmethod
+    def _safe_fallback(concern: Concern, template: AdviceTemplate | None) -> str:
+        if template is not None:
+            rendered = template.render(
+                concern_name=concern.name,
+                concern_id=concern.id,
+                description=concern.description or "",
+                rationale="",
+            ).strip()
+            if rendered:
+                return rendered
+        return concern.name
 
     @staticmethod
     def _infer_type(concern: Concern) -> AdviceType:
