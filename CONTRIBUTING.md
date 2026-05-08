@@ -54,7 +54,7 @@ Branches should die after merging — we squash-merge and delete the branch.
 - Every PR fills the [pull request template](.github/pull_request_template.md).
   The checklists are not decorative — they encode the contract.
 
-### Suggested split for M1
+### Suggested split for M1 (✅ landed)
 
 ```text
 PR-1  feat/m1-concern-store      → memory ConcernStore + MemoryDCNStore
@@ -63,6 +63,17 @@ PR-3  feat/m1-coordinator         → coordinator / resolver / vector
 PR-4  feat/m1-advice-weaver       → advice generator + weaver + verifier
 PR-5  feat/m1-turn-loop           → wire facade.on_joinpoint end to end
 PR-6  feat/m1-example-chat        → examples/01_simple_chat_agent
+```
+
+### Suggested split for M2
+
+```text
+PR-7  feat/m2-openai-client       → OpenAILLMClient (this PR)
+PR-8  feat/m2-anthropic-client    → AnthropicLLMClient
+PR-9  feat/m2-azure-client        → AzureOpenAILLMClient + provider matrix
+PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern)
+PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive)
+PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)
 ```
 
 PRs land in order; each one keeps `main` green.
