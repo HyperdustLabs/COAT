@@ -10,24 +10,26 @@ COAT_runtime_llm/
 ├── base.py                  # BaseLLMClient (Abstract)
 ├── stub_client.py           # re-export of COAT_runtime_core.llm.StubLLMClient
 ├── openai_client.py         # ✅ M2 PR-1 — OpenAI + OpenAI-compatible gateways
-├── anthropic_client.py      # M2 (planned)
+├── anthropic_client.py      # ✅ M2 PR-2 — Anthropic (Claude)
 ├── azure_openai_client.py   # M2 (planned)
 └── ollama_client.py         # M2 (planned)
 ```
 
 ## Install
 
-The OpenAI extra installs the upstream SDK:
+Each provider ships behind its own optional extra so you only pay for
+the SDK you actually use:
 
 ```bash
 pip install "COAT-runtime-llm[openai]"
+pip install "COAT-runtime-llm[anthropic]"
 ```
 
-In the workspace dev environment (`uv sync --all-extras --dev`) the
-SDK is pulled in as a dev dependency so CI can exercise the adapter
+In the workspace dev environment (`uv sync --all-extras --dev`) every
+SDK is pulled in as a dev dependency so CI can exercise the adapters
 under mocks.
 
-## Use
+## OpenAI
 
 ```python
 from COAT_runtime_llm import OpenAILLMClient
@@ -57,6 +59,59 @@ right token-cap kwarg. The other three port methods stay
 unaffected — they only set `max_tokens` when the caller (or the
 client's `default_max_tokens`) explicitly asked for one.
 
+## Anthropic (Claude)
+
+```python
+from COAT_runtime_llm import AnthropicLLMClient
+
+llm = AnthropicLLMClient(
+    model="claude-3-5-sonnet-latest",  # default
+    api_key=None,                      # falls back to ANTHROPIC_API_KEY env var
+    base_url=None,                     # for on-prem proxies / gateways
+    timeout_seconds=20.0,
+    default_temperature=0.0,           # deterministic by default
+    default_max_tokens=1024,           # required by Anthropic — never None
+    score_max_tokens=8,                # tiny cap for the score() heuristic
+)
+
+print(llm.complete("Say hi in one word."))
+```
+
+A few provider-specific behaviours the adapter takes care of so the
+host doesn't have to:
+
+* **System messages are hoisted.** Anthropic's API takes a top-level
+  `system=` kwarg rather than a `role: "system"` entry inside
+  `messages`. Hosts that pass an OpenAI-style mixed list keep
+  working — the adapter splits the system rows out and concatenates
+  multiple of them with blank lines.
+* **`max_tokens` is always set.** Anthropic 4xxs without it, so the
+  adapter validates `default_max_tokens > 0` and `score_max_tokens > 0`
+  at construction time. There is no equivalent of OpenAI's
+  "`score_max_tokens=None` to omit"; pass an explicit positive int
+  if you need a different cap.
+* **`structured()` uses forced tool use.** Claude has no JSON-schema
+  `response_format`, so the adapter defines a single `respond` tool
+  whose `input_schema` IS your schema, pins the model to it via
+  `tool_choice`, and returns the resulting `tool_use` block's input
+  dict. This is the same reliability tier as OpenAI strict-mode.
+* **`stop` becomes `stop_sequences`.** Renamed at the kwarg layer; the
+  abstract `LLMClient.complete()` surface is unchanged.
+
+## Stub client for tests
+
+The deterministic in-process stub used by the M1 example and the
+test suite lives in `COAT_runtime_core.llm.StubLLMClient` and is
+re-exported here for backwards compatibility:
+
+```python
+from COAT_runtime_llm import StubLLMClient
+```
+
+The stub has no upstream-SDK dependency — it ships in the core
+runtime so the in-proc happy path stays runnable without any of the
+provider extras installed.
+
 ## Stub client for tests
 
 The deterministic in-process stub used by the M1 example and the
@@ -73,13 +128,26 @@ provider extras installed.
 
 ## Errors
 
-`OpenAIClientError` is raised for fatal misconfiguration:
+Each provider ships its own client-side error type for fatal
+misconfiguration; both are subclasses of `RuntimeError` so a host
+that doesn't care which SDK it's wired up to can catch the base.
+
+`OpenAIClientError`:
 
 * `OPENAI_API_KEY` not set and no `api_key=` passed,
 * the optional `openai` extra not installed,
 * the model returned an empty or non-JSON response when
   `structured()` was asked for JSON.
 
-Network / 5xx / auth errors from the SDK bubble through unchanged
-(`openai.OpenAIError` and friends) so callers can pattern-match on
-the upstream error types they already know.
+`AnthropicClientError`:
+
+* `ANTHROPIC_API_KEY` not set and no `api_key=` passed,
+* the optional `anthropic` extra not installed,
+* `default_max_tokens` / `score_max_tokens` constructed with a
+  non-positive value (Anthropic always requires `max_tokens > 0`),
+* the model declined to call the forced `respond` tool in
+  `structured()`.
+
+Network / 5xx / auth errors from each SDK bubble through unchanged
+(`openai.OpenAIError`, `anthropic.AnthropicError`, …) so callers can
+pattern-match on the upstream error types they already know.

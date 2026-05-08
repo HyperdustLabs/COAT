@@ -68,8 +68,8 @@ PR-6  feat/m1-example-chat        → examples/01_simple_chat_agent
 ### Suggested split for M2
 
 ```text
-PR-7  feat/m2-openai-client       → OpenAILLMClient (this PR)
-PR-8  feat/m2-anthropic-client    → AnthropicLLMClient
+PR-7  feat/m2-openai-client       → OpenAILLMClient                   ✅ landed
+PR-8  feat/m2-anthropic-client    → AnthropicLLMClient                ← this PR
 PR-9  feat/m2-azure-client        → AzureOpenAILLMClient + provider matrix
 PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern)
 PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive)

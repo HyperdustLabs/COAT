@@ -30,16 +30,34 @@ except PackageNotFoundError:
 # Lazy attribute access keeps the SDK import out of module load time.
 # ``from COAT_runtime_llm import OpenAILLMClient`` works only when the
 # matching extra is installed; otherwise the import inside the adapter
-# raises :class:`OpenAIClientError` with a fix-it-yourself message.
-def __getattr__(name: str) -> Any:
-    if name in {"OpenAILLMClient", "OpenAIClientError"}:
-        from .openai_client import OpenAIClientError, OpenAILLMClient
+# raises the provider-specific error with a fix-it-yourself message.
+_LAZY_ATTRS: dict[str, tuple[str, str]] = {
+    "OpenAILLMClient": (".openai_client", "OpenAILLMClient"),
+    "OpenAIClientError": (".openai_client", "OpenAIClientError"),
+    "AnthropicLLMClient": (".anthropic_client", "AnthropicLLMClient"),
+    "AnthropicClientError": (".anthropic_client", "AnthropicClientError"),
+}
 
-        return {"OpenAILLMClient": OpenAILLMClient, "OpenAIClientError": OpenAIClientError}[name]
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+def __getattr__(name: str) -> Any:
+    target = _LAZY_ATTRS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_path, attr = target
+    from importlib import import_module
+
+    module = import_module(module_path, package=__name__)
+    return getattr(module, attr)
 
 
 if TYPE_CHECKING:  # pragma: no cover — re-exported for static analysis only
+    from .anthropic_client import AnthropicClientError, AnthropicLLMClient
     from .openai_client import OpenAIClientError, OpenAILLMClient
 
-__all__ = ["OpenAIClientError", "OpenAILLMClient", "StubLLMClient"]
+__all__ = [
+    "AnthropicClientError",
+    "AnthropicLLMClient",
+    "OpenAIClientError",
+    "OpenAILLMClient",
+    "StubLLMClient",
+]
