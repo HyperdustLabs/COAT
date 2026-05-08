@@ -32,6 +32,7 @@ dev = [
   # provider they want via the package-level optional extras
   # (e.g. ``pip install COAT-runtime-llm[openai]``).
   "openai>=1.40",
+  "anthropic>=0.30",
 ]
 
 [tool.uv.workspace]

@@ -430,6 +430,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "anthropic" },
     { name = "jsonschema" },
     { name = "mypy" },
     { name = "openai" },
@@ -453,6 +454,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anthropic", specifier = ">=0.30" },
     { name = "jsonschema", specifier = ">=4.21" },
     { name = "mypy", specifier = ">=1.10" },
     { name = "openai", specifier = ">=1.40" },

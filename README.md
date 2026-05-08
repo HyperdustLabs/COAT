@@ -37,7 +37,7 @@ Pre-alpha. We are working through the milestones defined in
 | --- | --- | --- |
 | **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | ✅ complete |
 | **M1** | In-proc happy path (memory + stub-llm + `01_simple_chat_agent`) | ✅ complete |
-| **M2** | Real LLM (OpenAI / Anthropic) + extractor + lifecycle | 🚧 in progress — `OpenAILLMClient` landed (PR-7) |
+| **M2** | Real LLM (OpenAI / Anthropic) + extractor + lifecycle | 🚧 in progress — `OpenAILLMClient` (PR-7) + `AnthropicLLMClient` (PR-8) landed |
 | M3 | Persistence (sqlite + jsonl replay) | pending |
 | M4 | Daemon + CLI + HTTP/JSON-RPC | pending |
 | M5 | OpenClaw host plugin | pending |
