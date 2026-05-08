@@ -134,24 +134,36 @@ class TestConstruction:
         ):
             AnthropicLLMClient()
 
-    def test_rejects_non_positive_default_max_tokens(self) -> None:
-        # Anthropic's API 400s on non-positive ``max_tokens``. Catching
-        # this at construction makes the failure mode obvious instead
-        # of surfacing as an opaque API error on the first turn.
+    def test_rejects_negative_default_max_tokens(self) -> None:
+        # Negative ``max_tokens`` is unambiguously invalid; catching
+        # at construction surfaces it as a clean error instead of an
+        # opaque API 4xx on the first turn.
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "k"}, clear=False),
             patch("anthropic.Anthropic", MagicMock()),
             pytest.raises(AnthropicClientError, match="default_max_tokens"),
         ):
-            AnthropicLLMClient(default_max_tokens=0)
+            AnthropicLLMClient(default_max_tokens=-1)
 
-    def test_rejects_non_positive_score_max_tokens(self) -> None:
+    def test_rejects_negative_score_max_tokens(self) -> None:
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "k"}, clear=False),
             patch("anthropic.Anthropic", MagicMock()),
             pytest.raises(AnthropicClientError, match="score_max_tokens"),
         ):
             AnthropicLLMClient(score_max_tokens=-1)
+
+    def test_allows_zero_max_tokens(self) -> None:
+        # Codex P2 on PR-8: ``max_tokens=0`` is a permitted value
+        # (provider-side modes that opt into a zero-completion
+        # request). The constructor must not reject it; if Anthropic
+        # ends up rejecting it the SDK still surfaces a clean error
+        # without the adapter pre-empting the call.
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "k"}, clear=False),
+            patch("anthropic.Anthropic", MagicMock()),
+        ):
+            AnthropicLLMClient(default_max_tokens=0, score_max_tokens=0)
 
     def test_satisfies_llm_client_protocol(self) -> None:
         client, _ = _build_client()
@@ -276,6 +288,137 @@ class TestChat:
         # score() depends on this to fall back to 0.5.
         client, _ = _build_client(blocks=())
         assert client.chat([{"role": "user", "content": "x"}]) == ""
+
+
+# ---------------------------------------------------------------------------
+# System-content shapes (Codex P2 on PR-8) — block-form preservation
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContentShapes:
+    """Anthropic's ``system=`` accepts a string OR a list of content
+    blocks (``[{"type": "text", "text": "...",
+    "cache_control": {"type": "ephemeral"}}, ...]``). The block form
+    is what enables prompt caching, citations metadata, and other
+    block-level features. The original :func:`_split_system` only
+    accepted strings and silently dropped block-form content, which
+    would break prompt caching for any host that wires it up. This
+    suite pins the new contract.
+    """
+
+    def test_block_form_system_content_is_preserved(self) -> None:
+        # The ``cache_control`` marker is the headline reason hosts
+        # use block-form system content. Dropping the block silently
+        # would mean the host *thinks* prompt caching is on but the
+        # request goes out without the cache marker — a silent
+        # latency / cost regression. Pin that this round-trips.
+        client, mock_create = _build_client()
+        block = {
+            "type": "text",
+            "text": "be brief",
+            "cache_control": {"type": "ephemeral"},
+        }
+        client.chat(
+            [
+                {"role": "system", "content": [block]},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        kwargs = mock_create.call_args.kwargs
+        assert kwargs["system"] == [block]
+
+    def test_dict_system_content_promoted_to_single_block(self) -> None:
+        # Some callers pass the block directly without wrapping it in
+        # a list (single-block shorthand). The adapter must promote
+        # it to a one-element list so Anthropic's API gets the shape
+        # it expects.
+        client, mock_create = _build_client()
+        block = {"type": "text", "text": "policy", "cache_control": {"type": "ephemeral"}}
+        client.chat(
+            [
+                {"role": "system", "content": block},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        kwargs = mock_create.call_args.kwargs
+        assert kwargs["system"] == [block]
+
+    def test_string_and_block_system_rows_layered_into_blocks(self) -> None:
+        # When at least one system row is block-form, *every* part is
+        # promoted to a block so the cache markers travel intact and
+        # the layered string policies are not lost. Silently dropping
+        # either side would change behaviour the host did not ask for.
+        client, mock_create = _build_client()
+        cache_block = {
+            "type": "text",
+            "text": "long static policy",
+            "cache_control": {"type": "ephemeral"},
+        }
+        client.chat(
+            [
+                {"role": "system", "content": [cache_block]},
+                {"role": "system", "content": "dynamic per-turn rule"},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        kwargs = mock_create.call_args.kwargs
+        assert kwargs["system"] == [
+            cache_block,
+            {"type": "text", "text": "dynamic per-turn rule"},
+        ]
+
+    def test_all_string_system_rows_stay_string(self) -> None:
+        # Fast path: hosts that don't use block-form content still
+        # get the joined-string shape they had before, byte-for-byte.
+        client, mock_create = _build_client()
+        client.chat(
+            [
+                {"role": "system", "content": "policy A"},
+                {"role": "system", "content": "policy B"},
+                {"role": "user", "content": "x"},
+            ]
+        )
+        assert mock_create.call_args.kwargs["system"] == "policy A\n\npolicy B"
+
+    def test_empty_system_string_does_not_pollute_output(self) -> None:
+        # Empty system rows round-trip as no-ops; they must not
+        # produce a stray "\n\n" in the joined output (which would
+        # make the layered output non-idempotent).
+        client, mock_create = _build_client()
+        client.chat(
+            [
+                {"role": "system", "content": ""},
+                {"role": "system", "content": "policy"},
+                {"role": "user", "content": "x"},
+            ]
+        )
+        assert mock_create.call_args.kwargs["system"] == "policy"
+
+    def test_block_form_preserved_through_structured(self) -> None:
+        # The fix has to apply on the structured() path too, not just
+        # chat() — otherwise hosts that rely on prompt caching for
+        # their JSON schema requests would lose the cache marker
+        # silently.
+        mock_create = MagicMock(return_value=_fake_response(_tool_use_block("respond", {"x": 1})))
+        fake_client = SimpleNamespace(messages=SimpleNamespace(create=mock_create))
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "k"}, clear=False),
+            patch("anthropic.Anthropic", MagicMock(return_value=fake_client)),
+        ):
+            client = AnthropicLLMClient()
+        cache_block = {
+            "type": "text",
+            "text": "schema policy",
+            "cache_control": {"type": "ephemeral"},
+        }
+        client.structured(
+            [
+                {"role": "system", "content": [cache_block]},
+                {"role": "user", "content": "x"},
+            ],
+            schema={"type": "object"},
+        )
+        assert mock_create.call_args.kwargs["system"] == [cache_block]
 
 
 # ---------------------------------------------------------------------------

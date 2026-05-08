@@ -119,15 +119,18 @@ class AnthropicLLMClient(BaseLLMClient):
                 "environment variable."
             )
 
-        if default_max_tokens <= 0:
-            # Anthropic 400s on max_tokens=0 and we'd never want negatives;
-            # caught here so the failure mode is clear at construction
-            # rather than on the first turn.
+        # Negative ``max_tokens`` is unambiguously invalid; we keep
+        # the construction-time check so the failure mode is clear at
+        # startup rather than on the first turn. ``0`` is permitted so
+        # we don't pre-empt provider-side modes that opt into a
+        # zero-completion request (Codex P2 on PR-8) — if Anthropic
+        # rejects the value the SDK still surfaces a clean error.
+        if default_max_tokens < 0:
             raise AnthropicClientError(
-                f"default_max_tokens must be > 0; got {default_max_tokens!r}"
+                f"default_max_tokens must be >= 0; got {default_max_tokens!r}"
             )
-        if score_max_tokens <= 0:
-            raise AnthropicClientError(f"score_max_tokens must be > 0; got {score_max_tokens!r}")
+        if score_max_tokens < 0:
+            raise AnthropicClientError(f"score_max_tokens must be >= 0; got {score_max_tokens!r}")
 
         self._model = model
         self._timeout = timeout_seconds
@@ -168,13 +171,17 @@ class AnthropicLLMClient(BaseLLMClient):
         stop: list[str] | None = None,
     ) -> str:
         # OpenAI-style mixed messages list → (system, non-system).
+        # ``system`` is ``None`` when no system row was supplied,
+        # ``str`` for the all-string case, or ``list[block]`` when
+        # the caller used Anthropic block-form content (cache_control
+        # markers etc).
         system, conversation = _split_system(messages)
         kwargs = self._call_kwargs(
             max_tokens=max_tokens,
             temperature=temperature,
             stop=stop,
         )
-        if system:
+        if system is not None:
             kwargs["system"] = system
         response = self._client.messages.create(
             model=self._model,
@@ -209,7 +216,7 @@ class AnthropicLLMClient(BaseLLMClient):
         ]
         system, conversation = _split_system(messages)
         kwargs = self._call_kwargs(max_tokens=max_tokens, temperature=temperature)
-        if system:
+        if system is not None:
             kwargs["system"] = system
         response = self._client.messages.create(
             model=self._model,
@@ -317,31 +324,67 @@ class AnthropicClientError(RuntimeError):
 
 def _split_system(
     messages: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]]]:
+) -> tuple[str | list[dict[str, Any]] | None, list[dict[str, Any]]]:
     """Split OpenAI-style messages into (system_prompt, non_system).
 
     Anthropic puts the system instruction at the top level of
     ``messages.create`` rather than as a row with ``role: "system"``.
     Hosts that work with the OpenAI / chat-style mixed list keep
-    working unchanged; multiple system rows are concatenated with
-    blank lines so layered policy (e.g. tenant policy + concern
-    advice) is preserved. Non-string contents (Anthropic content
-    blocks, multimodal payloads) are kept as-is for the conversation
-    list and skipped when building the ``system`` string.
+    working unchanged; multiple system rows are concatenated so
+    layered policy (e.g. tenant policy + concern advice) is preserved.
+
+    Returns
+    -------
+    ``(None, conversation)`` when there are no system rows so callers
+    can omit the kwarg from the wire.
+
+    ``(joined_string, conversation)`` when every system row is a
+    plain string — the parts are joined with blank lines.
+
+    ``(blocks, conversation)`` when at least one system row is a
+    list of Anthropic content blocks (``[{"type": "text", ...}]``).
+    String parts are promoted to text blocks and every block is
+    preserved verbatim — including ``cache_control`` markers used
+    for prompt caching, citations metadata, and other block-level
+    fields that would be lost if we collapsed everything to a
+    string (Codex P2 on PR-8).
     """
-    system_parts: list[str] = []
+    system_parts: list[str | list[dict[str, Any]] | dict[str, Any]] = []
     conversation: list[dict[str, Any]] = []
     for msg in messages:
         if msg.get("role") == "system":
             content = msg.get("content")
-            if isinstance(content, str) and content:
-                system_parts.append(content)
-            # Drop empty / non-string system rows silently — they'd
-            # round-trip as no-ops anyway and we don't want a typed
-            # ``content`` block to crash the join below.
+            if content is None or content == "":
+                # Skip empty rows so they don't pollute the joined
+                # output; an empty string round-trips as a no-op.
+                continue
+            system_parts.append(content)
             continue
         conversation.append(msg)
-    return ("\n\n".join(system_parts), conversation)
+
+    if not system_parts:
+        return (None, conversation)
+
+    # If any part is block-form, hoist everything to blocks so the
+    # block-level metadata (cache_control, citations, …) survives
+    # alongside any plain-string parts the caller layered in.
+    has_blocks = any(isinstance(part, list | dict) for part in system_parts)
+    if has_blocks:
+        flattened: list[dict[str, Any]] = []
+        for part in system_parts:
+            if isinstance(part, str):
+                flattened.append({"type": "text", "text": part})
+            elif isinstance(part, list):
+                for block in part:
+                    if isinstance(block, dict):
+                        flattened.append(block)
+            elif isinstance(part, dict):
+                # Single-block shorthand: ``content={"type":"text",…}``.
+                flattened.append(part)
+        return (flattened, conversation)
+
+    # All-string fast path.
+    return ("\n\n".join(part for part in system_parts if isinstance(part, str)), conversation)
 
 
 def _extract_text(response: Any) -> str:
