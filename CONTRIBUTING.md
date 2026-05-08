@@ -72,8 +72,8 @@ PR-7  feat/m2-openai-client       → OpenAILLMClient                   ✅ land
 PR-8  feat/m2-anthropic-client    → AnthropicLLMClient                ✅ landed
 PR-9  feat/m2-azure-client        → AzureOpenAILLMClient + provider matrix ✅ landed
 PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern) ✅ landed
-PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive) ← this PR
-PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)
+PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive) ✅ landed
+PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)         ← this PR
 ```
 
 PRs land in order; each one keeps `main` green.
