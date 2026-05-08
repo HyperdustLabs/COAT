@@ -257,11 +257,18 @@ class ConcernLifecycleManager:
         amount = self._reinforce_delta if delta is None else delta
         if not 0.0 <= amount <= 1.0:
             raise ValueError(f"delta must be in [0.0, 1.0]; got {amount!r}")
+        # ``is_reinforcement=True`` is what makes this an activation
+        # event for the purposes of metrics + activation_state — NOT
+        # the sign of ``score_delta``. ``delta=0.0`` is a legitimate
+        # call (record an activation without biasing the score) and
+        # must still bump ``metrics.activations`` + reset decay +
+        # set ``active=True`` (Codex P2 on PR-11).
         return self._mutate(
             concern,
             target=_LS.REINFORCED,
             from_states=_REINFORCE_FROM,
             score_delta=+amount,
+            is_reinforcement=True,
             deactivate=False,
             sync_dcn_archive=False,
             action="reinforce",
@@ -285,6 +292,7 @@ class ConcernLifecycleManager:
             target=_LS.WEAKENED,
             from_states=_WEAKEN_FROM,
             score_delta=-amount,
+            is_reinforcement=False,
             deactivate=False,
             sync_dcn_archive=False,
             action="weaken",
@@ -303,6 +311,7 @@ class ConcernLifecycleManager:
             target=_LS.ARCHIVED,
             from_states=None,  # rely on the matrix (any non-DELETED → ARCHIVED)
             score_delta=None,
+            is_reinforcement=False,
             deactivate=True,
             sync_dcn_archive=True,
             action="archive",
@@ -324,6 +333,7 @@ class ConcernLifecycleManager:
             target=_LS.REVIVED,
             from_states=frozenset({_LS.ARCHIVED}),
             score_delta=None,
+            is_reinforcement=False,
             deactivate=True,
             sync_dcn_archive=False,
             action="revive",
@@ -359,6 +369,7 @@ class ConcernLifecycleManager:
             target=target_state,
             from_states=None,
             score_delta=None,
+            is_reinforcement=False,
             deactivate=deactivate,
             sync_dcn_archive=sync_archive,
             action="transition",
@@ -376,6 +387,7 @@ class ConcernLifecycleManager:
         target: LifecycleState,
         from_states: frozenset[LifecycleState] | None,
         score_delta: float | None,
+        is_reinforcement: bool,
         deactivate: bool,
         sync_dcn_archive: bool,
         action: str,
@@ -444,9 +456,19 @@ class ConcernLifecycleManager:
             old_score = activation.score if activation.score is not None else self._initial_score
             activation.score = _clamp01(old_score + score_delta)
             activation.last_activated_at = now
-            if score_delta > 0:
-                activation.decay = 0.0
-                activation.active = True
+
+        # Reinforcement is signalled by ``is_reinforcement``, NOT by
+        # ``score_delta > 0``. ``reinforce(c, delta=0.0)`` is a valid
+        # call that records an activation event without biasing the
+        # score (e.g. host wants a heartbeat ping); it must still
+        # reset decay, set ``active=True``, and bump
+        # ``metrics.activations`` (Codex P2 on PR-11). Conflating the
+        # two would silently drop those calls from analytics and
+        # leave the concern in a "reinforced but inactive/cooling"
+        # state — a contradiction.
+        if is_reinforcement:
+            activation.decay = 0.0
+            activation.active = True
 
         if deactivate:
             activation.active = False
@@ -456,7 +478,7 @@ class ConcernLifecycleManager:
         metrics = (
             stored.metrics.model_copy(deep=True) if stored.metrics is not None else ConcernMetrics()
         )
-        if score_delta is not None and score_delta > 0:
+        if is_reinforcement:
             metrics.activations += 1
 
         updated = stored.model_copy(deep=True)

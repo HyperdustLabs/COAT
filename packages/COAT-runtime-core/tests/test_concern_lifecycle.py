@@ -216,6 +216,55 @@ class TestReinforce:
         with pytest.raises(InvalidLifecycleTransition):
             mgr.reinforce(c)
 
+    def test_zero_delta_reinforce_still_counts_as_activation(self) -> None:
+        # Codex P2 on PR-11: ``reinforce(c, delta=0.0)`` is a legal
+        # call (the host wants to log an activation event without
+        # biasing the score, e.g. a heartbeat ping). The previous
+        # implementation gated decay-reset / active=True / metrics
+        # bump on ``score_delta > 0``, which silently dropped these
+        # zero-delta calls. The lifecycle name promises
+        # "reinforced", so the activation_state had better look
+        # reinforced regardless of the score delta.
+        c = _make_concern(activation=ActivationState(score=0.4, decay=0.7, active=False))
+        mgr, _, _ = _make_manager(seed=[c])
+        out = mgr.reinforce(c, delta=0.0)
+        assert out.lifecycle_state == "reinforced"
+        # Score is unchanged but everything else moves.
+        assert out.activation_state.score == pytest.approx(0.4)
+        assert out.activation_state.active is True
+        assert out.activation_state.decay == 0.0
+        assert out.metrics.activations == 1
+        assert out.activation_state.last_activated_at == _FIXED_NOW
+
+    def test_zero_default_delta_still_counts_as_activation(self) -> None:
+        # Same root cause via the per-instance default knob: a
+        # manager configured with ``reinforce_delta=0.0`` is also
+        # legal (constructor accepts [0, 1]), and the resulting
+        # default-delta reinforce calls must still bump activations.
+        c = _make_concern(activation=ActivationState(score=0.5, active=False))
+        mgr, _, _ = _make_manager(seed=[c], reinforce_delta=0.0)
+        out = mgr.reinforce(c)  # uses configured default 0.0
+        assert out.metrics.activations == 1
+        assert out.activation_state.active is True
+
+    def test_zero_delta_reinforce_from_revived_recovers(self) -> None:
+        # Composed regression: revive() leaves active=False and
+        # decay=0; a follow-up zero-delta reinforce must flip the
+        # concern back into a fully active state on the next turn,
+        # otherwise hosts that lean on heartbeat-style reinforcement
+        # silently keep concerns dormant.
+        c = _make_concern(
+            lifecycle=LifecycleState.ARCHIVED,
+            activation=ActivationState(score=0.6),
+        )
+        mgr, _, _ = _make_manager(seed=[c])
+        revived = mgr.revive(c)
+        assert revived.activation_state.active is False
+        bumped = mgr.reinforce(revived, delta=0.0)
+        assert bumped.lifecycle_state == "reinforced"
+        assert bumped.activation_state.active is True
+        assert bumped.metrics.activations == 1
+
     def test_reinforce_persists_to_store(self) -> None:
         # The returned snapshot is one thing; verify the store is
         # actually mutated (callers reading via store.get must see
