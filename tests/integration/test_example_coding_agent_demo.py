@@ -160,6 +160,137 @@ class TestSelectLLM:
         assert "https://" in reply
         assert "[1]" in reply
 
+    def test_azure_endpoint_alone_falls_through_to_stub(self, example_modules) -> None:
+        # Codex P2 on PR-12: when ``AZURE_OPENAI_ENDPOINT`` is set
+        # but no deployment is configured, the auto-detect ladder
+        # used to promote to ``azure`` and crash inside
+        # ``_build_azure`` with a ``RuntimeError`` (because
+        # deployment is required).  Common in shared CI templates
+        # that export the endpoint once but configure deployments
+        # per-job.  Auto-detect must fall through to the next step
+        # in the ladder; explicit ``provider="azure"`` still raises
+        # loudly so the explicit case isn't masked.
+        _, _, llm_mod, _ = example_modules
+        client, label = llm_mod.select_llm(
+            env={"AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/"}
+        )
+        assert isinstance(client, StubLLMClient)
+        assert label == "stub"
+
+    def test_azure_endpoint_plus_deployment_promotes_to_azure(self, example_modules) -> None:
+        # The complement of the prev test: with both endpoint AND a
+        # deployment present the ladder DOES promote, regardless of
+        # whether the deployment came from ``COAT_DEMO_AZURE_DEPLOYMENT``
+        # or the more standard ``AZURE_OPENAI_DEPLOYMENT``.  We don't
+        # actually construct the client here because that needs the
+        # ``openai`` SDK and live creds; we just assert the chosen
+        # branch by reading the private ``_auto_detect``.
+        _, _, llm_mod, _ = example_modules
+        for deployment_var in ("COAT_DEMO_AZURE_DEPLOYMENT", "AZURE_OPENAI_DEPLOYMENT"):
+            chosen = llm_mod._auto_detect(
+                {
+                    "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
+                    deployment_var: "my-deployment",
+                }
+            )
+            assert chosen == "azure", f"expected azure when {deployment_var} is set, got {chosen!r}"
+
+    def test_explicit_azure_without_deployment_still_raises(self, example_modules) -> None:
+        # Auto-detect falls through silently, but an explicit ask
+        # for azure with no deployment must still fail loud — that's
+        # a programming bug in the host config, not a graceful
+        # fallback case.
+        _, _, llm_mod, _ = example_modules
+        with pytest.raises(RuntimeError, match="deployment"):
+            llm_mod.select_llm(
+                "azure",
+                env={"AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/"},
+            )
+
+    def test_injected_env_drives_auto_detect_not_os_environ(
+        self, example_modules, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Codex P2 on PR-12: provider selection honoured the ``env``
+        # arg but credential / deployment lookup leaked through to
+        # ``os.environ``, so test-only behaviour couldn't be
+        # reproduced without mutating the global env.  Here we put
+        # an OpenAI key in the *real* environment, then pass an
+        # empty dict — the result must be ``stub``, proving the
+        # injected env wins end to end (not just for the top-level
+        # branch).
+        _, _, llm_mod, _ = example_modules
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-from-os-environ")
+        client, label = llm_mod.select_llm(env={})
+        assert isinstance(client, StubLLMClient)
+        assert label == "stub"
+
+    def test_openai_builder_uses_injected_env_for_credentials(
+        self, example_modules, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The deeper half of the env-leak fix: when we ask for
+        # ``provider="openai"`` and pass an injected env with a
+        # key, the OpenAI client must be constructed from THAT key
+        # — not from ``os.environ``. We blank ``os.environ`` first
+        # so any leak would surface as ``OpenAIClientError`` from
+        # the underlying client's "no key configured" guard.
+        agent_mod, _, llm_mod, _ = example_modules
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        client, label = llm_mod.select_llm("openai", env={"OPENAI_API_KEY": "sk-fake-injected"})
+
+        # Real client got built (no fallback to stub).
+        assert not isinstance(client, StubLLMClient)
+        assert label.startswith("openai/")
+        # Sanity: ``chat`` is callable; we don't actually exercise
+        # it because that would hit the network with a fake key.
+        assert callable(client.chat)
+        # Cleanup: keep the import-cached agent module from
+        # accidentally reusing this test's transient state.
+        del agent_mod
+
+    def test_anthropic_builder_uses_injected_env_for_credentials(
+        self, example_modules, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Mirror of the openai env-leak test for the anthropic
+        # builder; same root cause, same fix needed.
+        _, _, llm_mod, _ = example_modules
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+        client, label = llm_mod.select_llm(
+            "anthropic", env={"ANTHROPIC_API_KEY": "sk-ant-fake-injected"}
+        )
+        assert not isinstance(client, StubLLMClient)
+        assert label.startswith("anthropic/")
+        assert callable(client.chat)
+
+    def test_azure_builder_uses_injected_env_for_credentials(
+        self, example_modules, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # And again for azure: deployment, endpoint, AND api key all
+        # come from the injected env. Without the env-plumbing fix
+        # the builder would crash on missing endpoint / api key
+        # because ``os.environ`` is blank under monkeypatch.
+        _, _, llm_mod, _ = example_modules
+        for var in (
+            "AZURE_OPENAI_ENDPOINT",
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_DEPLOYMENT",
+            "COAT_DEMO_AZURE_DEPLOYMENT",
+        ):
+            monkeypatch.delenv(var, raising=False)
+
+        client, label = llm_mod.select_llm(
+            "azure",
+            env={
+                "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
+                "AZURE_OPENAI_API_KEY": "azkey-fake-injected",
+                "COAT_DEMO_AZURE_DEPLOYMENT": "my-deployment",
+            },
+        )
+        assert not isinstance(client, StubLLMClient)
+        assert label == "azure/my-deployment"
+        assert callable(client.chat)
+
 
 # ---------------------------------------------------------------------------
 # CodingAgent — turn pipeline
