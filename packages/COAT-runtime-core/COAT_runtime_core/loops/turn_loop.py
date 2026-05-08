@@ -97,7 +97,7 @@ class TurnLoop:
         return_none_when_empty: bool = False,
     ) -> ConcernInjection | None:
         turn_id = self._mint_turn_id(joinpoint)
-        ctx = self._build_context(joinpoint, context)
+        ctx = self._build_context(joinpoint, context, turn_id=turn_id)
 
         with self._observer.on_span(
             "COAT.turn",
@@ -134,7 +134,7 @@ class TurnLoop:
             )
             self._last_injection = injection
 
-            self._record_activations(joinpoint, vector, concerns)
+            self._record_activations(joinpoint, vector, injection)
             self._emit_telemetry(joinpoint, vector, injection)
 
             return injection
@@ -224,37 +224,62 @@ class TurnLoop:
         self,
         joinpoint: JoinpointEvent,
         vector: ConcernVector,
-        concerns: dict[str, Concern],
+        injection: ConcernInjection,
     ) -> None:
-        for active in vector.active_concerns:
-            concern = concerns.get(active.concern_id)
+        # Activation logging is driven by what *actually reached the host*
+        # (i.e. survived advice generation + the weaver's budget cutoff),
+        # not by the coordinator's intermediate vector. Two reasons:
+        #
+        #   1. A concern that was active in the vector but lost its
+        #      advice (eviction race, plugin error) or got trimmed by
+        #      the weaver budget never influenced the host — logging it
+        #      would create a "phantom" activation that distorts the
+        #      ``history`` pointcut strategy on subsequent turns.
+        #   2. Re-fetching the concern from the store (rather than
+        #      trusting the candidate-scan snapshot) guarantees we never
+        #      ``add_node`` a Concern the host has since deleted. Without
+        #      this, the eviction race would silently revive deleted
+        #      DCN nodes.
+        if not injection.injections:
+            return
+
+        scores = {a.concern_id: a.activation_score for a in vector.active_concerns}
+        for cid in _unique_concern_ids(injection):
+            concern = self._concern_store.get(cid)
             if concern is None:
+                # The concern made it into the injection (so it was alive
+                # at advice-generation time) but has since been deleted.
+                # Skip the DCN write — don't resurrect a deleted node.
+                self._observer.on_log(
+                    "warning",
+                    "concern in injection vanished from store; activation skipped",
+                    concern_id=cid,
+                )
                 continue
-            # add_node is idempotent (last write wins); doing it before
-            # log_activation lets the in-memory DCN store, which rejects
-            # unknown node references, accept the activation cleanly.
             try:
+                # Idempotent — refreshes the in-store snapshot in case
+                # the host upserted in between.
                 self._dcn_store.add_node(concern)
             except Exception as exc:
                 self._observer.on_log(
                     "warning",
                     "DCN add_node failed; skipping activation log",
-                    concern_id=concern.id,
+                    concern_id=cid,
                     error=repr(exc),
                 )
                 continue
             try:
                 self._dcn_store.log_activation(
-                    concern_id=concern.id,
+                    concern_id=cid,
                     joinpoint_id=joinpoint.id,
-                    score=float(active.activation_score),
+                    score=float(scores.get(cid, 0.0)),
                     ts=vector.ts,
                 )
             except Exception as exc:
                 self._observer.on_log(
                     "warning",
                     "DCN log_activation failed",
-                    concern_id=concern.id,
+                    concern_id=cid,
                     error=repr(exc),
                 )
 
@@ -305,6 +330,8 @@ class TurnLoop:
     def _build_context(
         jp: JoinpointEvent,
         extra: dict[str, Any] | None,
+        *,
+        turn_id: str,
     ) -> dict[str, Any]:
         ctx: dict[str, Any] = {}
         if jp.payload:
@@ -312,12 +339,30 @@ class TurnLoop:
         if extra:
             ctx.update(extra)
         # Stable bookkeeping keys callers can lean on without poking the
-        # JoinpointEvent again.
+        # JoinpointEvent again. ``turn_id`` is the *minted* value, which
+        # equals ``jp.turn_id`` when the host supplied one and otherwise
+        # equals the fallback used inside ConcernInjection.turn_id, so
+        # downstream code can correlate matcher / advice / weave logs
+        # with the wire-format turn id without special-casing the host.
         ctx.setdefault("joinpoint", jp.name)
         ctx.setdefault("joinpoint_id", jp.id)
-        if jp.turn_id is not None:
-            ctx.setdefault("turn_id", jp.turn_id)
+        ctx.setdefault("turn_id", turn_id)
         return ctx
+
+
+def _unique_concern_ids(injection: ConcernInjection) -> list[str]:
+    """Return the distinct concern ids in ``injection.injections`` in
+    first-seen order. Multiple advices may share a concern (today the
+    weaver emits one each, but the contract permits more); we want to
+    log each concern's activation exactly once."""
+    seen: list[str] = []
+    seen_set: set[str] = set()
+    for inj in injection.injections:
+        if inj.concern_id in seen_set:
+            continue
+        seen_set.add(inj.concern_id)
+        seen.append(inj.concern_id)
+    return seen
 
 
 __all__ = ["TurnLoop"]

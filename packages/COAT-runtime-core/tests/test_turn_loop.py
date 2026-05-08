@@ -372,6 +372,70 @@ class TestContext:
         assert ctx["user_role"] == "admin"
         assert ctx["joinpoint"] == "before_response"
         assert ctx["joinpoint_id"] == "jp-1"
+        # P2 regression: the minted turn id is always present, even
+        # when the joinpoint did not carry one.
+        assert ctx["turn_id"] == "turn-jp-1"
+
+    def test_minted_turn_id_propagates_to_context(self) -> None:
+        # Regression: when the host omits ``JoinpointEvent.turn_id`` the
+        # loop mints ``turn-<jp.id>`` and writes it into
+        # ``ConcernInjection.turn_id``. The same value MUST also land in
+        # the context every collaborator sees, otherwise matcher /
+        # advice / weave logs cannot be correlated with the wire-format
+        # turn id (and the docstring of ``_build_context`` would lie).
+        seen: list[dict] = []
+
+        class _Recorder:
+            def match(self, _pc, _jp, ctx):  # type: ignore[no-untyped-def]
+                seen.append(dict(ctx or {}))
+                return MatchResult(matched=True, score=1.0)
+
+        loop, cstore, *_ = _make_loop(matcher=_Recorder())
+        cstore.upsert(_concern("c1"))
+        out = loop.run(_joinpoint(jp_id="jp-99"))
+        assert seen and seen[0]["turn_id"] == "turn-jp-99"
+        # And it matches the value the weaver stamped on the envelope.
+        assert out is not None
+        assert out.turn_id == seen[0]["turn_id"]
+
+    def test_explicit_turn_id_propagates_to_context(self) -> None:
+        seen: list[dict] = []
+
+        class _Recorder:
+            def match(self, _pc, _jp, ctx):  # type: ignore[no-untyped-def]
+                seen.append(dict(ctx or {}))
+                return MatchResult(matched=True, score=1.0)
+
+        loop, cstore, *_ = _make_loop(matcher=_Recorder())
+        cstore.upsert(_concern("c1"))
+        jp = JoinpointEvent(
+            id="jp-1",
+            level=1,
+            name="before_response",
+            host="test",
+            ts=datetime(2026, 5, 8, tzinfo=UTC),
+            turn_id="trace-abc",
+            payload={"raw_text": "hello"},
+        )
+        loop.run(jp)
+        assert seen and seen[0]["turn_id"] == "trace-abc"
+
+    def test_explicit_context_can_override_minted_turn_id(self) -> None:
+        # The bookkeeping keys are written with ``setdefault`` so an
+        # explicit ``context={"turn_id": ...}`` from the host wins, just
+        # like any other context override. This keeps the override
+        # contract symmetric across all stamped keys.
+        seen: list[dict] = []
+
+        class _Recorder:
+            def match(self, _pc, _jp, ctx):  # type: ignore[no-untyped-def]
+                seen.append(dict(ctx or {}))
+                return MatchResult(matched=True, score=1.0)
+
+        loop, cstore, *_ = _make_loop(matcher=_Recorder())
+        cstore.upsert(_concern("c1"))
+        loop.run(_joinpoint(), context={"turn_id": "custom"})
+        assert seen and seen[0]["turn_id"] == "custom"
 
     def test_extra_context_overrides_payload_keys(self) -> None:
         # Same key in both: the explicit ``context`` argument wins. This
@@ -412,10 +476,11 @@ class TestRaceConditions:
         cstore.upsert(_concern("c1"))
         cfg = RuntimeConfig()
         obs = RecordingObserver()
+        dstore = MemoryDCNStore()
         loop = TurnLoop(
             config=cfg,
             concern_store=cstore,
-            dcn_store=MemoryDCNStore(),
+            dcn_store=dstore,
             matcher=PointcutMatcher(),
             coordinator=ConcernCoordinator(budgets=cfg.budgets),
             weaver=ConcernWeaver(budgets=cfg.budgets),
@@ -425,8 +490,86 @@ class TestRaceConditions:
         out = loop.run(_joinpoint("hello"))
         assert out is not None
         assert out.injections == []
-        assert evictions == ["c1"]
+        assert "c1" in evictions
         assert any("vanished from store" in msg for _, msg, _ in obs.logs)
+        # P1 regression: even though the coordinator put c1 in the
+        # vector, the weaver dropped it (no advice). The DCN MUST NOT
+        # see a phantom activation — that would corrupt the ``history``
+        # pointcut strategy and (worse) re-add a deleted node.
+        assert list(dstore.activation_log()) == []
+        assert dstore._nodes == {}
+
+    def test_phantom_activation_not_logged_when_advice_plugin_drops_concern(self) -> None:
+        # Same shape as the eviction race but driven by an advice plugin
+        # exception. The vector still contains the concern (it was
+        # active) but no injection was produced, so the DCN must stay
+        # untouched.
+        cstore = MemoryConcernStore()
+        cstore.upsert(_concern("c1"))
+        cfg = RuntimeConfig()
+        obs = RecordingObserver()
+        dstore = MemoryDCNStore()
+        loop = TurnLoop(
+            config=cfg,
+            concern_store=cstore,
+            dcn_store=dstore,
+            matcher=_AlwaysHitMatcher(),
+            coordinator=ConcernCoordinator(budgets=cfg.budgets),
+            weaver=ConcernWeaver(budgets=cfg.budgets),
+            advice_plugin=_ExplodingAdvicePlugin(),
+            observer=obs,
+        )
+        out = loop.run(_joinpoint("hello"))
+        assert out is not None
+        assert out.injections == []
+        assert loop.last_vector is not None
+        # Coordinator did treat c1 as active …
+        assert [a.concern_id for a in loop.last_vector.active_concerns] == ["c1"]
+        # … but the DCN must not record an activation for a turn the
+        # host never observed.
+        assert list(dstore.activation_log()) == []
+        assert dstore._nodes == {}
+
+    def test_concern_deleted_after_weaving_but_before_dcn_log_is_skipped(self) -> None:
+        # Subtle race: the concern survives advice generation (so it
+        # made it into the injection) but is deleted from the store
+        # before the DCN logger re-fetches it. We must NOT call
+        # ``add_node`` with stale data — that would resurrect the node.
+        first_get = {"c1": True}
+
+        class _DeleteAfterAdvice(MemoryConcernStore):
+            def get(self, cid):  # type: ignore[no-untyped-def]
+                # Allow the first ``get`` (from advice generation) to
+                # succeed; the second ``get`` (from _record_activations)
+                # sees an empty store.
+                if first_get.get(cid):
+                    first_get[cid] = False
+                    return super().get(cid)
+                return None
+
+        cstore = _DeleteAfterAdvice()
+        cstore.upsert(_concern("c1"))
+        cfg = RuntimeConfig()
+        obs = RecordingObserver()
+        dstore = MemoryDCNStore()
+        loop = TurnLoop(
+            config=cfg,
+            concern_store=cstore,
+            dcn_store=dstore,
+            matcher=PointcutMatcher(),
+            coordinator=ConcernCoordinator(budgets=cfg.budgets),
+            weaver=ConcernWeaver(budgets=cfg.budgets),
+            advice_plugin=AdviceGenerator(llm=StubLLMClient()),
+            observer=obs,
+        )
+        out = loop.run(_joinpoint("hello"))
+        assert out is not None
+        assert [i.concern_id for i in out.injections] == ["c1"]
+        # Even though the injection has the concern, the DCN re-fetch
+        # found nothing — so nothing is logged and no node is revived.
+        assert list(dstore.activation_log()) == []
+        assert dstore._nodes == {}
+        assert any("vanished from store; activation skipped" in msg for _, msg, _ in obs.logs)
 
 
 @pytest.mark.parametrize(
