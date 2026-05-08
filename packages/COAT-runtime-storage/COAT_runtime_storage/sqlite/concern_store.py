@@ -70,6 +70,33 @@ from ._schema import SCHEMA_VERSION, bootstrap_sql
 
 _IN_MEMORY = ":memory:"
 
+# Backslash is the LIKE escape character below. Escape it FIRST so we
+# don't double-escape the wildcards we add in the next pass. Order
+# matters: ``str.replace`` is non-overlapping, so a naive
+# ``replace("%", r"\%")`` followed by ``replace("\\", r"\\\\")``
+# would corrupt the wildcards we just inserted.
+_LIKE_ESCAPE_CHAR = "\\"
+
+
+def _escape_like(needle: str) -> str:
+    """Escape SQL LIKE metacharacters in a substring.
+
+    ``LIKE`` treats ``%`` (any run of chars) and ``_`` (one char) as
+    wildcards. ``MemoryConcernStore.search`` does a plain Python
+    ``in``-test, so to match backend parity we have to neutralise
+    those metacharacters before interpolating the user query into
+    the pattern. The escape character itself (``\\``) must also be
+    escaped so a literal backslash in the query doesn't accidentally
+    quote the next character.
+
+    Used together with ``LIKE ? ESCAPE '\\\\'`` in the SQL.
+    """
+    return (
+        needle.replace(_LIKE_ESCAPE_CHAR, _LIKE_ESCAPE_CHAR * 2)
+        .replace("%", _LIKE_ESCAPE_CHAR + "%")
+        .replace("_", _LIKE_ESCAPE_CHAR + "_")
+    )
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -362,11 +389,19 @@ class SqliteConcernStore(ConcernStore):
         if limit <= 0:
             return []
 
-        like = f"%{needle}%"
+        # Escape LIKE metacharacters (``%`` / ``_`` / ``\``) so a
+        # query containing them matches as a literal substring —
+        # i.e. the same semantics as ``MemoryConcernStore.search``,
+        # which does a plain Python ``in``-test. Without this,
+        # ``search("%")`` would match every row in sqlite but no
+        # rows in memory, and the two backends would drift on a
+        # surprisingly common input (Codex P2 on PR-13).
+        like = f"%{_escape_like(needle)}%"
         sql = """
             SELECT body_json
             FROM concerns
-            WHERE LOWER(name) LIKE ? OR LOWER(description) LIKE ?
+            WHERE LOWER(name) LIKE ? ESCAPE '\\'
+               OR LOWER(description) LIKE ? ESCAPE '\\'
             ORDER BY seq ASC
             LIMIT ?;
         """

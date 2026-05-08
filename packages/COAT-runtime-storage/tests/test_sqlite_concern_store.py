@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 from COAT_runtime_core.ports import ConcernStore
 from COAT_runtime_protocol import Concern, ConcernKind, LifecycleState
+from COAT_runtime_storage.memory import MemoryConcernStore
 from COAT_runtime_storage.sqlite import (
     SCHEMA_VERSION,
     SqliteConcernStore,
@@ -259,6 +260,81 @@ class TestSearch:
         store.upsert(_concern("b", name="refund beta"))
         ids = [c.id for c in store.search("refund")]
         assert ids == ["a", "b"]
+
+    # ------------------------------------------------------------------
+    # LIKE-metacharacter regression tests
+    #
+    # Codex P2 on PR-13: a naive ``LIKE %{needle}%`` interpolation
+    # treats ``%`` and ``_`` as SQL wildcards, so user queries
+    # containing those characters silently match different rows than
+    # the memory backend's literal ``in``-test. The fix escapes them
+    # via ``LIKE ? ESCAPE '\\'``.
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        ("query", "expected_ids"),
+        [
+            # ``%`` must match a literal percent sign, not "everything".
+            ("%", {"pct"}),
+            # ``_`` must match a literal underscore, not "any one char".
+            ("_", {"under"}),
+            # Mixed: a real-world looking query.
+            ("100%", {"pct"}),
+            ("a_b", {"under"}),
+            # Backslash is the escape char itself; a literal backslash
+            # in the query must round-trip without breaking the next
+            # character's escape.
+            ("\\", {"slash"}),
+            # No metacharacters → unchanged behaviour.
+            ("plain", {"plain"}),
+        ],
+    )
+    def test_search_treats_like_metacharacters_as_literals(
+        self,
+        store: SqliteConcernStore,
+        query: str,
+        expected_ids: set[str],
+    ) -> None:
+        store.upsert(_concern("pct", name="discount 100% off"))
+        store.upsert(_concern("under", name="snake_case a_b naming"))
+        store.upsert(_concern("slash", name=r"path\with\backslash"))
+        store.upsert(_concern("plain", name="a plain refund"))
+        store.upsert(_concern("noise1", name="nothing relevant here"))
+        store.upsert(_concern("noise2", description="more noise"))
+
+        hits = {c.id for c in store.search(query)}
+        assert hits == expected_ids
+
+    @pytest.mark.parametrize(
+        "query",
+        ["%", "_", "100%", "a_b", "%refund%", "\\", "plain"],
+    )
+    def test_search_parity_with_memory_backend(self, query: str) -> None:
+        # The Concern store contract is "MemoryConcernStore is the
+        # reference implementation". Pin parity directly so any
+        # future divergence on either side trips this test rather
+        # than silently shifting host behaviour.
+        rows = [
+            _concern("pct", name="discount 100% off"),
+            _concern("under", name="snake_case a_b naming"),
+            _concern("slash", name=r"path\with\backslash"),
+            _concern("plain", name="a plain refund"),
+            _concern("noise1", name="nothing relevant here"),
+        ]
+        mem = MemoryConcernStore()
+        sql = SqliteConcernStore(":memory:")
+        try:
+            for c in rows:
+                mem.upsert(c)
+                sql.upsert(c)
+
+            mem_ids = {c.id for c in mem.search(query)}
+            sql_ids = {c.id for c in sql.search(query)}
+            assert mem_ids == sql_ids, (
+                f"backend mismatch on {query!r}: memory={mem_ids} sqlite={sql_ids}"
+            )
+        finally:
+            sql.close()
 
 
 # ---------------------------------------------------------------------------
