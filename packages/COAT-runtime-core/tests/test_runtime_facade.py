@@ -145,6 +145,37 @@ class TestOnEvent:
         rt.on_event(RuntimeEvent(type="x", ts=datetime(2026, 5, 8, tzinfo=UTC), payload={}))
         assert len(rt.drain_events()) == 1
 
+    def test_queued_event_is_isolated_from_post_dispatch_payload_mutation(self) -> None:
+        rt = _runtime()
+        payload: dict = {"nested": {"x": 1}}
+        rt.on_event(
+            RuntimeEvent(
+                type="t",
+                ts=datetime(2026, 5, 8, tzinfo=UTC),
+                payload=payload,
+            )
+        )
+        payload["nested"]["x"] = 999
+        drained = rt.drain_events()
+        assert drained[0]["payload"]["nested"]["x"] == 1
+
+    def test_subscriber_payload_mutation_does_not_alter_queued_event(self) -> None:
+        rt = _runtime()
+
+        def mutator(ev: dict) -> None:
+            ev["payload"]["k"] = 999
+
+        rt.subscribe(mutator)
+        rt.on_event(
+            RuntimeEvent(
+                type="t",
+                ts=datetime(2026, 5, 8, tzinfo=UTC),
+                payload={"k": 0},
+            )
+        )
+        drained = rt.drain_events()
+        assert drained[0]["payload"]["k"] == 0
+
 
 # ---------------------------------------------------------------------------
 # Heartbeat loop

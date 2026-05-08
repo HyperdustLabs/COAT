@@ -420,11 +420,10 @@ class TestContext:
         loop.run(jp)
         assert seen and seen[0]["turn_id"] == "trace-abc"
 
-    def test_explicit_context_can_override_minted_turn_id(self) -> None:
-        # The bookkeeping keys are written with ``setdefault`` so an
-        # explicit ``context={"turn_id": ...}`` from the host wins, just
-        # like any other context override. This keeps the override
-        # contract symmetric across all stamped keys.
+    def test_payload_turn_id_does_not_shadow_canonical_turn_id(self) -> None:
+        # Regression (Codex PR-5): payload may carry an unrelated ``turn_id``
+        # key (or a stale trace id). It must never replace the runtime mint —
+        # matcher/advice context must stay aligned with ConcernInjection.turn_id.
         seen: list[dict] = []
 
         class _Recorder:
@@ -434,8 +433,33 @@ class TestContext:
 
         loop, cstore, *_ = _make_loop(matcher=_Recorder())
         cstore.upsert(_concern("c1"))
-        loop.run(_joinpoint(), context={"turn_id": "custom"})
-        assert seen and seen[0]["turn_id"] == "custom"
+        jp = JoinpointEvent(
+            id="jp-1",
+            level=1,
+            name="before_response",
+            host="test",
+            ts=datetime(2026, 5, 8, tzinfo=UTC),
+            payload={"raw_text": "hello", "turn_id": "payload-wrong"},
+        )
+        out = loop.run(jp)
+        assert seen and seen[0]["turn_id"] == "turn-jp-1"
+        assert out is not None and out.turn_id == seen[0]["turn_id"]
+
+    def test_explicit_context_turn_id_does_not_shadow_canonical(self) -> None:
+        # Same contract as payload: ``context=`` is merged before stamping.
+        # Runtime ``turn_id`` always wins so telemetry matches the envelope.
+        seen: list[dict] = []
+
+        class _Recorder:
+            def match(self, _pc, _jp, ctx):  # type: ignore[no-untyped-def]
+                seen.append(dict(ctx or {}))
+                return MatchResult(matched=True, score=1.0)
+
+        loop, cstore, *_ = _make_loop(matcher=_Recorder())
+        cstore.upsert(_concern("c1"))
+        out = loop.run(_joinpoint(), context={"turn_id": "should-not-win"})
+        assert seen and seen[0]["turn_id"] == "turn-jp-1"
+        assert out is not None and out.turn_id == seen[0]["turn_id"]
 
     def test_extra_context_overrides_payload_keys(self) -> None:
         # Same key in both: the explicit ``context`` argument wins. This

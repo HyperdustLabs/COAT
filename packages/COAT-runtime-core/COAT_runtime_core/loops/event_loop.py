@@ -9,7 +9,8 @@ async user feedback, etc. M1 keeps the implementation deliberately narrow:
 * Subscribers can register callbacks via :meth:`subscribe`; every
   :meth:`dispatch` call fans the event out to subscribers synchronously
   before returning. Callbacks that raise are isolated so one buggy
-  subscriber cannot stall the loop.
+  subscriber cannot stall the loop. Events are deep-copied so nested
+  payloads are not shared with callers or between subscribers.
 
 The event loop is intentionally synchronous in M1; the real async
 queue + worker pool ships in M2 once we have a host that needs it.
@@ -17,6 +18,7 @@ queue + worker pool ships in M2 once we have a host that needs it.
 
 from __future__ import annotations
 
+import copy
 import threading
 from collections.abc import Callable
 from typing import Any
@@ -38,13 +40,17 @@ class EventLoop:
 
     def dispatch(self, event: dict[str, Any]) -> None:
         """Append the event to the queue and fan out to subscribers."""
+        # Deep-copy so nested payloads are isolated from caller mutations
+        # after ``dispatch`` returns and from subscriber-to-subscriber
+        # fan-out (``dict()`` alone shares mutable nested objects).
+        queued = copy.deepcopy(event)
         with self._lock:
-            self._queue.append(dict(event))
+            self._queue.append(queued)
             subs = list(self._subscribers)
 
         for cb in subs:
             try:
-                cb(event)
+                cb(copy.deepcopy(queued))
             except Exception as exc:
                 self._observer.on_log(
                     "error",

@@ -32,6 +32,10 @@ Design notes
   ``return_none_when_empty`` flag. The default is to return an empty
   :class:`ConcernInjection` so downstream code never has to special-case
   the no-op path.
+* Context passed to collaborators is ``payload ∪ extra`` with explicit-arg
+  precedence for ordinary keys. ``turn_id`` is an exception: after the merge
+  it is **forced** to the canonical mint (same string as
+  ``ConcernInjection.turn_id``) so payload/context cannot shadow it.
 """
 
 from __future__ import annotations
@@ -339,14 +343,15 @@ class TurnLoop:
         if extra:
             ctx.update(extra)
         # Stable bookkeeping keys callers can lean on without poking the
-        # JoinpointEvent again. ``turn_id`` is the *minted* value, which
-        # equals ``jp.turn_id`` when the host supplied one and otherwise
-        # equals the fallback used inside ConcernInjection.turn_id, so
-        # downstream code can correlate matcher / advice / weave logs
-        # with the wire-format turn id without special-casing the host.
+        # JoinpointEvent again.
+        #
+        # ``turn_id`` is assigned **after** merging payload + caller context
+        # so it always matches ``ConcernInjection.turn_id``. Payload keys or
+        # ``context=`` entries named ``turn_id`` cannot shadow the runtime
+        # mint — otherwise matcher/advice telemetry drifts from the wire id.
         ctx.setdefault("joinpoint", jp.name)
         ctx.setdefault("joinpoint_id", jp.id)
-        ctx.setdefault("turn_id", turn_id)
+        ctx["turn_id"] = turn_id
         return ctx
 
 
