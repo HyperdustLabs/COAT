@@ -111,10 +111,21 @@ class ExtractionResult:
 # LLM only needs to fill in the shape-shifting fields; structural
 # defaults come from the pydantic envelope when we instantiate
 # ``Concern(**emitted)``.
+#
+# ``required`` is intentionally empty: every per-origin instruction
+# tells the model to return ``{}`` when the span isn't a rule
+# (front-matter, prose, an aside).  Strict-mode providers (OpenAI
+# strict, Azure) reject responses that violate ``required``, so a
+# ``required: ["name"]`` here would make the no-concern signal
+# unreachable on the wire and push the model to fabricate concerns
+# for non-rule spans (Codex P1 on PR-10).  Non-empty dicts that omit
+# ``name`` are still rejected at envelope time by pydantic
+# (``Concern.name: str = Field(min_length=1)``), so the wire-level
+# loosening doesn't weaken the eventual envelope guarantees.
 _LLM_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["name"],
+    "required": [],
     "properties": {
         "id": {"type": "string", "minLength": 1, "maxLength": 200},
         "kind": {"type": "string", "enum": ["concern", "meta_concern"]},
@@ -416,19 +427,24 @@ class ConcernExtractor:
     def _segment_spans(self, text: str) -> list[str]:
         """Cheap NL segmenter: paragraphs + list items.
 
-        1. Strip and collapse blank-line runs.
-        2. Split by blank-line boundaries (paragraphs).
-        3. Within each paragraph, also split before any line that
+        1. Normalise CRLF / CR line endings to LF so Windows / old-Mac
+           inputs behave the same as Unix ones (Codex P2 on PR-10:
+           ``\\r\\n\\r\\n`` boundaries previously failed to match
+           and collapsed multi-paragraph governance docs into a
+           single span).
+        2. Strip and collapse blank-line runs.
+        3. Split by blank-line boundaries (paragraphs).
+        4. Within each paragraph, also split before any line that
            starts with a list marker (``- ``, ``* ``, ``• ``,
            ``1.``, ``(2)``, …) so each rule in a numbered policy
            list becomes its own span.
-        4. Drop spans shorter than ``min_span_chars`` after strip().
+        5. Drop spans shorter than ``min_span_chars`` after strip().
 
         The output is a list of de-whitespaced spans in source order.
         """
         if not text:
             return []
-        normalised = text.strip()
+        normalised = text.replace("\r\n", "\n").replace("\r", "\n").strip()
         if not normalised:
             return []
         paragraphs = _BLANK_LINE_RE.split(normalised)
