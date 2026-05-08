@@ -8,6 +8,7 @@ matching optional extra::
 
     pip install COAT-runtime-llm[openai]
     pip install COAT-runtime-llm[anthropic]
+    pip install COAT-runtime-llm[azure]   # alias for the openai extra
 
 The deterministic in-process stub used by tests + the M1 example lives
 in :mod:`COAT_runtime_core.llm` and is re-exported below for the
@@ -36,6 +37,8 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "OpenAIClientError": (".openai_client", "OpenAIClientError"),
     "AnthropicLLMClient": (".anthropic_client", "AnthropicLLMClient"),
     "AnthropicClientError": (".anthropic_client", "AnthropicClientError"),
+    "AzureOpenAILLMClient": (".azure_openai_client", "AzureOpenAILLMClient"),
+    "AzureOpenAIClientError": (".azure_openai_client", "AzureOpenAIClientError"),
 }
 
 
@@ -52,11 +55,14 @@ def __getattr__(name: str) -> Any:
 
 if TYPE_CHECKING:  # pragma: no cover — re-exported for static analysis only
     from .anthropic_client import AnthropicClientError, AnthropicLLMClient
+    from .azure_openai_client import AzureOpenAIClientError, AzureOpenAILLMClient
     from .openai_client import OpenAIClientError, OpenAILLMClient
 
 __all__ = [
     "AnthropicClientError",
     "AnthropicLLMClient",
+    "AzureOpenAIClientError",
+    "AzureOpenAILLMClient",
     "OpenAIClientError",
     "OpenAILLMClient",
     "StubLLMClient",
