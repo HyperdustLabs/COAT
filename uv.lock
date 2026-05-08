@@ -432,6 +432,7 @@ dependencies = [
 dev = [
     { name = "jsonschema" },
     { name = "mypy" },
+    { name = "openai" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pyyaml" },
@@ -454,6 +455,7 @@ requires-dist = [
 dev = [
     { name = "jsonschema", specifier = ">=4.21" },
     { name = "mypy", specifier = ">=1.10" },
+    { name = "openai", specifier = ">=1.40" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-cov", specifier = ">=5.0" },
     { name = "pyyaml", specifier = ">=6.0" },

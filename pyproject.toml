@@ -27,6 +27,11 @@ dev = [
   "mypy>=1.10",
   "jsonschema>=4.21",
   "pyyaml>=6.0",
+  # Real LLM provider SDKs are dev-only at the workspace level so CI
+  # exercises the adapters under mocks. End users still install the
+  # provider they want via the package-level optional extras
+  # (e.g. ``pip install COAT-runtime-llm[openai]``).
+  "openai>=1.40",
 ]
 
 [tool.uv.workspace]
