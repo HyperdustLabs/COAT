@@ -35,15 +35,17 @@ Pre-alpha. We are working through the milestones defined in
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
-| **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | complete |
-| M1 | In-proc happy path (memory + stub-llm) | pending |
-| M2 | Real LLM (OpenAI / Anthropic) | pending |
+| **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | ✅ complete |
+| **M1** | In-proc happy path (memory + stub-llm + `01_simple_chat_agent`) | ✅ complete |
+| **M2** | Real LLM (OpenAI / Anthropic) + extractor + lifecycle | 🚧 in progress — `OpenAILLMClient` landed (PR-7) |
 | M3 | Persistence (sqlite + jsonl replay) | pending |
 | M4 | Daemon + CLI + HTTP/JSON-RPC | pending |
 | M5 | OpenClaw host plugin | pending |
 | M6 | Heartbeat + Meta governance workers | pending |
 | M7 | Second host (langgraph/hermes) | pending |
 | M8 | Postgres + Helm/K8s | pending |
+
+The full per-PR M1 / M2 split lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
@@ -75,33 +77,79 @@ Detailed layout, module breakdown, schemas, protocol, and milestones are in
 
 ---
 
-## Quick start (M0)
+## Quick start
 
 Requires Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
-# Install workspace + all member packages in editable mode
-uv sync
+# Install workspace + every member package in editable mode (incl. dev extras)
+uv sync --all-extras --dev
 
-# Run all tests across the workspace
+# Run all tests across the workspace (≈ 440 today, all green)
 uv run pytest
 
 # Validate JSON schemas + check generated pydantic models stay in sync
 uv run python tools/schema_check.py
 ```
 
-There is nothing to run end-to-end yet — that arrives at M1.
+### Run the M1 demo
+
+The smallest end-to-end agent is wired up in `examples/01_simple_chat_agent/`.
+It uses in-memory stores and a deterministic stub LLM, so it runs hermetically
+in ≈ 50 ms with no API key required:
+
+```bash
+uv run python -m examples.01_simple_chat_agent.main
+
+# or with your own prompts:
+uv run python -m examples.01_simple_chat_agent.main \
+  "Who invented COAT?" "Tell me how concerns are matched."
+```
+
+Each turn shows the matched concerns, woven injection, and verifier verdicts —
+read [`examples/01_simple_chat_agent/README.md`](examples/01_simple_chat_agent/README.md)
+to see what each line of the host code exercises.
+
+### Plug in a real LLM (M2)
+
+To swap the stub for a real provider, install the matching extra and pass an
+`OpenAILLMClient` (or any other adapter from `COAT_runtime_llm`) into the
+runtime:
+
+```bash
+pip install "COAT-runtime-llm[openai]"
+export OPENAI_API_KEY=sk-...
+```
+
+```python
+from COAT_runtime_core import COATRuntime, RuntimeConfig
+from COAT_runtime_llm import OpenAILLMClient
+from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+
+runtime = COATRuntime(
+    RuntimeConfig(),
+    concern_store=MemoryConcernStore(),
+    dcn_store=MemoryDCNStore(),
+    llm=OpenAILLMClient(model="gpt-4o-mini"),
+)
+```
+
+The same client works against any OpenAI-compatible gateway (Azure, vLLM,
+OpenRouter, TogetherAI, …) by setting `base_url=`. See
+[`packages/COAT-runtime-llm/README.md`](packages/COAT-runtime-llm/README.md)
+for the full surface.
 
 ---
 
 ## Contributing
 
-From **M1 onwards** all changes land via pull request. The full workflow,
-branching model, PR sizing, and local verification steps are in
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+All changes land via pull request — branch protection on `main` requires CI
+green and a linear history. The full workflow, branching model, PR sizing,
+and local verification steps are in [`CONTRIBUTING.md`](CONTRIBUTING.md), which
+also tracks the per-PR breakdown for each milestone.
 
 ```bash
-git switch -c feat/m1-<scope>
+git switch -c feat/m2-<scope>
 # ... edit ...
 ./scripts/verify.sh        # local mirror of CI
 git push -u origin HEAD     # then open a PR on GitHub
