@@ -71,8 +71,8 @@ PR-6  feat/m1-example-chat        → examples/01_simple_chat_agent
 PR-7  feat/m2-openai-client       → OpenAILLMClient                   ✅ landed
 PR-8  feat/m2-anthropic-client    → AnthropicLLMClient                ✅ landed
 PR-9  feat/m2-azure-client        → AzureOpenAILLMClient + provider matrix ✅ landed
-PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern) ← this PR
-PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive)
+PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern) ✅ landed
+PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive) ← this PR
 PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)
 ```
 

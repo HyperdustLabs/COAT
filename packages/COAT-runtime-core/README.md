@@ -101,3 +101,79 @@ Five entry points cover v0.1 §20.1's source list:
 | `extract_from_tool_result(tool_name, result)` | `tool_result` | 0.6 |
 | `extract_from_draft_output(draft)` | `draft_output` | 0.4 |
 | `extract_from_feedback(feedback)` | `feedback` | 0.55 |
+
+## ConcernLifecycleManager (M2 PR-11)
+
+`ConcernLifecycleManager` owns every transition of a stored
+`Concern`'s `lifecycle_state`, plus the matching `activation_state`
+and `metrics` book-keeping. Once a concern is in the
+`ConcernStore` nothing else is allowed to mutate these fields —
+the manager is the single writer.
+
+```python
+from COAT_runtime_core.concern import (
+    ConcernLifecycleManager,
+    InvalidLifecycleTransition,
+)
+from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+
+cs, ds = MemoryConcernStore(), MemoryDCNStore()
+cs.upsert(concern); ds.add_node(concern)
+
+mgr = ConcernLifecycleManager(concern_store=cs, dcn_store=ds)
+
+mgr.reinforce(concern)              # score += 0.1, activations += 1
+mgr.weaken(concern, delta=0.2)      # score -= 0.2, activations untouched
+mgr.archive(concern, reason="superseded")  # lifecycle = archived (DCN synced)
+mgr.revive(concern)                 # archived → revived; next reinforce → reinforced
+mgr.transition(concern, "frozen")   # generic path for the rarer states
+```
+
+State machine:
+
+```text
+created ──► active ◄──► reinforced
+              ▲    │
+              │    ▼
+              └── weakened
+              │
+              ├──► merged ──► archived ──► revived ──► active
+              ├──► frozen ──► active
+              └──► archived ──► revived ──► active
+                              │
+                              └──► deleted   (terminal)
+```
+
+Design notes:
+
+* **Single writer** — every method re-fetches the concern from
+  `ConcernStore` before mutating, so a stale caller-side snapshot
+  can't silently overwrite newer state. The caller's `Concern` is
+  used only for its `id`.
+* **DCN sync** — `archive` propagates to `DCNStore` so the graph-
+  resident copy stays in sync. Idempotent: re-archiving an already-
+  archived concern still calls `dcn_store.archive(id)` so an
+  earlier desync (e.g. crash between `upsert` and `dcn_store.archive`)
+  heals on the next attempt.
+* **Hard-stop on `deleted`** — `_ALLOWED_TRANSITIONS[DELETED]` is
+  empty. Any attempt to mutate a deleted concern raises
+  `InvalidLifecycleTransition` (a `ValueError` subclass) so a
+  use-after-delete bug fails loud rather than silently
+  resurrecting state.
+* **Idempotent terminals** — `archive` of an already-archived
+  concern, or `transition(target=current)` for an idempotent state,
+  is a no-op and does **not** bump `updated_at`. Score-changing
+  methods (`reinforce` / `weaken`) always apply their delta —
+  that's the point.
+* **Determinism** — inject `now=` for byte-stable timestamps in
+  tests; defaults to `datetime.now(UTC)`.
+
+Per-method allowed source states:
+
+| Method | Allowed `lifecycle_state` (current) | Effect |
+| --- | --- | --- |
+| `reinforce` | `created`, `active`, `reinforced`, `weakened`, `revived` | score += δ, activations += 1, decay = 0, active = True |
+| `weaken` | same as `reinforce` | score -= δ (decay + active preserved) |
+| `archive` | any except `deleted` | lifecycle = `archived`, active = False, DCN synced |
+| `revive` | `archived` only | lifecycle = `revived`, active = False, decay = 0, score preserved |
+| `transition` | per `_ALLOWED_TRANSITIONS` matrix | host-controlled generic path |
