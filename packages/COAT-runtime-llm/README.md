@@ -11,9 +11,21 @@ COAT_runtime_llm/
 ├── stub_client.py           # re-export of COAT_runtime_core.llm.StubLLMClient
 ├── openai_client.py         # ✅ M2 PR-1 — OpenAI + OpenAI-compatible gateways
 ├── anthropic_client.py      # ✅ M2 PR-2 — Anthropic (Claude)
-├── azure_openai_client.py   # M2 (planned)
+├── azure_openai_client.py   # ✅ M2 PR-3 — Azure OpenAI (key + AAD auth)
 └── ollama_client.py         # M2 (planned)
 ```
+
+## Provider matrix
+
+All adapters implement the same `LLMClient` port — same four methods,
+same `LLMClient` structural protocol, swappable at runtime:
+
+| Provider | Class | Native JSON-schema | System prompt shape | `score()` | Auth |
+| --- | --- | --- | --- | --- | --- |
+| OpenAI / OpenAI-compatible gateways | `OpenAILLMClient` | ✅ strict mode | inline `role: "system"` row | numeric heuristic; `score_max_tokens=None` for o1 / o3 / gpt-5 | `OPENAI_API_KEY` |
+| Azure OpenAI | `AzureOpenAILLMClient` (subclass of `OpenAILLMClient`) | ✅ strict mode (inherited) | inline `role: "system"` row (inherited) | inherited | `AZURE_OPENAI_API_KEY` **or** AAD token / token provider |
+| Anthropic (Claude) | `AnthropicLLMClient` | forced tool-use (equivalent reliability) | hoisted to top-level `system=` kwarg; multiple rows concatenated | numeric heuristic; same regex | `ANTHROPIC_API_KEY` |
+| In-proc stub | `StubLLMClient` (lives in `COAT_runtime_core.llm`) | scripted return value | n/a | scripted return value | none |
 
 ## Install
 
@@ -23,6 +35,7 @@ the SDK you actually use:
 ```bash
 pip install "COAT-runtime-llm[openai]"
 pip install "COAT-runtime-llm[anthropic]"
+pip install "COAT-runtime-llm[azure]"      # alias for the openai extra
 ```
 
 In the workspace dev environment (`uv sync --all-extras --dev`) every
@@ -47,8 +60,9 @@ print(llm.complete("Say hi in one word."))
 ```
 
 The same client works against any OpenAI-compatible HTTP gateway —
-just override `base_url`. Native Azure OpenAI deployments will land
-as a thin subclass in a follow-up PR (`AzureOpenAILLMClient`).
+just override `base_url`. For Azure-native deployments use
+`AzureOpenAILLMClient` (below), which handles the deployment-based
+routing and AAD token plumbing.
 
 ### Reasoning models (o1 / o3 / gpt-5 family)
 
@@ -58,6 +72,65 @@ cap, and let the host (or a future provider subclass) handle the
 right token-cap kwarg. The other three port methods stay
 unaffected — they only set `max_tokens` when the caller (or the
 client's `default_max_tokens`) explicitly asked for one.
+
+## Azure OpenAI
+
+Use `AzureOpenAILLMClient` for native Azure-deployed models — the
+chat-completions surface is identical to upstream so every
+`LLMClient` method is inherited verbatim from `OpenAILLMClient`.
+Azure changes only the SDK constructor (auth shape, mandatory
+`api_version`, deployment-based routing).
+
+```python
+from COAT_runtime_llm import AzureOpenAILLMClient
+
+llm = AzureOpenAILLMClient(
+    deployment="my-prod-deploy",                # required
+    endpoint="https://my-resource.openai.azure.com",  # or AZURE_OPENAI_ENDPOINT
+    api_version="2024-06-01",                   # default; or OPENAI_API_VERSION
+    api_key=None,                               # falls back to AZURE_OPENAI_API_KEY
+    timeout_seconds=20.0,
+    default_temperature=0.0,
+    score_max_tokens=8,
+)
+print(llm.complete("Say hi in one word."))
+```
+
+For Microsoft Entra (AAD) auth, pass a token provider — the SDK
+calls it on each request so token rotation is automatic:
+
+```python
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from COAT_runtime_llm import AzureOpenAILLMClient
+
+provider = get_bearer_token_provider(
+    DefaultAzureCredential(),
+    "https://cognitiveservices.azure.com/.default",
+)
+llm = AzureOpenAILLMClient(
+    deployment="my-prod-deploy",
+    endpoint="https://my-resource.openai.azure.com",
+    azure_ad_token_provider=provider,
+)
+```
+
+A few things the adapter pins down so hosts can stay generic:
+
+* **Deployment is the routing key.** Azure routes on deployment
+  name, not model family — the constructor takes `deployment=...`
+  and stores it where the parent's `chat.completions.create(...)`
+  expects `model=`. There is no model dropdown on the call site.
+* **`api_version` is required.** Defaults to `2024-06-01`; falls
+  back to `OPENAI_API_VERSION` when set; per-call value beats env.
+* **One credential at a time.** The three explicit auth options
+  (`api_key`, `azure_ad_token`, `azure_ad_token_provider`) are
+  **pairwise** mutually exclusive — the constructor counts how many
+  were supplied and rejects the call if more than one is set, even
+  in the AAD-only combination of static token + provider (Codex
+  review on PR-9). Misconfiguring more than one fails fast at
+  startup with a descriptive `AzureOpenAIClientError` listing
+  exactly which kwargs collided (alias of `OpenAIClientError` so
+  existing handlers keep working).
 
 ## Anthropic (Claude)
 
@@ -121,12 +194,15 @@ Each provider ships its own client-side error type for fatal
 misconfiguration; both are subclasses of `RuntimeError` so a host
 that doesn't care which SDK it's wired up to can catch the base.
 
-`OpenAIClientError`:
+`OpenAIClientError` (aliased as `AzureOpenAIClientError`):
 
-* `OPENAI_API_KEY` not set and no `api_key=` passed,
+* `OPENAI_API_KEY` / `AZURE_OPENAI_API_KEY` not set and no
+  `api_key=` passed,
 * the optional `openai` extra not installed,
 * the model returned an empty or non-JSON response when
-  `structured()` was asked for JSON.
+  `structured()` was asked for JSON,
+* (Azure-only) endpoint not configured, multiple credentials passed
+  simultaneously, or empty deployment.
 
 `AnthropicClientError`:
 
