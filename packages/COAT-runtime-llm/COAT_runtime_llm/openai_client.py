@@ -46,7 +46,13 @@ _LOG = logging.getLogger(__name__)
 # A line-anchored float regexp would over-match on "1.0.2"-style strings;
 # this picks up the first decimal-or-integer in the response so
 # "Score: 0.83 because…" / "0.83" / "I'd say 0.83/1.0" all parse.
-_FLOAT_RE = re.compile(r"-?\d+(?:\.\d+)?")
+#
+# The trailing ``(?:[eE][+-]?\d+)?`` group accepts scientific notation
+# (Codex P2 on PR-7): without it, a low-confidence reply like ``1e-2``
+# would match only the leading ``1`` and clamp to 1.0, inverting the
+# model's intent. Sub-zero scores from reasoning models often come
+# back in exponent form, so the parser needs to handle them natively.
+_FLOAT_RE = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?")
 
 
 class OpenAILLMClient(BaseLLMClient):
@@ -82,9 +88,19 @@ class OpenAILLMClient(BaseLLMClient):
         explicit value.
     default_max_tokens:
         Same idea, for ``max_tokens``. ``None`` lets the SDK decide.
+    score_max_tokens:
+        Token cap applied specifically to :meth:`score`. The score
+        path expects a single numeric reply, so the cap is tiny by
+        default to keep wire latency down. Set to ``None`` to omit
+        the cap entirely — required for OpenAI reasoning models
+        (o1 / o3 / gpt-5 family) which reject ``max_tokens`` and
+        expect ``max_completion_tokens`` instead. The fallback path
+        (None) lets a future provider-specific subclass swap in the
+        right knob without changing the score contract.
     """
 
     DEFAULT_MODEL = "gpt-4o-mini"
+    DEFAULT_SCORE_MAX_TOKENS = 8
 
     def __init__(
         self,
@@ -97,6 +113,7 @@ class OpenAILLMClient(BaseLLMClient):
         timeout_seconds: float = 20.0,
         default_temperature: float | None = 0.0,
         default_max_tokens: int | None = None,
+        score_max_tokens: int | None = DEFAULT_SCORE_MAX_TOKENS,
     ) -> None:
         try:
             from openai import OpenAI
@@ -117,6 +134,7 @@ class OpenAILLMClient(BaseLLMClient):
         self._timeout = timeout_seconds
         self._default_temperature = default_temperature
         self._default_max_tokens = default_max_tokens
+        self._score_max_tokens = score_max_tokens
         self._client = OpenAI(
             api_key=resolved_key,
             base_url=base_url,
@@ -212,18 +230,35 @@ class OpenAILLMClient(BaseLLMClient):
         if criteria:
             instruction += f"\nCriteria: {criteria.strip()}"
 
-        text = self.chat(
-            messages=[
-                {"role": "system", "content": instruction},
-                {"role": "user", "content": f"Prompt:\n{prompt}\n\nCandidate:\n{candidate}"},
-            ],
+        # ``score`` deliberately bypasses :meth:`chat` / :meth:`_call_kwargs`
+        # so the per-call kwargs are exactly what we want (Codex P1 on
+        # PR-7). Going through ``chat`` made ``score_max_tokens=None``
+        # silently fall back to ``default_max_tokens``, which is wrong:
+        # disabling the score-specific cap should not pull in an
+        # unrelated host-wide cap. It also keeps the door open for a
+        # provider-specific subclass to swap in ``max_completion_tokens``
+        # for OpenAI's reasoning models (o1 / o3 / gpt-5 family) without
+        # touching the abstract :meth:`chat` surface.
+        kwargs: dict[str, Any] = {
             # Force determinism: scoring shouldn't drift between
             # otherwise-identical calls. We override a non-zero
             # ``default_temperature`` because the contract treats
             # ``score`` as a property of the (prompt, candidate) pair.
-            temperature=0.0,
-            max_tokens=8,
+            "temperature": 0.0,
+        }
+        if self._score_max_tokens is not None:
+            kwargs["max_tokens"] = self._score_max_tokens
+
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": instruction},
+                {"role": "user", "content": f"Prompt:\n{prompt}\n\nCandidate:\n{candidate}"},
+            ],
+            **kwargs,
         )
+        text = _extract_chat_text(response)
+
         match = _FLOAT_RE.search(text)
         if match is None:
             _LOG.warning("score() got unparseable reply %r; falling back to 0.5", text)

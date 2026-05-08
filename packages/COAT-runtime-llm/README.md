@@ -38,6 +38,7 @@ llm = OpenAILLMClient(
     base_url=None,                # set for Azure / vLLM / OpenRouter etc.
     timeout_seconds=20.0,
     default_temperature=0.0,      # deterministic by default
+    score_max_tokens=8,           # tiny cap on score() — set None for o1 / o3 / gpt-5
 )
 
 print(llm.complete("Say hi in one word."))
@@ -46,6 +47,15 @@ print(llm.complete("Say hi in one word."))
 The same client works against any OpenAI-compatible HTTP gateway —
 just override `base_url`. Native Azure OpenAI deployments will land
 as a thin subclass in a follow-up PR (`AzureOpenAILLMClient`).
+
+### Reasoning models (o1 / o3 / gpt-5 family)
+
+These models reject `max_tokens` and expect `max_completion_tokens`
+instead. Pass `score_max_tokens=None` to drop the score-specific
+cap, and let the host (or a future provider subclass) handle the
+right token-cap kwarg. The other three port methods stay
+unaffected — they only set `max_tokens` when the caller (or the
+client's `default_max_tokens`) explicitly asked for one.
 
 ## Stub client for tests
 

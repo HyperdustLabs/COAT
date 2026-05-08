@@ -258,3 +258,94 @@ class TestScore:
         assert "be concise" in system["content"]
         # Score is deterministic by contract.
         assert kwargs["temperature"] == 0.0
+
+    # --- Codex P2 regressions: scientific notation -----------------------
+
+    def test_parses_scientific_notation_low(self) -> None:
+        # Reasoning models commonly reply in exponent form for
+        # near-zero scores. Without exponent support the parser would
+        # truncate "1e-2" to "1" and clamp it to 1.0 — flipping a
+        # near-zero score into a maximum score.
+        client, _ = _build_client(reply="1e-2")
+        assert client.score("p", "c") == pytest.approx(0.01)
+
+    def test_parses_uppercase_exponent(self) -> None:
+        client, _ = _build_client(reply="5E-1")
+        assert client.score("p", "c") == pytest.approx(0.5)
+
+    def test_parses_signed_exponent_with_decimal(self) -> None:
+        client, _ = _build_client(reply="1.5e+3 should clamp")
+        # Way above 1.0 → clamped, but the parse must consume the
+        # whole exponent or we'd get 1.5 instead of 1500 → both clamp
+        # to 1.0, so this is also a correctness pin.
+        assert client.score("p", "c") == 1.0
+
+    def test_does_not_pick_up_dotted_version_string(self) -> None:
+        # "1.0.2" must still match "1.0" (regex stops at the second
+        # dot). Without this regression the float parse would crash.
+        client, _ = _build_client(reply="version 1.0.2")
+        assert client.score("p", "c") == pytest.approx(1.0)
+
+    # --- Codex P1 regressions: configurable score_max_tokens -------------
+
+    def test_default_score_max_tokens_is_eight(self) -> None:
+        client, mock_create = _build_client(reply="0.5")
+        client.score("p", "c")
+        assert mock_create.call_args.kwargs["max_tokens"] == 8
+
+    def test_score_max_tokens_can_be_overridden(self) -> None:
+        # Constructing with a higher cap is the workaround for
+        # providers that need more headroom (verbose models, custom
+        # gateways that count differently).
+        mock_create = MagicMock(return_value=_fake_response("0.5"))
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=mock_create))
+        )
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "k"}, clear=False),
+            patch("openai.OpenAI", MagicMock(return_value=fake_client)),
+        ):
+            client = OpenAILLMClient(score_max_tokens=64)
+        client.score("p", "c")
+        assert mock_create.call_args.kwargs["max_tokens"] == 64
+
+    def test_score_max_tokens_none_omits_max_tokens_kwarg(self) -> None:
+        # Codex P1 on PR-7: OpenAI reasoning models (o1 / o3 / gpt-5
+        # family) reject ``max_tokens`` outright — they want
+        # ``max_completion_tokens``. Setting ``score_max_tokens=None``
+        # MUST result in NO ``max_tokens`` kwarg reaching the SDK,
+        # otherwise score() is unusable on those models. Critically
+        # this also means we must NOT silently fall back to
+        # ``default_max_tokens`` (which is what the previous
+        # ``self.chat()`` plumbing did).
+        mock_create = MagicMock(return_value=_fake_response("0.5"))
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=mock_create))
+        )
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "k"}, clear=False),
+            patch("openai.OpenAI", MagicMock(return_value=fake_client)),
+        ):
+            client = OpenAILLMClient(
+                score_max_tokens=None,
+                # Deliberately set a host-wide cap to prove score()
+                # ignores it once the score-specific knob is None.
+                default_max_tokens=200,
+            )
+        client.score("p", "c")
+        assert "max_tokens" not in mock_create.call_args.kwargs
+
+    def test_score_does_not_inherit_default_temperature(self) -> None:
+        # Even when the host wires a high default temperature for
+        # creative work elsewhere, score() must stay deterministic.
+        mock_create = MagicMock(return_value=_fake_response("0.5"))
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=mock_create))
+        )
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "k"}, clear=False),
+            patch("openai.OpenAI", MagicMock(return_value=fake_client)),
+        ):
+            client = OpenAILLMClient(default_temperature=0.9)
+        client.score("p", "c")
+        assert mock_create.call_args.kwargs["temperature"] == 0.0
