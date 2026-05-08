@@ -89,7 +89,14 @@ class SimpleChatAgent:
         self._verifier = verifier or ConcernVerifier(llm=self._runtime._llm)  # type: ignore[attr-defined]
         self._session_id = session_id or f"session-{uuid4().hex[:8]}"
 
-        for concern in concerns or seed_concerns():
+        # ``concerns is None`` ≠ ``concerns == []``: an explicit empty
+        # list is a deliberate "no demo concerns, please" opt-out (e.g.
+        # tests that want a clean baseline or callers that will
+        # ``upsert`` their own set later). The previous ``concerns or
+        # seed_concerns()`` form quietly re-seeded the demos in that
+        # case — Codex P2 on PR-6.
+        seeded = seed_concerns() if concerns is None else concerns
+        for concern in seeded:
             self._runtime.concern_store.upsert(concern)
 
     @property

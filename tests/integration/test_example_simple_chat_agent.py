@@ -92,6 +92,47 @@ class TestSimpleChatAgent:
         report = agent.handle("What is the user's email address?")
         assert "c-no-pii" in report.active_concern_ids
 
+    def test_explicit_empty_concerns_list_loads_no_demo_concerns(self, example_modules) -> None:
+        # Codex P2 regression on PR-6: ``concerns or seed_concerns()``
+        # silently re-seeded the demo set when the caller passed
+        # ``concerns=[]`` to opt out. The agent must respect an
+        # explicit empty list as "no demo concerns, please".
+        agent_mod, _ = example_modules
+        agent = agent_mod.SimpleChatAgent(concerns=[])
+
+        store = agent.runtime.concern_store
+        assert list(store.iter_all()) == [], "expected an empty store"
+
+        # No concerns → no candidates → empty injection, no verifications.
+        report = agent.handle("Who invented the COAT runtime?")
+        assert report.active_concern_ids == []
+        assert report.injection.injections == []
+        assert report.verifications == []
+
+    def test_explicit_concerns_list_overrides_demo_seed(self, example_modules) -> None:
+        # Companion to the empty-list test: a one-element override must
+        # land verbatim, with no demo concerns sneaking in.
+        agent_mod, _ = example_modules
+        from COAT_runtime_protocol import (
+            Advice,
+            AdviceType,
+            Concern,
+            Pointcut,
+        )
+        from COAT_runtime_protocol.envelopes import PointcutMatch
+
+        only = Concern(
+            id="c-only",
+            name="only one",
+            description="single hand-authored override",
+            pointcut=Pointcut(match=PointcutMatch(any_keywords=["override"])),
+            advice=Advice(type=AdviceType.REASONING_GUIDANCE, content="hi"),
+        )
+        agent = agent_mod.SimpleChatAgent(concerns=[only])
+
+        store_ids = {c.id for c in agent.runtime.concern_store.iter_all()}
+        assert store_ids == {"c-only"}
+
     def test_active_concerns_are_logged_to_dcn(self, example_modules) -> None:
         # Pins the exit criterion: the turn loop walks all the way down
         # to the DCN activation log. Anything that breaks the recorder
