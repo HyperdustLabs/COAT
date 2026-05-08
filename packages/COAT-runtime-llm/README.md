@@ -122,12 +122,15 @@ A few things the adapter pins down so hosts can stay generic:
   expects `model=`. There is no model dropdown on the call site.
 * **`api_version` is required.** Defaults to `2024-06-01`; falls
   back to `OPENAI_API_VERSION` when set; per-call value beats env.
-* **One credential at a time.** The constructor enforces mutual
-  exclusion between `api_key`, `azure_ad_token`, and
-  `azure_ad_token_provider`. Misconfiguring more than one fails
-  fast at startup with a descriptive `AzureOpenAIClientError`
-  (which is an alias of `OpenAIClientError` so existing handlers
-  keep working).
+* **One credential at a time.** The three explicit auth options
+  (`api_key`, `azure_ad_token`, `azure_ad_token_provider`) are
+  **pairwise** mutually exclusive — the constructor counts how many
+  were supplied and rejects the call if more than one is set, even
+  in the AAD-only combination of static token + provider (Codex
+  review on PR-9). Misconfiguring more than one fails fast at
+  startup with a descriptive `AzureOpenAIClientError` listing
+  exactly which kwargs collided (alias of `OpenAIClientError` so
+  existing handlers keep working).
 
 ## Anthropic (Claude)
 

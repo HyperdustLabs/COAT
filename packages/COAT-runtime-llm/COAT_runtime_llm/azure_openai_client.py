@@ -158,18 +158,34 @@ class AzureOpenAILLMClient(OpenAILLMClient):
             else os.environ.get("OPENAI_API_VERSION") or self.DEFAULT_API_VERSION
         )
 
-        # Auth resolution. The three options are mutually exclusive
-        # at the SDK level — passing both ``api_key`` and an AAD token
-        # makes the request shape ambiguous. Validate up front so the
-        # failure is clear at startup, not on the first turn.
-        ad_supplied = azure_ad_token is not None or azure_ad_token_provider is not None
+        # Auth resolution. The three explicit options
+        # (``api_key`` / ``azure_ad_token`` / ``azure_ad_token_provider``)
+        # are pairwise mutually exclusive: forwarding more than one to
+        # ``AzureOpenAI(...)`` makes the request shape ambiguous and
+        # can silently pin a static token when the caller actually
+        # wanted provider-based rotation. Validate the count up front
+        # so the failure is loud at startup, not on the first turn
+        # (Codex review on PR-9 caught the missing token-vs-provider
+        # case).
+        provided: list[str] = []
+        if api_key is not None:
+            provided.append("api_key")
+        if azure_ad_token is not None:
+            provided.append("azure_ad_token")
+        if azure_ad_token_provider is not None:
+            provided.append("azure_ad_token_provider")
+        if len(provided) > 1:
+            raise AzureOpenAIClientError(
+                "Pass exactly one of api_key=..., azure_ad_token=..., or "
+                f"azure_ad_token_provider=... — got {len(provided)}: "
+                f"{', '.join(provided)}."
+            )
+
         resolved_api_key: str | None
-        if ad_supplied:
-            if api_key is not None:
-                raise AzureOpenAIClientError(
-                    "Pass either api_key=... or one of "
-                    "azure_ad_token / azure_ad_token_provider — not both."
-                )
+        if azure_ad_token is not None or azure_ad_token_provider is not None:
+            # AAD path — the count guard above already ruled out an
+            # explicit ``api_key``. Skip the env fallback so the SDK
+            # only sees the AAD kwarg the caller asked for.
             resolved_api_key = None
         else:
             resolved_api_key = (

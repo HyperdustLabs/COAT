@@ -237,7 +237,7 @@ class TestAuth:
                 clear=True,
             ),
             patch("openai.AzureOpenAI", MagicMock()),
-            pytest.raises(AzureOpenAIClientError, match="not both"),
+            pytest.raises(AzureOpenAIClientError, match="exactly one"),
         ):
             AzureOpenAILLMClient(
                 deployment="d",
@@ -253,13 +253,62 @@ class TestAuth:
                 clear=True,
             ),
             patch("openai.AzureOpenAI", MagicMock()),
-            pytest.raises(AzureOpenAIClientError, match="not both"),
+            pytest.raises(AzureOpenAIClientError, match="exactly one"),
         ):
             AzureOpenAILLMClient(
                 deployment="d",
                 api_key="k",
                 azure_ad_token_provider=lambda: "t",
             )
+
+    def test_aad_token_and_aad_provider_are_mutually_exclusive(self) -> None:
+        # Codex P2 on PR-9: forwarding both a static AAD token AND a
+        # token provider to AzureOpenAI makes runtime auth ambiguous —
+        # the SDK can silently pin the static token instead of calling
+        # the provider, which defeats token rotation. Fail fast at
+        # construction.
+        with (
+            patch.dict(
+                "os.environ",
+                {"AZURE_OPENAI_ENDPOINT": "https://x"},
+                clear=True,
+            ),
+            patch("openai.AzureOpenAI", MagicMock()),
+            pytest.raises(
+                AzureOpenAIClientError,
+                match=r"exactly one.*azure_ad_token.*azure_ad_token_provider",
+            ),
+        ):
+            AzureOpenAILLMClient(
+                deployment="d",
+                azure_ad_token="aad",
+                azure_ad_token_provider=lambda: "t",
+            )
+
+    def test_all_three_auth_paths_at_once_rejected(self) -> None:
+        # Belt-and-braces: the count-based guard should also catch the
+        # 3-way over-specification with a single error, listing all
+        # three names so the host can fix the misconfig in one go.
+        with (
+            patch.dict(
+                "os.environ",
+                {"AZURE_OPENAI_ENDPOINT": "https://x"},
+                clear=True,
+            ),
+            patch("openai.AzureOpenAI", MagicMock()),
+            pytest.raises(AzureOpenAIClientError) as excinfo,
+        ):
+            AzureOpenAILLMClient(
+                deployment="d",
+                api_key="k",
+                azure_ad_token="aad",
+                azure_ad_token_provider=lambda: "t",
+            )
+        msg = str(excinfo.value)
+        assert "api_key" in msg
+        assert "azure_ad_token" in msg
+        assert "azure_ad_token_provider" in msg
+        assert "got 3" in msg
 
 
 # ---------------------------------------------------------------------------
