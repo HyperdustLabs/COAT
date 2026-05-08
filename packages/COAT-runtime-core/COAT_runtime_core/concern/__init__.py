@@ -6,7 +6,7 @@ re-export it from :mod:`.model` as a convenience.
 
 from . import model
 from .builder import ConcernBuilder
-from .extractor import ConcernExtractor, ExtractionResult
+from .extractor import ConcernExtractor, ExtractionResult, Rejection
 from .lifecycle import ConcernLifecycleManager
 from .separator import ConcernSeparator
 from .vector import ConcernVectorBuilder
@@ -20,6 +20,7 @@ __all__ = [
     "ConcernVectorBuilder",
     "ConcernVerifier",
     "ExtractionResult",
+    "Rejection",
     "VerificationResult",
     "model",
 ]
