@@ -65,7 +65,7 @@ PR-5  feat/m1-turn-loop           → wire facade.on_joinpoint end to end
 PR-6  feat/m1-example-chat        → examples/01_simple_chat_agent
 ```
 
-### Suggested split for M2
+### Suggested split for M2 (✅ landed)
 
 ```text
 PR-7  feat/m2-openai-client       → OpenAILLMClient                   ✅ landed
@@ -73,7 +73,16 @@ PR-8  feat/m2-anthropic-client    → AnthropicLLMClient                ✅ land
 PR-9  feat/m2-azure-client        → AzureOpenAILLMClient + provider matrix ✅ landed
 PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern) ✅ landed
 PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive) ✅ landed
-PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)         ← this PR
+PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)         ✅ landed
+```
+
+### Suggested split for M3
+
+```text
+PR-13 feat/m3-sqlite-concern-store → SqliteConcernStore                ← this PR
+PR-14 feat/m3-sqlite-dcn-store     → SqliteDCNStore (graph rows + traversal)
+PR-15 feat/m3-jsonl-replay         → append-only event log + replay tool
+PR-16 feat/m3-persistence-example  → examples/03_persistent_agent_demo
 ```
 
 PRs land in order; each one keeps `main` green.

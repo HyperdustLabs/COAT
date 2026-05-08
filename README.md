@@ -38,14 +38,14 @@ Pre-alpha. We are working through the milestones defined in
 | **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | ✅ complete |
 | **M1** | In-proc happy path (memory + stub-llm + `01_simple_chat_agent`) | ✅ complete |
 | **M2** | Real LLM (OpenAI / Anthropic / Azure) + extractor + lifecycle | ✅ complete — `OpenAILLMClient` (PR-7), `AnthropicLLMClient` (PR-8), `AzureOpenAILLMClient` (PR-9), `ConcernExtractor` (PR-10), `ConcernLifecycleManager` (PR-11), `examples/02_coding_agent_demo` (PR-12) |
-| M3 | Persistence (sqlite + jsonl replay) | pending |
+| **M3** | Persistence (sqlite + jsonl replay) | 🚧 in progress — `SqliteConcernStore` (PR-13) |
 | M4 | Daemon + CLI + HTTP/JSON-RPC | pending |
 | M5 | OpenClaw host plugin | pending |
 | M6 | Heartbeat + Meta governance workers | pending |
 | M7 | Second host (langgraph/hermes) | pending |
 | M8 | Postgres + Helm/K8s | pending |
 
-The full per-PR M1 / M2 split lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+The full per-PR M1 / M2 / M3 split lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
