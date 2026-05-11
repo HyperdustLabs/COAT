@@ -6,7 +6,10 @@ accepts the common shapes the rest of the COAT examples already use
 :class:`~COAT_runtime_protocol.envelopes.CoprSpan` so downstream COPR
 machinery can attach pointcuts without importing OpenClaw itself.
 
-* **id** — ``message["id"]`` when present, otherwise a fresh UUID4 string.
+* **id** — ``message["id"]`` whenever the key is present and not
+  ``None`` (including falsy values like integer ``0`` or empty string),
+  otherwise a fresh UUID4 string. This preserves correlation for hosts
+  that emit zero-indexed integer IDs (Codex P2 on PR #29).
 * **text** — first non-empty among ``text``, ``raw_text``, ``content``.
 * **semantic_type** — ``message["role"]`` when present, else
   ``"openclaw.message"``.
@@ -27,7 +30,10 @@ class OpenClawSpanExtractor:
         text = _first_text(message)
         if text is None:
             return []
-        span_id = str(message["id"]) if message.get("id") else str(uuid.uuid4())
+        raw_id = message.get("id")
+        # Preserve falsy-but-present IDs (e.g. integer 0) rather than
+        # rolling a UUID — only fall back when the key is missing/None.
+        span_id = str(raw_id) if raw_id is not None else str(uuid.uuid4())
         role = message.get("role")
         semantic = str(role) if role is not None else "openclaw.message"
         return [CoprSpan(id=span_id, text=text, semantic_type=semantic)]

@@ -19,6 +19,21 @@ When :attr:`OpenClawAdapterConfig.inject_into_runtime_prompt` is
 ``False``, injections whose ``target`` starts with ``"runtime_prompt."``
 are skipped so hosts can lock down prompt mutation while still allowing
 ``response.*`` edits.
+
+Wildcard targets
+----------------
+
+Default weaving targets are allowed to use ``*`` segments — e.g.
+``tool_call.arguments.*`` or ``memory_write.*`` — to mean "apply this
+advice to every existing field under the parent" (Codex P1 on PR #29).
+The injector resolves ``*`` against the **current** host context:
+
+* Trailing ``*`` — iterate every key in the parent dict and apply the
+  operation to each one. If the parent is empty or not a dict, the
+  injection is dropped rather than written to a literal ``"*"`` key,
+  because there is no concrete target for the advice yet.
+* Mid-path ``*`` — recurse into every dict-valued child at that
+  level and continue walking with the remaining segments.
 """
 
 from __future__ import annotations
@@ -69,20 +84,11 @@ _BLOCK_MODES: frozenset[WeavingOperation | str] = frozenset(
 )
 
 
+_WILDCARD = "*"
+
+
 def _split_target(target: str) -> list[str]:
     return [p for p in target.split(".") if p]
-
-
-def _parent_and_leaf(root: dict[str, Any], segments: list[str]) -> tuple[dict[str, Any], str]:
-    """Walk ``segments[:-1]`` under ``root``, creating empty ``dict`` nodes."""
-    cur: dict[str, Any] = root
-    for key in segments[:-1]:
-        nxt = cur.get(key)
-        if not isinstance(nxt, dict):
-            nxt = {}
-            cur[key] = nxt
-        cur = nxt
-    return cur, segments[-1]
 
 
 class OpenClawInjector:
@@ -102,13 +108,64 @@ class OpenClawInjector:
             self._apply_one(out, row)
         return out
 
+    # ------------------------------------------------------------------
+    # one Injection row
+    # ------------------------------------------------------------------
+
     def _apply_one(self, out: dict[str, Any], row: Injection) -> None:
         if not self._config.inject_into_runtime_prompt and row.target.startswith("runtime_prompt."):
             return
         segments = _split_target(row.target)
         if not segments:
             return
-        parent, leaf = _parent_and_leaf(out, segments)
+        self._apply_segments(out, segments, row)
+
+    def _apply_segments(
+        self,
+        node: Any,
+        segments: list[str],
+        row: Injection,
+    ) -> None:
+        """Walk ``segments`` against ``node``, expanding ``*`` segments.
+
+        ``node`` is always the *current* parent dict — never the leaf,
+        because we still need to dispatch to the mode-specific writer
+        once we hit the final segment.
+        """
+        if not isinstance(node, dict):
+            # Walked off a string/list leaf — nothing sensible to write.
+            return
+
+        head, *rest = segments
+        if head == _WILDCARD:
+            # Mid-path wildcard → recurse into every dict-valued child.
+            # Trailing wildcard with no remaining segments → apply to
+            # every existing key in ``node``; drop on empty parent so we
+            # never create a literal ``"*"`` key (Codex P1 on PR #29).
+            if rest:
+                for child in node.values():
+                    if isinstance(child, dict):
+                        self._apply_segments(child, rest, row)
+                return
+            for key in list(node.keys()):
+                self._write_leaf(node, key, row)
+            return
+
+        if not rest:
+            self._write_leaf(node, head, row)
+            return
+
+        nxt = node.get(head)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            node[head] = nxt
+        self._apply_segments(nxt, rest, row)
+
+    # ------------------------------------------------------------------
+    # writers
+    # ------------------------------------------------------------------
+
+    def _write_leaf(self, parent: dict[str, Any], leaf: str, row: Injection) -> None:
         mode = row.mode
         if mode in _APPEND_MODES:
             self._append_at(parent, leaf, row.content)
