@@ -166,6 +166,90 @@ class TestMutateSemantics:
         )
         assert outcome.arguments == {"query": "hello world"}
 
+    def test_replace_on_bare_tool_call_arguments_redacts_all_keys(
+        self, guard: OpenClawToolGuard
+    ) -> None:
+        """``tool_call.arguments`` (no leaf) with REPLACE means "redact
+        the whole argument map" — handled as a trailing wildcard so
+        per-key semantics apply instead of overwriting the dict with a
+        string."""
+        outcome = guard.guard(
+            {"name": "open", "arguments": {"path": "/x", "mode": "r"}},
+            _inj(
+                _row(
+                    "tool_call.arguments",
+                    WeavingOperation.REPLACE,
+                    "[REDACTED]",
+                )
+            ),
+        )
+        assert outcome.arguments == {"path": "[REDACTED]", "mode": "[REDACTED]"}
+
+
+class TestOverwriteScopeGuard:
+    """Codex P1 on PR #30 — overwrite rows outside ``tool_call.arguments``
+    must not corrupt the ``arguments`` dict.
+    """
+
+    def test_replace_on_tool_call_wildcard_does_not_clobber_arguments(
+        self, guard: OpenClawToolGuard
+    ) -> None:
+        """``tool_call.*`` REPLACE used to overwrite the whole
+        ``tool_call`` dict (including ``arguments``), leaving a string
+        in :attr:`ToolGuardOutcome.arguments`. Now silently dropped."""
+        outcome = guard.guard(
+            {"name": "open", "arguments": {"path": "/x"}},
+            _inj(_row("tool_call.*", WeavingOperation.REPLACE, "stomped")),
+        )
+        assert isinstance(outcome.arguments, dict)
+        assert outcome.arguments == {"path": "/x"}
+        assert outcome.notes == []
+
+    def test_replace_on_tool_call_name_is_dropped(self, guard: OpenClawToolGuard) -> None:
+        """Renaming the tool itself is not a coherent dispatch state."""
+        outcome = guard.guard(
+            {"name": "open", "arguments": {"path": "/x"}},
+            _inj(_row("tool_call.name", WeavingOperation.REPLACE, "evil")),
+        )
+        assert outcome.arguments == {"path": "/x"}
+        assert outcome.notes == []
+
+    def test_rewrite_on_bare_tool_call_is_dropped(self, guard: OpenClawToolGuard) -> None:
+        outcome = guard.guard(
+            {"name": "open", "arguments": {"path": "/x"}},
+            _inj(_row("tool_call.something", WeavingOperation.REWRITE, "x")),
+        )
+        assert outcome.arguments == {"path": "/x"}
+
+    def test_overwrite_drop_does_not_block_other_rows(self, guard: OpenClawToolGuard) -> None:
+        """Dropping an out-of-scope overwrite row must not prevent
+        valid rows in the same injection from firing."""
+        outcome = guard.guard(
+            {"name": "open", "arguments": {"path": "/x"}},
+            _inj(
+                _row(
+                    "tool_call.name",
+                    WeavingOperation.REPLACE,
+                    "ignored",
+                    concern_id="c-drop",
+                ),
+                _row(
+                    "tool_call.arguments.path",
+                    WeavingOperation.REPLACE,
+                    "[REDACTED]",
+                    concern_id="c-keep",
+                ),
+                _row(
+                    "tool_call.arguments.*",
+                    WeavingOperation.WARN,
+                    "audit",
+                    concern_id="c-note",
+                ),
+            ),
+        )
+        assert outcome.arguments == {"path": "[REDACTED]"}
+        assert outcome.notes == ["audit"]
+
 
 # ---------------------------------------------------------------------------
 # annotate

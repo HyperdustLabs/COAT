@@ -40,9 +40,15 @@ broader :meth:`OpenClawAdapter.apply_injection` path):
   ``block_reason`` (newline-joined when multiple blocks fire). The
   arguments dict is preserved as-is so audit logs can still see what
   *would* have been dispatched.
-* **REPLACE / REWRITE / COMPRESS** → mutate ``arguments`` via the
-  underlying :class:`OpenClawInjector` so wildcard handling and path
-  walking stay in one place (Codex P1 / PR #29 already covered this).
+* **REPLACE / REWRITE / COMPRESS** — only acted on when the target
+  resolves under ``tool_call.arguments`` (either ``tool_call.arguments``
+  itself or a subpath). The remainder of the target is routed through
+  :class:`OpenClawInjector` against the arguments dict so wildcard
+  handling and path walking stay in one place. Overwrite rows pointed
+  at other ``tool_call.*`` slots (e.g. ``tool_call.name``) are silently
+  dropped — rewriting tool names is not a coherent dispatch state
+  (Codex P1 on PR #30 — would otherwise corrupt
+  :attr:`ToolGuardOutcome.arguments` into a string).
 * **INSERT / ANNOTATE / WARN / VERIFY / DEFER** → append ``content``
   to :attr:`ToolGuardOutcome.notes`. Notes don't change dispatchable
   arguments; they let the host attach policy text to its audit /
@@ -66,6 +72,16 @@ from .injector import _APPEND_MODES, _BLOCK_MODES, _OVERWRITE_MODES, OpenClawInj
 # else (runtime_prompt.*, response.*) is left for the broader injection
 # path so guards stay focused on tool dispatch decisions.
 _TOOL_CALL_PREFIX = "tool_call."
+
+# Only overwrite rows under this prefix actually rewrite arguments —
+# other tool_call.* slots (e.g. tool_call.name) aren't dispatchable
+# argument paths, so silently drop overwrite rows aimed at them.
+_ARGUMENTS_PREFIX = "tool_call.arguments"
+
+
+def _targets_arguments(target: str) -> bool:
+    """``True`` for ``tool_call.arguments`` and any subpath under it."""
+    return target == _ARGUMENTS_PREFIX or target.startswith(f"{_ARGUMENTS_PREFIX}.")
 
 
 class ToolGuardOutcome(BaseModel):
@@ -135,6 +151,12 @@ class OpenClawToolGuard:
             return
 
         if mode in _OVERWRITE_MODES:
+            # Codex P1 on PR #30 — only routes under tool_call.arguments
+            # are legal overwrite targets. Dropping the row keeps the
+            # ``ToolGuardOutcome.arguments`` dict contract intact when a
+            # weaver emits ``tool_call.*`` or ``tool_call.name`` rows.
+            if not _targets_arguments(row.target):
+                return
             outcome.arguments = self._mutate_arguments(outcome.arguments, row)
             return
 
@@ -153,16 +175,26 @@ class OpenClawToolGuard:
     ) -> dict[str, Any]:
         """Route a single overwrite row through the underlying injector.
 
-        Wrapping ``arguments`` in a faux host context lets us reuse the
-        injector's wildcard + path-walking logic verbatim instead of
-        re-implementing it here.
+        Strips the ``tool_call.arguments[.]`` prefix from the row's
+        target and applies the *remainder* against a copy of the
+        arguments dict directly. That lets us reuse the injector's
+        wildcard + path-walking logic verbatim without ever exposing
+        sibling ``tool_call.*`` keys (e.g. ``name``) to overwrite, which
+        would otherwise corrupt the ``ToolGuardOutcome.arguments``
+        contract.
+
+        A bare ``tool_call.arguments`` target (no leaf) is interpreted
+        as ``*`` — "redact every existing argument" — so it gets the
+        same trailing-wildcard semantics as ``tool_call.arguments.*``.
         """
-        faux_ctx: dict[str, Any] = {"tool_call": {"arguments": arguments}}
-        applied = self._injector.apply(
-            ConcernInjection(turn_id="__tool_guard__", injections=[row]),
-            faux_ctx,
+        remainder = row.target[len(_ARGUMENTS_PREFIX) :].lstrip(".")
+        if not remainder:
+            remainder = "*"
+        stripped = row.model_copy(update={"target": remainder})
+        return self._injector.apply(
+            ConcernInjection(turn_id="__tool_guard__", injections=[stripped]),
+            arguments,
         )
-        return applied["tool_call"]["arguments"]
 
 
 __all__ = ["OpenClawToolGuard", "ToolGuardOutcome"]
