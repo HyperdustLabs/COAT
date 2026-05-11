@@ -136,6 +136,13 @@ class PersistentAgent:
         return self._session_id
 
     def handle(self, user_text: str) -> TurnReport:
+        if self._session_jsonl is not None and self._recorder is None:
+            msg = (
+                "session_jsonl was set — use ``with PersistentAgent(...) as agent`` "
+                "so the JSONL recorder opens before handle()."
+            )
+            raise RuntimeError(msg)
+
         joinpoint = JoinpointEvent(
             id=f"jp-{uuid4().hex[:12]}",
             level=2,
@@ -150,13 +157,6 @@ class PersistentAgent:
         assert injection is not None
         vector = self._runtime.current_vector()
         assert vector is not None
-
-        if self._session_jsonl is not None and self._recorder is None:
-            msg = (
-                "session_jsonl was set — use ``with PersistentAgent(...) as agent`` "
-                "so the JSONL recorder opens before handle()."
-            )
-            raise RuntimeError(msg)
 
         if self._recorder is not None:
             self._recorder.record_turn(joinpoint, injection)

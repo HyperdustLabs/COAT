@@ -93,6 +93,38 @@ class TestPersistentAgent:
             report = agent.handle("Who invented the COAT runtime?")
             assert report.active_concern_ids == []
 
+    def test_handle_without_context_manager_does_not_mutate_state(
+        self, tmp_path: Path, example_modules
+    ) -> None:
+        """Codex P2 on PR-16: precondition must fire before ``on_joinpoint``.
+
+        If the recorder is not open but ``session_jsonl`` was set, the agent
+        must refuse the turn *before* mutating the DCN activation log or
+        bumping lifecycle metrics; otherwise the on-disk state drifts from
+        the never-written JSONL.
+        """
+        agent_mod, _ = example_modules
+        db = tmp_path / "state.db"
+        log = tmp_path / "session.jsonl"
+
+        agent = agent_mod.PersistentAgent(db, session_jsonl=log)
+        try:
+            cite_before = agent.runtime.concern_store.get("c-cite")
+            assert cite_before is not None
+            log_before = list(agent.runtime.dcn_store.activation_log())
+
+            with pytest.raises(RuntimeError, match="with PersistentAgent"):
+                agent.handle("Who invented the COAT runtime?")
+
+            cite_after = agent.runtime.concern_store.get("c-cite")
+            assert cite_after is not None
+            assert cite_after.metrics.activations == cite_before.metrics.activations
+            assert list(agent.runtime.dcn_store.activation_log()) == log_before
+            assert not log.exists()
+        finally:
+            agent.runtime.concern_store.close()
+            agent.runtime.dcn_store.close()
+
 
 class TestCli:
     def test_main_default_prompts(self, tmp_path: Path, example_modules, capsys) -> None:
