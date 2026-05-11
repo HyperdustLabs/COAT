@@ -92,8 +92,8 @@ PR-17 feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (stora
 PR-18 feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure) ✅ landed
 PR-19 feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler ✅ landed
 PR-20 feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file ✅ landed
-PR-21 feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client) ← this PR
-PR-22 feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)
+PR-21 feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client) ✅ landed
+PR-22 feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client) ← this PR
 PR-23 feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end
 ```
 

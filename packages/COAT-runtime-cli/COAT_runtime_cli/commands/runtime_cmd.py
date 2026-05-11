@@ -27,61 +27,11 @@ import time
 from pathlib import Path
 from typing import Literal
 
+from .._http import add_endpoint_args, make_client
 from ..transport import HttpRpcCallError, HttpRpcClient, HttpRpcConnectionError, HttpRpcError
 
-_DEFAULT_HOST = "127.0.0.1"
-_DEFAULT_PORT = 7878
-_DEFAULT_PATH = "/rpc"
 _DEFAULT_WAIT_SECONDS = 10.0
 _HEALTH_POLL_INTERVAL_SECONDS = 0.1
-
-
-# ----------------------------------------------------------------------
-# Endpoint resolution
-# ----------------------------------------------------------------------
-
-
-def _resolve_endpoint(args: argparse.Namespace) -> tuple[str, int, str]:
-    """Resolve ``(host, port, path)`` from --host/--port/--path → --config → defaults.
-
-    ``--host``/``--port``/``--path`` always win when provided. Failing
-    that we try to read the bundled / user daemon config so the CLI
-    stays in sync with whatever the daemon would actually bind. If
-    neither path is available we fall back to the loopback default
-    that matches ``default.yaml``.
-    """
-    host = getattr(args, "host", None)
-    port = getattr(args, "port", None)
-    path = getattr(args, "path", None)
-
-    cfg_path = getattr(args, "config", None)
-    if (host is None or port is None or path is None) and cfg_path is not None:
-        # Importing the daemon lazily keeps "COATr replay" free of a hard
-        # dependency on having the daemon installed at import time.
-        try:
-            from COAT_runtime_daemon.config import load_config  # type: ignore[import-not-found]
-
-            cfg = load_config(Path(cfg_path))
-            ipc = cfg.ipc.http
-            if host is None:
-                host = getattr(ipc, "host", _DEFAULT_HOST) or _DEFAULT_HOST
-            if port is None:
-                port = int(getattr(ipc, "port", _DEFAULT_PORT) or _DEFAULT_PORT)
-            if path is None:
-                path = getattr(ipc, "path", _DEFAULT_PATH) or _DEFAULT_PATH
-        except Exception as exc:  # pragma: no cover — surfaced via --host/--port
-            print(f"runtime: warning — could not read config {cfg_path}: {exc}", file=sys.stderr)
-
-    return (
-        host or _DEFAULT_HOST,
-        int(port if port is not None else _DEFAULT_PORT),
-        path or _DEFAULT_PATH,
-    )
-
-
-def _make_client(args: argparse.Namespace, *, timeout: float = 2.0) -> HttpRpcClient:
-    host, port, path = _resolve_endpoint(args)
-    return HttpRpcClient(host=host, port=port, path=path, timeout=timeout)
 
 
 # ----------------------------------------------------------------------
@@ -199,7 +149,7 @@ def _wait_for_health(client: HttpRpcClient, deadline: float) -> bool:
 
 
 def _runtime_up(args: argparse.Namespace) -> int:
-    client = _make_client(args, timeout=1.5)
+    client = make_client(args, timeout=1.5)
 
     probe = _probe_endpoint(client)
     if probe.state == "ours":
@@ -358,7 +308,7 @@ def _runtime_down(args: argparse.Namespace) -> int:
 
 
 def _runtime_status(args: argparse.Namespace) -> int:
-    client = _make_client(args, timeout=2.0)
+    client = make_client(args, timeout=2.0)
     pid: int | None = None
     pid_alive: bool | None = None
     if args.pid_file is not None:
@@ -435,33 +385,12 @@ def register(sub: argparse._SubParsersAction) -> None:
         choices=sorted(_ACTIONS.keys()),
         help="up | down | status | reload",
     )
-    p.add_argument(
-        "--config",
-        type=Path,
-        default=None,
-        help="daemon config YAML (used by `up` and to discover the HTTP endpoint).",
-    )
+    add_endpoint_args(p)
     p.add_argument(
         "--pid-file",
         type=Path,
         default=None,
         help="PID file path; required by `down`, optional for `up`/`status`.",
-    )
-    p.add_argument(
-        "--host",
-        default=None,
-        help=f"HTTP host override (default: from --config or {_DEFAULT_HOST}).",
-    )
-    p.add_argument(
-        "--port",
-        type=int,
-        default=None,
-        help=f"HTTP port override (default: from --config or {_DEFAULT_PORT}).",
-    )
-    p.add_argument(
-        "--path",
-        default=None,
-        help=f"HTTP path override (default: from --config or {_DEFAULT_PATH}).",
     )
     p.add_argument(
         "--wait-seconds",

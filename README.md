@@ -39,7 +39,7 @@ Pre-alpha. We are working through the milestones defined in
 | **M1** | In-proc happy path (memory + stub-llm + `01_simple_chat_agent`) | ✅ complete |
 | **M2** | Real LLM (OpenAI / Anthropic / Azure) + extractor + lifecycle | ✅ complete — `OpenAILLMClient` (PR-7), `AnthropicLLMClient` (PR-8), `AzureOpenAILLMClient` (PR-9), `ConcernExtractor` (PR-10), `ConcernLifecycleManager` (PR-11), `examples/02_coding_agent_demo` (PR-12) |
 | **M3** | Persistence (sqlite + jsonl replay) | ✅ complete — `SqliteConcernStore` (PR-13), `SqliteDCNStore` (PR-14), JSONL replay (PR-15), `examples/03_persistent_agent_demo` (PR-16) |
-| **M4** | Daemon + CLI + HTTP/JSON-RPC | 🚧 in progress — `build_runtime` (PR-17), in-proc JSON-RPC (PR-18), stdlib HTTP JSON-RPC (PR-19), daemon lifecycle (PR-20), `COATr runtime up\|down\|status` (PR-21) |
+| **M4** | Daemon + CLI + HTTP/JSON-RPC | 🚧 in progress — `build_runtime` (PR-17), in-proc JSON-RPC (PR-18), stdlib HTTP JSON-RPC (PR-19), daemon lifecycle (PR-20), `COATr runtime up\|down\|status` (PR-21), `COATr concern \| dcn \| inspect` (PR-22) |
 | M5 | OpenClaw host plugin | pending |
 | M6 | Heartbeat + Meta governance workers | pending |
 | M7 | Second host (langgraph/hermes) | pending |
