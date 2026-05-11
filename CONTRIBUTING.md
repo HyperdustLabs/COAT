@@ -99,7 +99,7 @@ PR-19 gh/#23  feat/m4-http-server        → stdlib HTTP server mounting the JSO
 PR-20 gh/#24  feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file   ✅ landed
 PR-21 gh/#25  feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client)            ✅ landed
 PR-22 gh/#26  feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)           ✅ landed
-PR-23 gh/#?   feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end            ← this PR
+PR-23 gh/#27  feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end            ✅ landed
 ```
 
 PRs land in order; each one keeps `main` green. Why the gaps in the
@@ -107,6 +107,20 @@ PRs land in order; each one keeps `main` green. Why the gaps in the
 post-PR-8 doc sync), `#17` (closed README patch), and `#19` (JSONL
 header reopen fix) sit between milestone tasks — they're real PRs but
 not part of the milestone plan.
+
+### Suggested split for M5
+
+```text
+gh/#28  feat/m5-openclaw-adapter        → OpenClawEvent + joinpoint_map + adapter.map_host_event(s) ← this PR
+gh/#29  feat/m5-openclaw-injector       → ConcernInjection → OpenClaw context (per weaving target) + span_extractor
+gh/#30  feat/m5-openclaw-tool-guard     → AdviceType.TOOL_GUARD on tool_call.arguments (mutate / block)
+gh/#31  feat/m5-openclaw-memory-bridge  → memory_bridge + install_hooks() lifecycle binding
+gh/#32  feat/m5-example-openclaw        → examples/04_openclaw_with_runtime end-to-end + integration test
+```
+
+The PR-N parallel index is gone from M5 onwards (see the "Milestone PR
+numbering convention (M5+)" section above): milestone tasks **are** the
+GitHub PR numbers.
 
 ---
 
