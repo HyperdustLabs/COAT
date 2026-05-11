@@ -34,6 +34,7 @@ from typing import Any
 
 from COAT_runtime_core import COATRuntime
 from COAT_runtime_protocol import Concern, ConcernInjection, JoinpointEvent
+from pydantic import ValidationError
 
 # JSON-RPC 2.0 error codes (subset we use today).
 _PARSE_ERROR = -32700
@@ -41,9 +42,6 @@ _INVALID_REQUEST = -32600
 _METHOD_NOT_FOUND = -32601
 _INVALID_PARAMS = -32602
 _INTERNAL_ERROR = -32603
-
-# Sentinel: request omitted "id" entirely → success responses omit "id" too.
-_MISSING = object()
 
 
 class JsonRpcParamsError(ValueError):
@@ -78,20 +76,20 @@ def _json_safe(obj: Any) -> Any:
 
 
 def _success_response(req_id: Any, result: Any) -> dict[str, Any]:
-    out: dict[str, Any] = {"jsonrpc": "2.0", "result": _json_safe(result)}
-    if req_id is not _MISSING:
-        out["id"] = req_id
-    return out
+    # JSON-RPC 2.0 §5: Response objects MUST contain an ``id`` member
+    # — the request's id verbatim, or ``null`` if the server couldn't
+    # detect it (e.g. parse / invalid-request errors before id was
+    # readable). Notifications (request without an ``id`` member) get
+    # *no* response at all, which is the caller's responsibility.
+    return {"jsonrpc": "2.0", "result": _json_safe(result), "id": req_id}
 
 
 def _error_response(req_id: Any, code: int, message: str) -> dict[str, Any]:
-    out: dict[str, Any] = {
+    return {
         "jsonrpc": "2.0",
         "error": {"code": code, "message": message},
+        "id": req_id,
     }
-    if req_id is not _MISSING:
-        out["id"] = req_id
-    return out
 
 
 class JsonRpcHandler:
@@ -112,27 +110,42 @@ class JsonRpcHandler:
             "dcn.activation_log": self._dcn_activation_log,
         }
 
-    def handle(self, message: str | dict[str, Any]) -> dict[str, Any]:
-        """Parse ``message``, dispatch, and return a JSON-RPC response dict."""
+    def handle(self, message: str | dict[str, Any]) -> dict[str, Any] | None:
+        """Parse ``message``, dispatch, and return a JSON-RPC response dict.
+
+        Returns ``None`` when the request is a **notification** (a
+        request object without an ``id`` member, per JSON-RPC 2.0
+        §4.1): the server MUST NOT reply. The future HTTP layer
+        translates ``None`` into a 204 No Content / empty body.
+        """
         try:
             req = json.loads(message) if isinstance(message, str) else dict(message)
         except (TypeError, json.JSONDecodeError) as exc:
+            # Parse error: id was never readable, spec says reply with id=null.
             return _error_response(None, _PARSE_ERROR, f"Parse error: {exc}")
 
         if not isinstance(req, dict):
             return _error_response(None, _INVALID_REQUEST, "Request must be a JSON object")
 
-        req_id = req.get("id", _MISSING)
+        is_notification = "id" not in req
+        req_id = req.get("id")  # may legitimately be null in the request
+
+        def _maybe(resp: dict[str, Any]) -> dict[str, Any] | None:
+            # JSON-RPC 2.0 §4.1: notifications get no response object.
+            return None if is_notification else resp
+
         if req.get("jsonrpc") != "2.0":
-            return _error_response(req_id, _INVALID_REQUEST, "jsonrpc must be '2.0'")
+            return _maybe(_error_response(req_id, _INVALID_REQUEST, "jsonrpc must be '2.0'"))
 
         method = req.get("method")
         if not isinstance(method, str) or not method:
-            return _error_response(req_id, _INVALID_REQUEST, "method must be a non-empty string")
+            return _maybe(
+                _error_response(req_id, _INVALID_REQUEST, "method must be a non-empty string")
+            )
 
         handler = self._methods.get(method)
         if handler is None:
-            return _error_response(req_id, _METHOD_NOT_FOUND, f"Unknown method: {method!r}")
+            return _maybe(_error_response(req_id, _METHOD_NOT_FOUND, f"Unknown method: {method!r}"))
 
         params = req.get("params")
         if params is None:
@@ -140,16 +153,27 @@ class JsonRpcHandler:
         elif isinstance(params, (dict, list)):
             params_obj = params
         else:
-            return _error_response(req_id, _INVALID_PARAMS, "params must be object, array, or null")
+            return _maybe(
+                _error_response(
+                    req_id,
+                    _INVALID_PARAMS,
+                    "params must be object, array, or null",
+                )
+            )
 
         try:
             result = handler(params_obj)
         except JsonRpcParamsError as exc:
-            return _error_response(req_id, _INVALID_PARAMS, str(exc))
+            return _maybe(_error_response(req_id, _INVALID_PARAMS, str(exc)))
+        except ValidationError as exc:
+            # Codex P2 on PR-18: schema validation failures are *client*
+            # input bugs, not server faults. Surface them as -32602
+            # so callers can fix the payload instead of paging on-call.
+            return _maybe(_error_response(req_id, _INVALID_PARAMS, f"validation error: {exc}"))
         except Exception as exc:
-            return _error_response(req_id, _INTERNAL_ERROR, str(exc))
+            return _maybe(_error_response(req_id, _INTERNAL_ERROR, str(exc)))
 
-        return _success_response(req_id, result)
+        return _maybe(_success_response(req_id, result))
 
     # ------------------------------------------------------------------
     # Methods

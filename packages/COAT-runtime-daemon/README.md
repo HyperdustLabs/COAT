@@ -61,3 +61,9 @@ with build_runtime(load_config()) as built:
 Supported methods today: `health.ping`, `joinpoint.submit`, `concern.*`,
 `runtime.snapshot` / `current_vector` / `last_injection`,
 `dcn.activation_log`. See `COAT_runtime_daemon.ipc.jsonrpc_dispatch`.
+
+`JsonRpcHandler.handle` returns ``None`` for JSON-RPC **notifications**
+(requests with no ``id`` member, per JSON-RPC 2.0 §4.1). The HTTP layer
+in PR-19 maps ``None`` to ``204 No Content``. Schema validation failures
+on ``joinpoint`` / ``concern`` payloads surface as ``-32602`` (invalid
+params), not ``-32603``.

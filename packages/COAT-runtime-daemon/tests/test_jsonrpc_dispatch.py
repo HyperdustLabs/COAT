@@ -122,3 +122,57 @@ class TestMethods:
     def test_activation_log_empty(self, handler: JsonRpcHandler) -> None:
         out = handler.handle(_req("dcn.activation_log", {}))
         assert out["result"] == []
+
+
+class TestJsonRpcCompliance:
+    """Codex P2 on PR-18: response id + validation error mapping."""
+
+    def test_validation_error_maps_to_invalid_params(self, handler: JsonRpcHandler) -> None:
+        # ``joinpoint`` is shaped right but fails Pydantic validation
+        # (missing required fields). Must be -32602, not -32603.
+        out = handler.handle(
+            _req("joinpoint.submit", {"joinpoint": {"id": "jp-bad"}}),
+        )
+        assert out is not None
+        assert out["error"]["code"] == -32602
+        assert "validation" in out["error"]["message"].lower()
+
+    def test_concern_upsert_validation_error_is_invalid_params(
+        self, handler: JsonRpcHandler
+    ) -> None:
+        out = handler.handle(_req("concern.upsert", {"concern": {"id": "broken"}}))
+        assert out is not None
+        assert out["error"]["code"] == -32602
+
+    def test_notification_returns_none(self, handler: JsonRpcHandler) -> None:
+        # JSON-RPC 2.0 §4.1: request without "id" is a notification;
+        # server MUST NOT reply. We return None so the HTTP layer can
+        # translate that into 204/no body.
+        assert handler.handle({"jsonrpc": "2.0", "method": "health.ping"}) is None
+
+    def test_notification_with_invalid_method_still_returns_none(
+        self, handler: JsonRpcHandler
+    ) -> None:
+        assert handler.handle({"jsonrpc": "2.0", "method": "nope.bad"}) is None
+
+    def test_response_always_contains_id_member(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle(_req("health.ping", req_id=42))
+        assert out is not None
+        assert "id" in out and out["id"] == 42
+
+    def test_explicit_null_id_is_a_real_request_not_a_notification(
+        self, handler: JsonRpcHandler
+    ) -> None:
+        # JSON-RPC 2.0: ``"id": null`` is a real request; the
+        # response must echo it back. Only an *omitted* id makes
+        # the message a notification.
+        out = handler.handle({"jsonrpc": "2.0", "method": "health.ping", "id": None})
+        assert out is not None
+        assert out["id"] is None
+        assert out["result"] == {"ok": True}
+
+    def test_parse_error_response_has_id_null(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle("not json")
+        assert out is not None
+        assert out["error"]["code"] == -32700
+        assert out["id"] is None
