@@ -1,12 +1,11 @@
-"""OpenClaw adapter implementing :class:`HostAdapter` (M5 #28).
+"""OpenClaw adapter implementing :class:`HostAdapter` (M5 #28 / #29).
 
 Translates OpenClaw lifecycle events into :class:`JoinpointEvent`
-envelopes the runtime can consume. The other half of the
-:class:`HostAdapter` protocol — turning a :class:`ConcernInjection`
-back into OpenClaw context — lands in #29 alongside the injector and
-span extractor (this PR is intentionally tight).
+envelopes the runtime can consume, and applies
+:class:`ConcernInjection` results back into the host's mutable context
+via :class:`OpenClawInjector` (M5 #29).
 
-Mapping flow (per event):
+Mapping flow for events (see :meth:`map_host_event`):
 
 1. Coerce the input ``dict`` (or :class:`OpenClawEvent`) through
    ``OpenClawEvent.model_validate`` so we get a typed, ``extra=forbid``
@@ -41,7 +40,9 @@ from COAT_runtime_core.joinpoint import JOINPOINT_CATALOG, JoinpointLevel
 from COAT_runtime_core.ports import HostAdapter
 from COAT_runtime_protocol import ConcernInjection, JoinpointEvent
 
+from .config import OpenClawAdapterConfig
 from .events import OpenClawEvent
+from .injector import OpenClawInjector
 from .joinpoint_map import lookup_joinpoint
 
 # Sentinel host name — also surfaces in :attr:`JoinpointEvent.host`.
@@ -55,7 +56,11 @@ _FALLBACK_LEVEL = JoinpointLevel.LIFECYCLE
 
 
 class OpenClawAdapter(HostAdapter):
-    """Map OpenClaw events → :class:`JoinpointEvent` + (later) apply injections."""
+    """Map OpenClaw events → :class:`JoinpointEvent` + apply injections."""
+
+    def __init__(self, config: OpenClawAdapterConfig | None = None) -> None:
+        self._config = config or OpenClawAdapterConfig()
+        self._injector = OpenClawInjector(self._config)
 
     @property
     def host_name(self) -> str:
@@ -113,9 +118,8 @@ class OpenClawAdapter(HostAdapter):
         injection: ConcernInjection,
         host_context: dict,
     ) -> dict[str, Any]:
-        raise NotImplementedError(
-            "OpenClawAdapter.apply_injection lands in M5 #29 (feat/m5-openclaw-injector)."
-        )
+        """Merge ``injection`` into a deep-copied ``host_context``."""
+        return self._injector.apply(injection, host_context)
 
 
 __all__ = ["OpenClawAdapter"]

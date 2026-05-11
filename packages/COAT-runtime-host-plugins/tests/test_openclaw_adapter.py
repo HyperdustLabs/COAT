@@ -106,14 +106,24 @@ class TestAdapterContract:
     def test_host_name_is_openclaw(self, adapter: OpenClawAdapter) -> None:
         assert adapter.host_name == "openclaw"
 
-    def test_apply_injection_still_unimplemented(self, adapter: OpenClawAdapter) -> None:
-        # Will land in #29 — guard the deferred-implementation message
-        # so it's discoverable from the failing test rather than a bare
-        # NotImplementedError.
-        with pytest.raises(NotImplementedError, match=r"M5 #29"):
-            from COAT_runtime_protocol import ConcernInjection
+    def test_apply_injection_merges_into_copy(self, adapter: OpenClawAdapter) -> None:
+        from COAT_runtime_protocol import ConcernInjection, Injection, WeavingOperation
 
-            adapter.apply_injection(ConcernInjection(turn_id="t"), {})
+        ctx = {"runtime_prompt": {"output_format": "Be brief."}}
+        inj = ConcernInjection(
+            turn_id="t-1",
+            injections=[
+                Injection(
+                    concern_id="c-1",
+                    target="runtime_prompt.output_format",
+                    mode=WeavingOperation.INSERT,
+                    content="Also cite sources.",
+                )
+            ],
+        )
+        out = adapter.apply_injection(inj, ctx)
+        assert out["runtime_prompt"]["output_format"] == "Be brief.\nAlso cite sources."
+        assert ctx["runtime_prompt"]["output_format"] == "Be brief."  # input untouched
 
 
 # ----------------------------------------------------------------------
