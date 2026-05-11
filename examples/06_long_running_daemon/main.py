@@ -79,10 +79,30 @@ def _pick_free_port() -> int:
     ``Daemon._maybe_start_http`` collapses falsy ports to ``7878`` via
     ``port or 7878``, so we can't ask the HTTP server for ``port=0``
     through the config path — we resolve a real port up front instead.
+    The CLI surfaces the same gotcha: ``--port 0`` is rewritten to
+    "ask the kernel for a free port" inside :func:`main` so the daemon
+    and the client agree on which port to use (Codex P2 on PR #27).
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return int(s.getsockname()[1])
+
+
+def _port_arg(raw: str) -> int:
+    """argparse type for ``--port``: integer in ``[0, 65535]``.
+
+    ``0`` is allowed and is treated as "let the kernel pick a free
+    port" by :func:`main` (see Codex P2 on PR #27 — passing the raw
+    ``0`` straight through to ``Daemon`` would bind 7878 while leaving
+    the client pointed at port 0).
+    """
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"port must be an integer, got {raw!r}") from exc
+    if value < 0 or value > 65535:
+        raise argparse.ArgumentTypeError(f"port must be in [0, 65535], got {value}")
+    return value
 
 
 def _build_demo_config(
@@ -291,9 +311,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--port",
-        type=int,
+        type=_port_arg,
         default=None,
-        help="HTTP port (default: pick a free loopback port).",
+        help=(
+            "HTTP port in [0, 65535] (default and ``0`` both mean "
+            "'pick a free loopback port'; values outside the range are "
+            "rejected with a usage error)."
+        ),
     )
     parser.add_argument(
         "--dot-out",
@@ -316,7 +340,12 @@ def main(argv: list[str] | None = None) -> int:
         state_db.parent.mkdir(parents=True, exist_ok=True)
     args.pid_file.parent.mkdir(parents=True, exist_ok=True)
 
-    port = args.port if args.port is not None else _pick_free_port()
+    # Codex P2 on PR #27: ``Daemon._maybe_start_http`` collapses falsy
+    # ports to 7878, so ``--port 0`` would otherwise silently bind 7878
+    # on the server while leaving the client pointed at port 0 (RPC
+    # connection error). Treat both ``None`` and ``0`` as "pick a free
+    # port" so the daemon and the client agree on the bound port.
+    port = args.port if args.port else _pick_free_port()
     config = _build_demo_config(port=port, state_db=state_db)
 
     print("COAT daemon long-running demo (M4 PR-23)")

@@ -172,3 +172,58 @@ class TestCliEntry:
         assert body.startswith("digraph DCN")
         # Quoted ids from PR-22's collision-safe fix.
         assert '"c:c-concise"' in body
+
+    def test_port_zero_is_rewritten_to_a_free_loopback_port(
+        self, example_modules, tmp_path: Path, capsys
+    ) -> None:
+        """Codex P2 on PR #27: ``--port 0`` must not collide with
+        ``Daemon._maybe_start_http``'s ``port or 7878`` fallback.
+
+        Before the fix, ``main()`` forwarded ``0`` straight into both
+        the daemon config and the ``HttpRpcClient``; the daemon then
+        bound port 7878 while the client still talked to port 0,
+        producing an ``HttpRpcConnectionError`` mid-tour. After the fix,
+        ``0`` is rewritten to a free port in :func:`main` so the two
+        sides agree on the bound port.
+        """
+        main_mod, _ = example_modules
+        rc = main_mod.main(
+            argv=[
+                "--in-memory",
+                "--port",
+                "0",
+                "--pid-file",
+                str(tmp_path / "coat.pid"),
+            ]
+        )
+        out = capsys.readouterr().out
+        assert rc == 0, out
+        # Endpoint line records the actually bound port — must not be
+        # the daemon's falsy-fallback default (7878) and must not be 0.
+        assert "endpoint:    http://127.0.0.1:0/rpc" not in out
+        assert "endpoint:    http://127.0.0.1:7878/rpc" not in out
+        assert "health.ping" in out  # tour actually reached the wire
+        assert "Done." in out  # and completed without an RPC error
+
+    @pytest.mark.parametrize("bad_port", ["-1", "65536", "99999"])
+    def test_port_out_of_range_rejected_with_usage_error(
+        self, example_modules, tmp_path: Path, capsys, bad_port: str
+    ) -> None:
+        """Companion to the ``--port 0`` test: integers outside the
+        valid TCP range must exit with argparse's usage-error code (2)
+        rather than crash mid-tour or be silently coerced."""
+        main_mod, _ = example_modules
+        with pytest.raises(SystemExit) as excinfo:
+            main_mod.main(
+                argv=[
+                    "--in-memory",
+                    "--port",
+                    bad_port,
+                    "--pid-file",
+                    str(tmp_path / "coat.pid"),
+                ]
+            )
+        assert excinfo.value.code == 2
+        err = capsys.readouterr().err
+        assert "--port" in err
+        assert "port must be in [0, 65535]" in err

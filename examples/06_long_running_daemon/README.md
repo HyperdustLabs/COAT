@@ -54,6 +54,9 @@ Useful flags:
 # Use a fixed port (handy when you want to point COATr at it):
 uv run python -m examples.06_long_running_daemon.main --port 17890
 
+# Explicitly ask for an OS-assigned free port (same as omitting --port).
+uv run python -m examples.06_long_running_daemon.main --port 0
+
 # Don't touch sqlite — pure memory backends.
 uv run python -m examples.06_long_running_daemon.main --in-memory
 
