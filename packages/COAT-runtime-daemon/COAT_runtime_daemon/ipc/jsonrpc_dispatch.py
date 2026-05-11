@@ -115,10 +115,17 @@ class JsonRpcHandler:
     def handle(self, message: str | dict[str, Any]) -> dict[str, Any] | None:
         """Parse ``message``, dispatch, and return a JSON-RPC response dict.
 
-        Returns ``None`` when the request is a **notification** (a
-        request object without an ``id`` member, per JSON-RPC 2.0
-        §4.1): the server MUST NOT reply. :class:`~COAT_runtime_daemon.ipc.http_server.HttpServer`
+        Returns ``None`` when the request is a **valid** notification
+        — a well-formed Request object with no ``id`` member, per
+        JSON-RPC 2.0 §4.1. :class:`~COAT_runtime_daemon.ipc.http_server.HttpServer`
         maps ``None`` to ``204 No Content`` with an empty body.
+
+        Envelope errors (parse failures, wrong ``jsonrpc`` version, bad
+        ``method`` / ``params`` shape) *always* yield a response with
+        ``id: null`` — only *valid* Request objects without ``id`` are
+        notifications (Codex P2 on PR-19). Otherwise a malformed
+        payload that happens to omit ``id`` would silently disappear
+        instead of returning ``-32600`` / ``-32602``.
         """
         try:
             req = json.loads(message) if isinstance(message, str) else dict(message)
@@ -129,39 +136,35 @@ class JsonRpcHandler:
         if not isinstance(req, dict):
             return _error_response(None, _INVALID_REQUEST, "Request must be a JSON object")
 
-        is_notification = "id" not in req
         req_id = req.get("id")  # may legitimately be null in the request
 
-        def _maybe(resp: dict[str, Any]) -> dict[str, Any] | None:
-            # JSON-RPC 2.0 §4.1: notifications get no response object.
-            return None if is_notification else resp
-
+        # --- Envelope validation: errors here ALWAYS get a response, ---
+        # --- because we cannot trust an invalid Request to be a   ---
+        # --- notification. Use req_id (which is None if omitted). ---
         if req.get("jsonrpc") != "2.0":
-            return _maybe(_error_response(req_id, _INVALID_REQUEST, "jsonrpc must be '2.0'"))
+            return _error_response(req_id, _INVALID_REQUEST, "jsonrpc must be '2.0'")
 
         method = req.get("method")
         if not isinstance(method, str) or not method:
-            return _maybe(
-                _error_response(req_id, _INVALID_REQUEST, "method must be a non-empty string")
-            )
+            return _error_response(req_id, _INVALID_REQUEST, "method must be a non-empty string")
+
+        raw_params = req.get("params")
+        if raw_params is not None and not isinstance(raw_params, (dict, list)):
+            return _error_response(req_id, _INVALID_PARAMS, "params must be object, array, or null")
+
+        # Envelope is well-formed → from here on, an omitted id makes
+        # this a JSON-RPC notification and we must NOT respond, even
+        # on unknown method / handler errors (§4.1).
+        is_notification = "id" not in req
+
+        def _maybe(resp: dict[str, Any]) -> dict[str, Any] | None:
+            return None if is_notification else resp
 
         handler = self._methods.get(method)
         if handler is None:
             return _maybe(_error_response(req_id, _METHOD_NOT_FOUND, f"Unknown method: {method!r}"))
 
-        params = req.get("params")
-        if params is None:
-            params_obj: dict[str, Any] | list[Any] = {}
-        elif isinstance(params, (dict, list)):
-            params_obj = params
-        else:
-            return _maybe(
-                _error_response(
-                    req_id,
-                    _INVALID_PARAMS,
-                    "params must be object, array, or null",
-                )
-            )
+        params_obj: dict[str, Any] | list[Any] = {} if raw_params is None else raw_params
 
         try:
             result = handler(params_obj)
