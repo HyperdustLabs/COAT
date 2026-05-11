@@ -179,6 +179,62 @@ def test_session_header_idempotent_guard(tmp_path: Path) -> None:
             rec.write_session_header(concerns=[c])
 
 
+def test_reopen_same_path_write_session_header_no_second_session_line(
+    tmp_path: Path,
+) -> None:
+    """Codex P2: append target may already have a BOF ``session`` line."""
+    path = tmp_path / "s.jsonl"
+    c = _concern()
+    rt = COATRuntime(
+        RuntimeConfig(),
+        concern_store=MemoryConcernStore(),
+        dcn_store=MemoryDCNStore(),
+        llm=StubLLMClient(),
+    )
+    rt.concern_store.upsert(c)
+    jp1 = _jp("refund please", jid="jp-a")
+    inj1 = rt.on_joinpoint(jp1)
+    assert inj1 is not None
+
+    with SessionJsonlRecorder(path, session_id="s") as rec:
+        rec.write_session_header(concerns=[c])
+        rec.record_turn(jp1, inj1)
+
+    jp2 = _jp("another refund", jid="jp-b")
+    inj2 = rt.on_joinpoint(jp2)
+    assert inj2 is not None
+
+    with SessionJsonlRecorder(path, session_id="s") as rec2:
+        rec2.write_session_header(concerns=[c])
+        rec2.record_turn(jp2, inj2)
+
+    rows = list(iter_jsonl_records(path))
+    assert sum(1 for r in rows if r.get("event") == "session") == 1
+    assert replay_session_file(path).ok
+    assert len(parse_session_file(path).turns) == 2
+
+
+def test_write_session_header_after_record_turn_same_open_raises(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "s.jsonl"
+    c = _concern()
+    rt = COATRuntime(
+        RuntimeConfig(),
+        concern_store=MemoryConcernStore(),
+        dcn_store=MemoryDCNStore(),
+        llm=StubLLMClient(),
+    )
+    rt.concern_store.upsert(c)
+    jp = _jp("refund", jid="jp-1")
+    inj = rt.on_joinpoint(jp)
+    assert inj is not None
+    with SessionJsonlRecorder(path, session_id="s") as rec:
+        rec.record_turn(jp, inj)
+        with pytest.raises(ValueError, match="cannot write session header"):
+            rec.write_session_header(concerns=[c])
+
+
 def test_replay_parsed_session_custom_runtime(tmp_path: Path) -> None:
     path = tmp_path / "s.jsonl"
     concern = _concern()
