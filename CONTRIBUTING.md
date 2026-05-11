@@ -89,8 +89,8 @@ PR-16 feat/m3-persistence-example  → examples/03_persistent_agent_demo ✅ lan
 
 ```text
 PR-17 feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (storage + LLM selector) ✅ landed
-PR-18 feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure) ← this PR
-PR-19 feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler
+PR-18 feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure)
+PR-19 feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler ← this PR
 PR-20 feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file
 PR-21 feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client)
 PR-22 feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)

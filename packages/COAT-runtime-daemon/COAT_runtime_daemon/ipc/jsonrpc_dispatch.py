@@ -1,8 +1,10 @@
 """In-process JSON-RPC 2.0 dispatcher over :class:`COATRuntime` (M4 PR-18).
 
-Pure request/response mapping — no sockets, no HTTP. The daemon's future
-HTTP server (PR-19) will parse bytes, call :meth:`JsonRpcHandler.handle`,
-and serialize the returned dict back to JSON.
+Pure request/response mapping — no sockets, no HTTP. The daemon's
+:class:`~COAT_runtime_daemon.ipc.http_server.HttpServer` (PR-19) parses
+HTTP POST bodies, calls :meth:`JsonRpcHandler.handle`, and maps the
+returned dict to JSON (or ``204`` when the handler returns ``None`` for
+a notification).
 
 Methods are dotted names grouped by domain:
 
@@ -115,8 +117,8 @@ class JsonRpcHandler:
 
         Returns ``None`` when the request is a **notification** (a
         request object without an ``id`` member, per JSON-RPC 2.0
-        §4.1): the server MUST NOT reply. The future HTTP layer
-        translates ``None`` into a 204 No Content / empty body.
+        §4.1): the server MUST NOT reply. :class:`~COAT_runtime_daemon.ipc.http_server.HttpServer`
+        maps ``None`` to ``204 No Content`` with an empty body.
         """
         try:
             req = json.loads(message) if isinstance(message, str) else dict(message)

@@ -38,8 +38,10 @@ via extra keys (`llm.model`, `llm.deployment`, …).
 
 ## JSON-RPC dispatch (M4 PR-18)
 
-In-process JSON-RPC 2.0 over a live `COATRuntime` — no HTTP yet (PR-19
-mounts this under stdlib HTTP):
+In-process JSON-RPC 2.0 over a live `COATRuntime`. Use
+:class:`~COAT_runtime_daemon.ipc.http_server.HttpServer` (PR-19) for
+HTTP POST, or call :class:`~COAT_runtime_daemon.ipc.jsonrpc_dispatch.JsonRpcHandler`
+directly from tests / in-proc wiring.
 
 ```python
 from COAT_runtime_daemon import build_runtime
@@ -63,7 +65,30 @@ Supported methods today: `health.ping`, `joinpoint.submit`, `concern.*`,
 `dcn.activation_log`. See `COAT_runtime_daemon.ipc.jsonrpc_dispatch`.
 
 `JsonRpcHandler.handle` returns ``None`` for JSON-RPC **notifications**
-(requests with no ``id`` member, per JSON-RPC 2.0 §4.1). The HTTP layer
-in PR-19 maps ``None`` to ``204 No Content``. Schema validation failures
-on ``joinpoint`` / ``concern`` payloads surface as ``-32602`` (invalid
+(requests with no ``id`` member, per JSON-RPC 2.0 §4.1). The HTTP server
+maps ``None`` to ``204 No Content``. Schema validation failures on
+``joinpoint`` / ``concern`` payloads surface as ``-32602`` (invalid
 params), not ``-32603``.
+
+## Stdlib HTTP JSON-RPC (M4 PR-19)
+
+:class:`~COAT_runtime_daemon.ipc.http_server.HttpServer` wraps
+:class:`~COAT_runtime_daemon.ipc.jsonrpc_dispatch.JsonRpcHandler` in a
+threading stdlib :class:`http.server.ThreadingHTTPServer`. Only **POST**
+to ``path`` (default ``/rpc``) with a JSON body is accepted; **GET**
+returns ``405`` with ``Allow: POST``. Bind ``port=0`` for an ephemeral
+port in tests.
+
+```python
+from COAT_runtime_daemon import build_runtime
+from COAT_runtime_daemon.config import load_config
+from COAT_runtime_daemon.ipc import HttpServer, JsonRpcHandler
+
+with build_runtime(load_config()) as built:
+    rpc = JsonRpcHandler(built.runtime)
+    http = HttpServer(rpc, host="127.0.0.1", port=7878)
+    http.serve_forever()  # blocks until shutdown() from another thread
+```
+
+The legacy name :class:`~COAT_runtime_daemon.ipc.jsonrpc_server.JsonRpcServer`
+is an alias of ``HttpServer``. Tests: ``tests/test_http_jsonrpc_server.py``.
