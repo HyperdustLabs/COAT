@@ -9,6 +9,7 @@ authors = [{ name = "HyperdustLabs" }]
 dependencies = [
   "COAT-runtime-protocol",
   "COAT-runtime-core",
+  "COAT-runtime-storage",
   "COAT-runtime-daemon",
 ]
 

@@ -234,6 +234,7 @@ dependencies = [
     { name = "coat-runtime-core" },
     { name = "coat-runtime-daemon" },
     { name = "coat-runtime-protocol" },
+    { name = "coat-runtime-storage" },
 ]
 
 [package.metadata]
@@ -241,6 +242,7 @@ requires-dist = [
     { name = "coat-runtime-core", editable = "packages/COAT-runtime-core" },
     { name = "coat-runtime-daemon", editable = "packages/COAT-runtime-daemon" },
     { name = "coat-runtime-protocol", editable = "packages/COAT-runtime-protocol" },
+    { name = "coat-runtime-storage", editable = "packages/COAT-runtime-storage" },
 ]
 
 [[package]]
