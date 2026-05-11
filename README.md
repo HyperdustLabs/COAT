@@ -38,7 +38,7 @@ Pre-alpha. We are working through the milestones defined in
 | **M0** | Monorepo skeleton, JSON schemas, empty core skeleton, CI | ✅ complete |
 | **M1** | In-proc happy path (memory + stub-llm + `01_simple_chat_agent`) | ✅ complete |
 | **M2** | Real LLM (OpenAI / Anthropic / Azure) + extractor + lifecycle | ✅ complete — `OpenAILLMClient` (PR-7), `AnthropicLLMClient` (PR-8), `AzureOpenAILLMClient` (PR-9), `ConcernExtractor` (PR-10), `ConcernLifecycleManager` (PR-11), `examples/02_coding_agent_demo` (PR-12) |
-| **M3** | Persistence (sqlite + jsonl replay) | 🚧 in progress — `SqliteConcernStore` (PR-13), `SqliteDCNStore` (PR-14), JSONL replay (PR-15) |
+| **M3** | Persistence (sqlite + jsonl replay) | 🚧 in progress — `SqliteConcernStore` (PR-13), `SqliteDCNStore` (PR-14), JSONL replay (PR-15), `examples/03_persistent_agent_demo` (PR-16) |
 | M4 | Daemon + CLI + HTTP/JSON-RPC | pending |
 | M5 | OpenClaw host plugin | pending |
 | M6 | Heartbeat + Meta governance workers | pending |
@@ -109,6 +109,16 @@ uv run python -m examples.01_simple_chat_agent.main \
 Each turn shows the matched concerns, woven injection, and verifier verdicts —
 read [`examples/01_simple_chat_agent/README.md`](examples/01_simple_chat_agent/README.md)
 to see what each line of the host code exercises.
+
+### Persist concerns + DCN (M3)
+
+[`examples/03_persistent_agent_demo/`](examples/03_persistent_agent_demo/README.md)
+uses `SqliteConcernStore` and `SqliteDCNStore` on one database file and
+optionally writes `session.jsonl` for `COATr replay`:
+
+```bash
+uv run python -m examples.03_persistent_agent_demo.main
+```
 
 ### Plug in a real LLM (M2)
 
