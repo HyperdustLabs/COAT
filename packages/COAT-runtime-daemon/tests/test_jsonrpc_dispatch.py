@@ -176,3 +176,42 @@ class TestJsonRpcCompliance:
         assert out is not None
         assert out["error"]["code"] == -32700
         assert out["id"] is None
+
+
+class TestInvalidEnvelopeStillResponds:
+    """Codex P2 on PR-19: invalid Request objects without ``id`` must
+    still receive an error response with ``id: null`` — only *valid*
+    Request objects without ``id`` are JSON-RPC notifications (§4.1).
+    """
+
+    def test_bad_jsonrpc_version_without_id_returns_error(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle({"jsonrpc": "1.0", "method": "health.ping"})
+        assert out is not None
+        assert out["error"]["code"] == -32600
+        assert out["id"] is None
+
+    def test_method_not_string_without_id_returns_error(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle({"jsonrpc": "2.0", "method": 1})
+        assert out is not None
+        assert out["error"]["code"] == -32600
+        assert out["id"] is None
+
+    def test_missing_method_without_id_returns_error(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle({"jsonrpc": "2.0"})
+        assert out is not None
+        assert out["error"]["code"] == -32600
+        assert out["id"] is None
+
+    def test_bad_params_type_without_id_returns_error(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle({"jsonrpc": "2.0", "method": "health.ping", "params": "hello"})
+        assert out is not None
+        assert out["error"]["code"] == -32602
+        assert out["id"] is None
+
+    def test_unknown_method_with_id_still_returns_error(self, handler: JsonRpcHandler) -> None:
+        # Sanity: well-formed envelope, unknown method, id present →
+        # -32601 with that id (suppression only fires on notifications).
+        out = handler.handle({"jsonrpc": "2.0", "method": "no.such.method", "id": 5})
+        assert out is not None
+        assert out["error"]["code"] == -32601
+        assert out["id"] == 5
