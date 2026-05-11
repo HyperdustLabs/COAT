@@ -76,13 +76,25 @@ PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/
 PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)         ✅ landed
 ```
 
-### Suggested split for M3
+### Suggested split for M3 (✅ landed)
 
 ```text
 PR-13 feat/m3-sqlite-concern-store → SqliteConcernStore                ✅ landed
 PR-14 feat/m3-sqlite-dcn-store     → SqliteDCNStore (graph rows + traversal) ✅ landed
 PR-15 feat/m3-jsonl-replay         → append-only event log + replay tool ✅ landed
-PR-16 feat/m3-persistence-example  → examples/03_persistent_agent_demo ← this PR
+PR-16 feat/m3-persistence-example  → examples/03_persistent_agent_demo ✅ landed
+```
+
+### Suggested split for M4
+
+```text
+PR-17 feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (storage + LLM selector) ← this PR
+PR-18 feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure)
+PR-19 feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler
+PR-20 feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file
+PR-21 feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client)
+PR-22 feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)
+PR-23 feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end
 ```
 
 PRs land in order; each one keeps `main` green.
