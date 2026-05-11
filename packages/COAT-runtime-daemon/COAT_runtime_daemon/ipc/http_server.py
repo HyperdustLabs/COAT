@@ -157,6 +157,15 @@ class HttpServer:
         """Stop :meth:`serve_forever` (safe from another thread)."""
         self._httpd.shutdown()
 
+    def replace_handler(self, rpc_handler: JsonRpcHandler) -> None:
+        """Swap the mounted :class:`JsonRpcHandler` (thread-safe).
+
+        Each request reads ``coat_rpc_handler`` off the server on entry,
+        so an atomic attribute swap is enough — no socket restart.
+        Used by :meth:`COAT_runtime_daemon.daemon.Daemon.reload`.
+        """
+        self._httpd.coat_rpc_handler = rpc_handler
+
     def server_close(self) -> None:
         """Release the listening socket."""
         self._httpd.server_close()

@@ -3,6 +3,7 @@
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
+from .daemon import Daemon, DaemonAlreadyStartedError
 from .runtime_builder import BuiltRuntime, build_runtime
 
 try:
@@ -10,4 +11,9 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
-__all__ = ["BuiltRuntime", "build_runtime"]
+__all__ = [
+    "BuiltRuntime",
+    "Daemon",
+    "DaemonAlreadyStartedError",
+    "build_runtime",
+]
