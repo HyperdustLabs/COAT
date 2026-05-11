@@ -25,6 +25,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Literal
 
 from ..transport import HttpRpcCallError, HttpRpcClient, HttpRpcConnectionError, HttpRpcError
 
@@ -200,9 +201,34 @@ def _wait_for_health(client: HttpRpcClient, deadline: float) -> bool:
 def _runtime_up(args: argparse.Namespace) -> int:
     client = _make_client(args, timeout=1.5)
 
-    if not _is_endpoint_dead(client):
+    probe = _probe_endpoint(client)
+    if probe.state == "ours":
         print(f"runtime: already running at {client.endpoint}")
         return 0
+    if probe.state == "foreign":
+        # Something else is occupying the configured host:port. Refusing
+        # to spawn here surfaces the port conflict instead of silently
+        # exiting 0 the way the previous `_is_endpoint_dead` did
+        # (Codex P1 on PR-21).
+        print(
+            f"runtime up: refusing to spawn — {client.endpoint} is bound by "
+            f"another service ({probe.detail}). Free the port or override "
+            "with --host/--port/--path.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.detach and not hasattr(os, "fork"):
+        # Codex P2 on PR-21: detached spawn requires POSIX fork(). On
+        # platforms without it we used to traceback inside
+        # `_spawn_daemon_detached` for the default invocation. Surface
+        # a clean CLI error pointing the user at --foreground.
+        print(
+            "runtime up: --detach requires a POSIX platform (os.fork is unavailable). "
+            "Re-run with --foreground to start the daemon attached to this terminal.",
+            file=sys.stderr,
+        )
+        return 2
 
     proc: subprocess.Popen[bytes] | None = None
     if args.detach:
@@ -243,16 +269,45 @@ def _runtime_up(args: argparse.Namespace) -> int:
     return 0
 
 
-def _is_endpoint_dead(client: HttpRpcClient) -> bool:
+class _EndpointProbe:
+    """Result of probing the configured host:port with ``health.ping``.
+
+    Three terminal states:
+
+    * ``"dead"`` — nothing answered on the socket (ECONNREFUSED /
+      timeout). Safe for ``runtime up`` to spawn a fresh daemon.
+    * ``"ours"`` — a COAT daemon answered the ping with ``ok=true``.
+      ``runtime up`` should no-op with *already running*.
+    * ``"foreign"`` — something is bound on the port but is not our
+      daemon (wrong response shape, unrelated HTTP service, JSON-RPC
+      server that doesn't recognise ``health.ping``). ``runtime up``
+      must surface this as a hard error instead of silently exiting
+      0 (Codex P1 on PR-21).
+    """
+
+    __slots__ = ("detail", "state")
+
+    def __init__(self, state: Literal["dead", "ours", "foreign"], detail: str = "") -> None:
+        self.state: Literal["dead", "ours", "foreign"] = state
+        self.detail = detail
+
+
+def _probe_endpoint(client: HttpRpcClient) -> _EndpointProbe:
     try:
-        client.call("health.ping")
+        result = client.call("health.ping")
     except HttpRpcConnectionError:
-        return True
-    except HttpRpcError:
-        # Endpoint responded but unhappy — still "up" enough that we
-        # shouldn't try to spawn a second daemon over the live port.
-        return False
-    return False
+        return _EndpointProbe("dead")
+    except HttpRpcCallError as exc:
+        # Some other JSON-RPC service occupies the port (or our daemon
+        # is broken). Either way: not ours.
+        return _EndpointProbe("foreign", f"JSON-RPC error {exc.code}: {exc.message}")
+    except HttpRpcError as exc:
+        # Wrong-shape HTTP response, HTML 404 from a different web app,
+        # etc. — definitely not our daemon.
+        return _EndpointProbe("foreign", str(exc))
+    if isinstance(result, dict) and result.get("ok") is True:
+        return _EndpointProbe("ours")
+    return _EndpointProbe("foreign", f"unexpected health.ping result: {result!r}")
 
 
 # ----------------------------------------------------------------------

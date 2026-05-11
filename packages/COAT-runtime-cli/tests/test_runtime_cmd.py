@@ -198,6 +198,86 @@ def test_up_when_already_running_is_noop(
     assert "already running" in out
 
 
+def _serve_foreign_http(port: int) -> tuple[threading.Thread, object]:
+    """Bind a tiny HTTP server that answers every request with 404.
+
+    Used to simulate "something else is on this port" — the daemon we
+    spawn from `runtime up` is *not* what's listening, so the CLI must
+    refuse to spawn instead of saying "already running" (Codex P1).
+    """
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            self.send_error(404, "not us")
+
+        def do_GET(self) -> None:
+            self.send_error(404, "not us")
+
+        def log_message(self, *_a: object) -> None:
+            return
+
+    srv = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    return t, srv
+
+
+def test_up_refuses_to_spawn_over_foreign_listener(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Codex P1 on PR-21: a port occupied by another HTTP service must
+    surface as a hard error, not "already running"."""
+    port = _free_port()
+    t, srv = _serve_foreign_http(port)
+    try:
+        rc = runtime_cmd._handle(
+            _ns(
+                action="up",
+                host="127.0.0.1",
+                port=port,
+                path="/rpc",
+                pid_file=tmp_path / "coat.pid",
+                wait_seconds=0.2,
+            )
+        )
+    finally:
+        srv.shutdown()  # type: ignore[attr-defined]
+        srv.server_close()  # type: ignore[attr-defined]
+        t.join(timeout=5)
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "already running" not in captured.out
+    assert "another service" in captured.err
+    # PID file untouched — no spawn happened.
+    assert not (tmp_path / "coat.pid").exists()
+
+
+def test_up_detached_without_fork_returns_clean_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Codex P2 on PR-21: on platforms without ``os.fork`` the default
+    --detach invocation must exit cleanly instead of tracebacking."""
+    monkeypatch.delattr(os, "fork", raising=False)
+    rc = runtime_cmd._handle(
+        _ns(
+            action="up",
+            host="127.0.0.1",
+            port=1,  # nothing listening here
+            path="/rpc",
+            pid_file=tmp_path / "coat.pid",
+            wait_seconds=0.2,
+            detach=True,
+        )
+    )
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "--detach requires" in err
+    assert "--foreground" in err
+    assert not (tmp_path / "coat.pid").exists()
+
+
 # ----------------------------------------------------------------------
 # down edge cases
 # ----------------------------------------------------------------------
