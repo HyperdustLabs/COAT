@@ -92,3 +92,35 @@ with build_runtime(load_config()) as built:
 
 The legacy name :class:`~COAT_runtime_daemon.ipc.jsonrpc_server.JsonRpcServer`
 is an alias of ``HttpServer``. Tests: ``tests/test_http_jsonrpc_server.py``.
+
+## Daemon lifecycle (M4 PR-20)
+
+`Daemon` composes `build_runtime` + `JsonRpcHandler` + `HttpServer`
+with PID-file management and signal-driven shutdown:
+
+```python
+from COAT_runtime_daemon import Daemon
+from COAT_runtime_daemon.config import load_config
+
+cfg = load_config()
+cfg.ipc.http.enabled = True  # start HTTP listener
+with Daemon(cfg, pid_file="/run/coat.pid") as d:
+    # d.runtime_handler is a live JsonRpcHandler;
+    # d.http_server exposes host/port/path when ipc.http.enabled.
+    d.wait()  # blocks until d.stop()
+```
+
+For long-running processes, `run_until_signal()` installs `SIGTERM` /
+`SIGINT` handlers on the main thread and drains gracefully:
+
+```bash
+python -m COAT_runtime_daemon --config /etc/coat/daemon.yaml --pid-file /run/coat.pid
+```
+
+`Daemon.reload()` swaps the runtime in place — old sqlite connections
+are closed, the listening socket stays up, and new requests pick up
+the rebuilt `COATRuntime` on entry. The PID file (`PidFile`) is
+created exclusively (`O_EXCL`), replaces stale entries whose recorded
+PID is no longer alive, and is removed on stop only if it still
+contains our own PID. Tests: `tests/test_pidfile.py` and
+`tests/test_daemon_lifecycle.py`.
