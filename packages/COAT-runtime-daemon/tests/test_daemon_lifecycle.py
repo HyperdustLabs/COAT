@@ -181,3 +181,51 @@ def test_runtime_handler_property_raises_before_start(tmp_path: Path) -> None:
     d = Daemon(cfg, env={}, pid_file=tmp_path / "coat.pid")
     with pytest.raises(RuntimeError):
         _ = d.runtime_handler
+
+
+def test_restart_after_stop_resets_stop_event(tmp_path: Path) -> None:
+    """Codex P2 on PR-20: ``stop()`` sets ``_stop_event``; ``start()``
+    must clear it so the next ``wait()`` blocks instead of returning
+    immediately.
+    """
+    cfg = load_config()
+    d = Daemon(cfg, env={}, pid_file=tmp_path / "coat.pid")
+
+    d.start()
+    d.stop()
+    # Confirm the previous lifecycle's stop_event would otherwise
+    # short-circuit wait().
+    assert d.wait(timeout=0) is True
+
+    d.start()
+    try:
+        # New lifecycle: wait must time out instead of returning
+        # immediately. ~50 ms is plenty without slowing the suite down.
+        t0 = time.monotonic()
+        returned = d.wait(timeout=0.05)
+        elapsed = time.monotonic() - t0
+        assert returned is False
+        assert elapsed >= 0.04
+    finally:
+        d.stop()
+
+
+def test_concurrent_daemon_instances_share_pid_file_rejection(tmp_path: Path) -> None:
+    """Two ``Daemon`` instances on the same PID path within one process
+    must not both start.
+    """
+    cfg = load_config()
+    pid = tmp_path / "coat.pid"
+    first = Daemon(cfg, env={}, pid_file=pid)
+    second = Daemon(cfg, env={}, pid_file=pid)
+    first.start()
+    try:
+        with pytest.raises(PidFileError):
+            second.start()
+        # Second instance's resources were rolled back.
+        assert second.http_server is None
+        # First holder still owns the file.
+        assert pid.read_text().strip() == str(os.getpid())
+    finally:
+        first.stop()
+    assert not pid.exists()

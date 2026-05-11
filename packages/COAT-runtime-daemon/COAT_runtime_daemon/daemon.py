@@ -98,6 +98,10 @@ class Daemon:
             if self._started:
                 raise DaemonAlreadyStartedError("Daemon.start() already called")
             self._started = True
+            # Clear any stop signal left over from a previous lifecycle
+            # — otherwise wait()/run_until_signal() on a re-started
+            # Daemon would return immediately (Codex P2 on PR-20).
+            self._stop_event.clear()
             try:
                 self._acquire_pid_file()
                 self._built = build_runtime(self._config, env=self._env)

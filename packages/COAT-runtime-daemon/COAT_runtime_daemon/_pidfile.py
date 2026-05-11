@@ -55,7 +55,10 @@ class PidFile:
     On ``__enter__`` the file is created exclusively (``O_EXCL``). If it
     already exists but the recorded PID is dead, the stale file is
     removed and a fresh one written. If the existing PID is still
-    alive, :class:`PidFileError` is raised.
+    alive, :class:`PidFileError` is raised — *including* when the
+    existing PID is **our own**, because in that case another
+    ``PidFile``/``Daemon`` instance in this process already owns the
+    path (Codex P2 on PR-20).
 
     On ``__exit__`` (or explicit :meth:`release`) the file is removed
     *only* if it still contains our PID — protecting against races
@@ -80,11 +83,14 @@ class PidFile:
             fd = os.open(self._path, flags, 0o644)
         except FileExistsError:
             existing = _read_pid(self._path)
-            if existing is not None and existing != my_pid and _process_alive(existing):
-                raise PidFileError(
-                    f"PID file {self._path} already owned by live PID {existing}"
-                ) from None
-            # Stale (or our own from a prior crashed run) — replace it.
+            # Treat our own PID as a live owner: another PidFile in
+            # this process already holds the path. _process_alive
+            # would return True for my_pid too, but we spell the
+            # check out for clarity and a better error message.
+            if existing is not None and (existing == my_pid or _process_alive(existing)):
+                owner = "this process" if existing == my_pid else f"live PID {existing}"
+                raise PidFileError(f"PID file {self._path} already owned by {owner}") from None
+            # Stale (dead PID or unreadable file) — replace it.
             with contextlib.suppress(FileNotFoundError):
                 self._path.unlink()
             fd = os.open(self._path, flags, 0o644)

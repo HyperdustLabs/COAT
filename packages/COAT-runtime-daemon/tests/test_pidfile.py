@@ -80,3 +80,34 @@ def test_acquire_creates_parent_dirs(tmp_path: Path) -> None:
     with PidFile(p):
         assert p.exists()
     assert not p.exists()
+
+
+def test_second_pidfile_in_same_process_is_rejected(tmp_path: Path) -> None:
+    """Codex P2 on PR-20: same-PID owners must NOT be treated as stale.
+
+    Two distinct ``PidFile`` instances against one path within the
+    same OS process must not both succeed — that would silently let
+    two daemons run side-by-side over a shared lock.
+    """
+    p = tmp_path / "coat.pid"
+    first = PidFile(p)
+    first.acquire()
+    try:
+        second = PidFile(p)
+        with pytest.raises(PidFileError) as exc:
+            second.acquire()
+        assert "this process" in str(exc.value)
+        # First holder is untouched.
+        assert p.read_text().strip() == str(os.getpid())
+    finally:
+        first.release()
+    assert not p.exists()
+
+
+def test_pidfile_error_keeps_existing_content(tmp_path: Path) -> None:
+    p = tmp_path / "coat.pid"
+    # Live external PID (init).
+    p.write_text("1\n")
+    with pytest.raises(PidFileError):
+        PidFile(p).acquire()
+    assert p.read_text().strip() == "1"
