@@ -111,8 +111,8 @@ not part of the milestone plan.
 ### Suggested split for M5
 
 ```text
-gh/#28  feat/m5-openclaw-adapter        → OpenClawEvent + joinpoint_map + adapter.map_host_event(s) ← this PR
-gh/#29  feat/m5-openclaw-injector       → ConcernInjection → OpenClaw context (per weaving target) + span_extractor
+gh/#28  feat/m5-openclaw-adapter        → OpenClawEvent + joinpoint_map + adapter.map_host_event(s) ✅ landed
+gh/#29  feat/m5-openclaw-injector       → ConcernInjection → OpenClaw context (per weaving target) + span_extractor ← this PR
 gh/#30  feat/m5-openclaw-tool-guard     → AdviceType.TOOL_GUARD on tool_call.arguments (mutate / block)
 gh/#31  feat/m5-openclaw-memory-bridge  → memory_bridge + install_hooks() lifecycle binding
 gh/#32  feat/m5-example-openclaw        → examples/04_openclaw_with_runtime end-to-end + integration test
