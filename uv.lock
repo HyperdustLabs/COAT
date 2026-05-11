@@ -235,6 +235,7 @@ dependencies = [
     { name = "coat-runtime-daemon" },
     { name = "coat-runtime-protocol" },
     { name = "coat-runtime-storage" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -243,6 +244,7 @@ requires-dist = [
     { name = "coat-runtime-daemon", editable = "packages/COAT-runtime-daemon" },
     { name = "coat-runtime-protocol", editable = "packages/COAT-runtime-protocol" },
     { name = "coat-runtime-storage", editable = "packages/COAT-runtime-storage" },
+    { name = "pyyaml", specifier = ">=6.0" },
 ]
 
 [[package]]

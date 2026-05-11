@@ -11,6 +11,7 @@ dependencies = [
   "COAT-runtime-core",
   "COAT-runtime-storage",
   "COAT-runtime-daemon",
+  "pyyaml>=6.0",
 ]
 
 [project.scripts]

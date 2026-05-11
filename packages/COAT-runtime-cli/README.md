@@ -40,9 +40,61 @@ The underlying HTTP JSON-RPC client lives in
 `HttpRpcProtocolError` / `HttpRpcCallError` so callers can branch on
 *daemon stopped* vs *daemon answered with an error*.
 
+## `COATr concern` (M4 PR-22)
+
+`COATr concern` talks to the daemon over HTTP JSON-RPC:
+
+| Action | Wire | Notes |
+| --- | --- | --- |
+| `list`   | `concern.list`   | Default output is `<id>  <state>  <name>` columns. `--kind` / `--tag` / `--lifecycle-state` / `--limit` filter rows; `--json` emits a JSON array. |
+| `show ID`| `concern.get`    | Pretty-prints the concern JSON. Exit `1` if the id is unknown. |
+| `import PATH` | `concern.upsert` | Accepts JSON or YAML, either a single mapping or a list of mappings. |
+| `export [ID] [-o PATH]` | `concern.list` / `concern.get` | Without `ID` exports every concern; otherwise exports one as a singleton array. |
+| `diff A B` | `concern.get` × 2 | Unified diff over canonical JSON. |
+
+```bash
+COATr concern list --lifecycle-state active
+COATr concern export -o /tmp/concerns.json
+COATr concern import /tmp/concerns.json
+COATr concern diff c-1 c-2
+```
+
+## `COATr dcn` (M4 PR-22)
+
+A clean *full* DCN export will arrive when the `DCNStore` port exposes
+enumeration over RPC. Today the CLI ships the *shallow* snapshot the
+existing RPC surface can deliver — the concern list plus the
+activation history — which is enough to drive visualisation:
+
+| Action | Wire | Notes |
+| --- | --- | --- |
+| `activation-log` | `dcn.activation_log` | `--concern-id`, `--limit`, `--json`. |
+| `export --format json` | `concern.list` + `dcn.activation_log` | Combined JSON snapshot. |
+| `export --format dot` (or `visualize`) | same, then `dcn_to_dot()` | Joinpoints render as ovals, concerns as boxes, edges = activations. |
+| `import` | — | Reserved for a future PR; needs write API on `DCNStore`. |
+
+```bash
+COATr dcn activation-log --limit 50
+COATr dcn export --format dot -o dcn.dot && dot -Tsvg dcn.dot -o dcn.svg
+```
+
+## `COATr inspect` (M4 PR-22)
+
+`inspect` reads the catalogs baked into `COAT_runtime_core`, so it
+works without a running daemon:
+
+| Target | Source |
+| --- | --- |
+| `joinpoints` | `COAT_runtime_core.joinpoint.JOINPOINT_CATALOG` (v0.1 §12.3–§12.6). |
+| `pointcuts`  | The 12 strategies under `COAT_runtime_core.pointcut.strategies` (v0.1 §13.2). |
+
+```bash
+COATr inspect joinpoints
+COATr inspect pointcuts
+```
+
 ## Other subcommands
 
 `COATr replay session.jsonl` replays a JSONL session recorded via
 `COAT_runtime_storage.jsonl.SessionJsonlRecorder` (M3).
-`COATr concern`, `COATr dcn`, `COATr inspect`, and `COATr plugin` remain
-stubs until later M4 PRs (PR-22 wires `concern` + `dcn` + `inspect`).
+`COATr plugin` remains a stub until M5.
