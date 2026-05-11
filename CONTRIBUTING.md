@@ -54,50 +54,59 @@ Branches should die after merging — we squash-merge and delete the branch.
 - Every PR fills the [pull request template](.github/pull_request_template.md).
   The checklists are not decorative — they encode the contract.
 
+> Each row maps a milestone task (the `PR-N` index used inside this
+> roadmap) to the matching GitHub pull request (`gh/#N`). The two
+> sequences differ — GitHub numbers cover docs, chore, and follow-up
+> fix PRs that aren't part of the milestone plan — so we keep both.
+
 ### Suggested split for M1 (✅ landed)
 
 ```text
-PR-1  feat/m1-concern-store      → memory ConcernStore + MemoryDCNStore
-PR-2  feat/m1-joinpoint-pointcut → joinpoint catalog + 12 pointcut strategies
-PR-3  feat/m1-coordinator         → coordinator / resolver / vector
-PR-4  feat/m1-advice-weaver       → advice generator + weaver + verifier
-PR-5  feat/m1-turn-loop           → wire facade.on_joinpoint end to end
-PR-6  feat/m1-example-chat        → examples/01_simple_chat_agent
+PR-1  gh/#1   feat/m1-concern-store      → memory ConcernStore + MemoryDCNStore
+PR-2  gh/#2   feat/m1-joinpoint-pointcut → joinpoint catalog + 12 pointcut strategies
+PR-3  gh/#3   feat/m1-coordinator        → coordinator / resolver / vector
+PR-4  gh/#4   feat/m1-advice-weaver      → advice generator + weaver + verifier
+PR-5  gh/#5   feat/m1-turn-loop          → wire facade.on_joinpoint end to end
+PR-6  gh/#6   feat/m1-example-chat       → examples/01_simple_chat_agent
 ```
 
 ### Suggested split for M2 (✅ landed)
 
 ```text
-PR-7  feat/m2-openai-client       → OpenAILLMClient                   ✅ landed
-PR-8  feat/m2-anthropic-client    → AnthropicLLMClient                ✅ landed
-PR-9  feat/m2-azure-client        → AzureOpenAILLMClient + provider matrix ✅ landed
-PR-10 feat/m2-extractor           → ConcernExtractor (NL governance docs → Concern) ✅ landed
-PR-11 feat/m2-lifecycle           → ConcernLifecycleManager (reinforce/weaken/archive/revive) ✅ landed
-PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)         ✅ landed
+PR-7  gh/#7   feat/m2-openai-client      → OpenAILLMClient                                       ✅ landed
+PR-8  gh/#9   feat/m2-anthropic-client   → AnthropicLLMClient                                    ✅ landed
+PR-9  gh/#11  feat/m2-azure-client       → AzureOpenAILLMClient + provider matrix                ✅ landed
+PR-10 gh/#12  feat/m2-extractor          → ConcernExtractor (NL governance docs → Concern)       ✅ landed
+PR-11 gh/#13  feat/m2-lifecycle          → ConcernLifecycleManager (reinforce/weaken/archive/revive) ✅ landed
+PR-12 gh/#14  feat/m2-coding-agent       → examples/02_coding_agent_demo (real LLM)              ✅ landed
 ```
 
 ### Suggested split for M3 (✅ landed)
 
 ```text
-PR-13 feat/m3-sqlite-concern-store → SqliteConcernStore                ✅ landed
-PR-14 feat/m3-sqlite-dcn-store     → SqliteDCNStore (graph rows + traversal) ✅ landed
-PR-15 feat/m3-jsonl-replay         → append-only event log + replay tool ✅ landed
-PR-16 feat/m3-persistence-example  → examples/03_persistent_agent_demo ✅ landed
+PR-13 gh/#15  feat/m3-sqlite-concern-store → SqliteConcernStore                                  ✅ landed
+PR-14 gh/#16  feat/m3-sqlite-dcn-store     → SqliteDCNStore (graph rows + traversal)             ✅ landed
+PR-15 gh/#18  feat/m3-jsonl-replay         → append-only event log + replay tool                 ✅ landed
+PR-16 gh/#20  feat/m3-persistence-example  → examples/03_persistent_agent_demo                   ✅ landed
 ```
 
 ### Suggested split for M4
 
 ```text
-PR-17 feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (storage + LLM selector) ✅ landed
-PR-18 feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure) ✅ landed
-PR-19 feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler ✅ landed
-PR-20 feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file ✅ landed
-PR-21 feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client) ✅ landed
-PR-22 feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client) ← this PR
-PR-23 feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end
+PR-17 gh/#21  feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (storage + LLM selector) ✅ landed
+PR-18 gh/#22  feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure)               ✅ landed
+PR-19 gh/#23  feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler      ✅ landed
+PR-20 gh/#24  feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file   ✅ landed
+PR-21 gh/#25  feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client)            ✅ landed
+PR-22 gh/#26  feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)           ← this PR
+PR-23 gh/#?   feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end
 ```
 
-PRs land in order; each one keeps `main` green.
+PRs land in order; each one keeps `main` green. Why the gaps in the
+`gh/#` column? GitHub PRs `#8` (docs/m1-m2-progress), `#10` (chore
+post-PR-8 doc sync), `#17` (closed README patch), and `#19` (JSONL
+header reopen fix) sit between milestone tasks — they're real PRs but
+not part of the milestone plan.
 
 ---
 
