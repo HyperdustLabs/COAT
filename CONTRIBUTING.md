@@ -80,8 +80,8 @@ PR-12 feat/m2-coding-agent        → examples/02_coding_agent_demo (real LLM)  
 
 ```text
 PR-13 feat/m3-sqlite-concern-store → SqliteConcernStore                ✅ landed
-PR-14 feat/m3-sqlite-dcn-store     → SqliteDCNStore (graph rows + traversal) ← this PR
-PR-15 feat/m3-jsonl-replay         → append-only event log + replay tool
+PR-14 feat/m3-sqlite-dcn-store     → SqliteDCNStore (graph rows + traversal) ✅ landed
+PR-15 feat/m3-jsonl-replay         → append-only event log + replay tool ← this PR
 PR-16 feat/m3-persistence-example  → examples/03_persistent_agent_demo
 ```
 

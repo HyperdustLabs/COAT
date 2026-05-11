@@ -9,7 +9,7 @@ COAT_runtime_storage/
 ├── memory/    # default, zero-deps, M1
 ├── sqlite/    # single-process persistence, M3 (PR-13: ConcernStore, PR-14: DCNStore)
 ├── postgres/  # service deployments, M8
-├── jsonl/     # append-only log for replay/audit, M3
+├── jsonl/     # append-only session log + replay (M3 PR-15)
 └── vector/    # optional: FAISS / LanceDB index, M2+
 ```
 
@@ -46,3 +46,26 @@ truth); hot fields are projected into typed columns for fast filter /
 search; tags and edges live in side-tables with `ON DELETE CASCADE`
 foreign keys so node removal cleans up dependents automatically. No
 extra dependency — Python's stdlib `sqlite3` is enough.
+
+## JSONL session log (M3)
+
+ADR [0007](../docs/adr/0007-jsonl-replay-as-debug-source.md): one `joinpoint`
+line plus one `injection` line per turn, optional `session` header with
+concern seeds for deterministic replay.
+
+```python
+from COAT_runtime_storage.jsonl import SessionJsonlRecorder, replay_session_file
+
+with SessionJsonlRecorder("session.jsonl", session_id="sess-1") as rec:
+    rec.write_session_header(concerns=my_concerns)
+    inj = runtime.on_joinpoint(jp)
+    rec.record_turn(jp, inj)
+
+assert replay_session_file("session.jsonl").ok
+```
+
+CLI (requires `COAT-runtime-cli`):
+
+```bash
+COATr replay session.jsonl
+```
