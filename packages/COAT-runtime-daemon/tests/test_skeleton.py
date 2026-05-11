@@ -28,6 +28,7 @@ import pytest
         "COAT_runtime_daemon.ipc.socket_server",
         "COAT_runtime_daemon.ipc.http_server",
         "COAT_runtime_daemon.ipc.jsonrpc_server",
+        "COAT_runtime_daemon.ipc.jsonrpc_dispatch",
         "COAT_runtime_daemon.ipc.grpc_server",
         "COAT_runtime_daemon.api",
         "COAT_runtime_daemon.api.joinpoint_api",
