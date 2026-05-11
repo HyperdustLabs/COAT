@@ -21,11 +21,8 @@ before we have real DCN edges.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable, Mapping
 from typing import Any
-
-_SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_]")
 
 
 def _quote(label: str) -> str:
@@ -35,9 +32,21 @@ def _quote(label: str) -> str:
 
 
 def _node_id(prefix: str, raw: str) -> str:
-    """Stable DOT node id (alphanumeric, no spaces)."""
-    cleaned = _SAFE_ID_RE.sub("_", str(raw)) or "_"
-    return f"{prefix}_{cleaned}"
+    """Build a uniquely identifying DOT node id from ``raw``.
+
+    DOT accepts double-quoted strings as IDs (cf. the grammar in
+    https://graphviz.org/doc/info/lang.html), so we keep the raw
+    string verbatim — only escaping characters that would break the
+    quote — and prefix it with ``"c:"`` / ``"j:"`` to keep the
+    concern and joinpoint namespaces disjoint.
+
+    Previously we ran ``re.sub(r"[^A-Za-z0-9_]", "_", raw)``, which
+    silently collapsed e.g. ``a-b`` and ``a_b`` onto the same node id
+    — Graphviz then merged the two nodes and the rendered graph
+    misrepresented the underlying concerns/edges (Codex P2 on PR-22,
+    #26). Quoting sidesteps the collision entirely.
+    """
+    return _quote(f"{prefix}:{raw}")
 
 
 def dcn_to_dot(snapshot: Mapping[str, Any]) -> str:

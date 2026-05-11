@@ -20,8 +20,8 @@ def test_concern_nodes_are_rendered() -> None:
         "activation_log": [],
     }
     dot = dcn_to_dot(snap)
-    assert "c_c_1" in dot
-    assert "c_c_2" in dot
+    assert '"c:c-1"' in dot
+    assert '"c:c-2"' in dot
     assert '"first\\n(active)"' in dot
     assert '"second\\n(weakened)"' in dot
 
@@ -36,10 +36,8 @@ def test_edges_count_repeated_activations() -> None:
         ],
     }
     dot = dcn_to_dot(snap)
-    # repeated edge gets a count label
-    assert 'j_before_response -> c_c_1 [label="2"]' in dot
-    # singleton edge gets no label
-    assert "j_after_response -> c_c_1;" in dot
+    assert '"j:before_response" -> "c:c-1" [label="2"]' in dot
+    assert '"j:after_response" -> "c:c-1";' in dot
 
 
 def test_dangling_activation_creates_stub_concern_node() -> None:
@@ -51,20 +49,64 @@ def test_dangling_activation_creates_stub_concern_node() -> None:
     }
     dot = dcn_to_dot(snap)
     assert "style=dashed" in dot
-    assert "c_ghost" in dot
-    assert "j_before_response -> c_ghost" in dot
+    assert '"c:ghost"' in dot
+    assert '"j:before_response" -> "c:ghost"' in dot
 
 
-def test_unsafe_characters_in_ids_are_sanitised() -> None:
-    # IDs with dots/colons must turn into valid DOT identifiers (the
-    # label can still contain them, only the node id needs cleaning).
+def test_unsafe_characters_in_ids_are_quoted_not_collapsed() -> None:
+    # IDs with dots / colons / dashes appear verbatim inside the
+    # quoted DOT id; the label is independent and can still contain
+    # them too.
     snap = {
         "concerns": [{"id": "ns:rule.1", "name": "weird", "lifecycle_state": "active"}],
         "activation_log": [],
     }
     dot = dcn_to_dot(snap)
-    assert "c_ns_rule_1" in dot
+    assert '"c:ns:rule.1"' in dot
     assert '"weird\\n(active)"' in dot
+
+
+def test_node_ids_distinguish_dash_vs_underscore() -> None:
+    """Codex P2 on PR-22 (#26): two ids that the old sanitiser
+    collapsed to ``a_b`` must end up as *different* DOT nodes.
+    """
+    snap = {
+        "concerns": [
+            {"id": "a-b", "name": "dashy", "lifecycle_state": "active"},
+            {"id": "a_b", "name": "scorey", "lifecycle_state": "active"},
+        ],
+        "activation_log": [
+            {"concern_id": "a-b", "joinpoint_id": "before_response"},
+            {"concern_id": "a_b", "joinpoint_id": "before_response"},
+        ],
+    }
+    dot = dcn_to_dot(snap)
+    # both source ids survive verbatim and appear as distinct nodes
+    assert '"c:a-b"' in dot
+    assert '"c:a_b"' in dot
+    # both labels are emitted, proving no merge happened
+    assert "dashy" in dot
+    assert "scorey" in dot
+    # two box nodes for the two concerns
+    assert dot.count("[shape=box,") == 2
+    # two distinct edges from the same joinpoint
+    assert '"j:before_response" -> "c:a-b"' in dot
+    assert '"j:before_response" -> "c:a_b"' in dot
+
+
+def test_quote_escapes_embedded_quote_in_id() -> None:
+    """An id containing ``"`` must not break the surrounding DOT
+    quotes — the embedded quote should be escaped as ``\\"`` so the
+    line stays parseable.
+    """
+    snap = {
+        "concerns": [
+            {"id": 'weird"id', "name": "n", "lifecycle_state": "active"},
+        ],
+        "activation_log": [],
+    }
+    dot = dcn_to_dot(snap)
+    assert '"c:weird\\"id"' in dot
 
 
 def test_rows_missing_required_fields_are_skipped() -> None:
