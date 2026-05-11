@@ -114,8 +114,8 @@ not part of the milestone plan.
 gh/#28  feat/m5-openclaw-adapter        → OpenClawEvent + joinpoint_map + adapter.map_host_event(s) ✅ landed
 gh/#29  feat/m5-openclaw-injector       → ConcernInjection → OpenClaw context (per weaving target) + span_extractor ✅ landed
 gh/#30  feat/m5-openclaw-tool-guard     → AdviceType.TOOL_GUARD on tool_call.arguments (mutate / block) ✅ landed
-gh/#31  feat/m5-openclaw-memory-bridge  → memory_bridge + install_hooks() lifecycle binding ← this PR
-gh/#32  feat/m5-example-openclaw        → examples/04_openclaw_with_runtime end-to-end + integration test
+gh/#31  feat/m5-openclaw-memory-bridge  → memory_bridge + install_hooks() lifecycle binding ✅ landed
+gh/#32  feat/m5-example-openclaw        → examples/04_openclaw_with_runtime end-to-end + integration test ← this PR
 ```
 
 The PR-N parallel index is gone from M5 onwards (see the "Milestone PR
