@@ -6,6 +6,7 @@ from .events import OpenClawEvent, OpenClawEventName
 from .injector import OpenClawInjector
 from .joinpoint_map import OPENCLAW_EVENT_MAP, lookup_joinpoint
 from .span_extractor import OpenClawSpanExtractor
+from .tool_guard import OpenClawToolGuard, ToolGuardOutcome
 
 __all__ = [
     "OPENCLAW_EVENT_MAP",
@@ -15,5 +16,7 @@ __all__ = [
     "OpenClawEventName",
     "OpenClawInjector",
     "OpenClawSpanExtractor",
+    "OpenClawToolGuard",
+    "ToolGuardOutcome",
     "lookup_joinpoint",
 ]
