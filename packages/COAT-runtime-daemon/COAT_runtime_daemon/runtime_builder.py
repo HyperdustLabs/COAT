@@ -97,13 +97,26 @@ def build_runtime(
     *,
     env: Mapping[str, str] | None = None,
 ) -> BuiltRuntime:
-    """Construct a :class:`COATRuntime` wired per ``config``."""
+    """Construct a :class:`COATRuntime` wired per ``config``.
+
+    When ``env`` is left as ``None`` the builder resolves credentials and
+    optional knobs from :data:`os.environ` and lets each provider SDK
+    consult its own documented env fallbacks for anything we don't pass
+    through.
+
+    When the caller passes ``env`` explicitly, the builder treats that
+    mapping as the **only** environment source: credentials missing from
+    both the config and the injected mapping raise loudly instead of
+    silently falling back to :data:`os.environ`. This keeps tests and
+    embedded uses hermetic (Codex P1 on PR-17).
+    """
+    env_explicit = env is not None
     resolved_env: Mapping[str, str] = env if env is not None else os.environ
     closers: list[Callable[[], None]] = []
 
     concern_store = _build_concern_store(config.storage.concern_store, closers)
     dcn_store = _build_dcn_store(config.storage.dcn_store, closers)
-    llm, label = _build_llm(config.llm, resolved_env)
+    llm, label = _build_llm(config.llm, resolved_env, env_explicit=env_explicit)
 
     runtime = COATRuntime(
         config.runtime,
@@ -163,10 +176,17 @@ def _build_dcn_store(
 # ---------------------------------------------------------------------------
 
 
-_LlmBuilder = Callable[[LLMSettings, Mapping[str, str]], "tuple[LLMClient, str]"]
+_LlmBuilder = Callable[
+    [LLMSettings, Mapping[str, str], bool],
+    "tuple[LLMClient, str]",
+]
 
 
-def _build_stub(_settings: LLMSettings, _env: Mapping[str, str]) -> tuple[LLMClient, str]:
+def _build_stub(
+    _settings: LLMSettings,
+    _env: Mapping[str, str],
+    _env_explicit: bool,
+) -> tuple[LLMClient, str]:
     return StubLLMClient(default_chat=_STUB_DEFAULT_CHAT), "stub"
 
 
@@ -174,12 +194,41 @@ def _llm_extras(settings: LLMSettings) -> dict[str, Any]:
     return settings.model_dump(exclude={"provider", "timeout_seconds"})
 
 
-def _build_openai(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLMClient, str]:
+def _require_explicit(
+    provider: str,
+    field_name: str,
+    env_var: str,
+    *,
+    env_explicit: bool,
+) -> None:
+    """Raise when ``env`` was passed explicitly but a required credential is missing.
+
+    Codex P1 on PR-17: passing ``api_key=None`` (etc.) to the underlying
+    SDK lets it transparently consult :data:`os.environ`, which breaks
+    the hermetic ``env=`` contract callers explicitly opted into.
+    """
+    if not env_explicit:
+        return
+    raise RuntimeError(
+        f"llm.provider={provider} but {field_name!r} is missing from both "
+        f"the daemon config and the injected env mapping (looked for "
+        f"{env_var}). Refusing to fall back to os.environ because "
+        f"build_runtime(env=...) was passed explicitly."
+    )
+
+
+def _build_openai(
+    settings: LLMSettings,
+    env: Mapping[str, str],
+    env_explicit: bool,
+) -> tuple[LLMClient, str]:
     from COAT_runtime_llm import OpenAILLMClient
 
     extras = _llm_extras(settings)
     model = extras.get("model") or env.get("OPENAI_MODEL") or _DEFAULT_OPENAI_MODEL
     api_key = extras.get("api_key") or env.get("OPENAI_API_KEY")
+    if not api_key:
+        _require_explicit("openai", "api_key", "OPENAI_API_KEY", env_explicit=env_explicit)
     base_url = extras.get("base_url") or env.get("OPENAI_BASE_URL") or env.get("OPENAI_API_BASE")
     return (
         OpenAILLMClient(
@@ -192,12 +241,18 @@ def _build_openai(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLMCli
     )
 
 
-def _build_anthropic(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLMClient, str]:
+def _build_anthropic(
+    settings: LLMSettings,
+    env: Mapping[str, str],
+    env_explicit: bool,
+) -> tuple[LLMClient, str]:
     from COAT_runtime_llm import AnthropicLLMClient
 
     extras = _llm_extras(settings)
     model = extras.get("model") or env.get("ANTHROPIC_MODEL") or _DEFAULT_ANTHROPIC_MODEL
     api_key = extras.get("api_key") or env.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        _require_explicit("anthropic", "api_key", "ANTHROPIC_API_KEY", env_explicit=env_explicit)
     base_url = extras.get("base_url") or env.get("ANTHROPIC_BASE_URL")
     return (
         AnthropicLLMClient(
@@ -210,7 +265,11 @@ def _build_anthropic(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLM
     )
 
 
-def _build_azure(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLMClient, str]:
+def _build_azure(
+    settings: LLMSettings,
+    env: Mapping[str, str],
+    env_explicit: bool,
+) -> tuple[LLMClient, str]:
     from COAT_runtime_llm import AzureOpenAILLMClient
 
     extras = _llm_extras(settings)
@@ -225,19 +284,33 @@ def _build_azure(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLMClie
             "llm.deployment in the daemon config or AZURE_OPENAI_DEPLOYMENT "
             "in the environment."
         )
+
+    endpoint = extras.get("endpoint") or env.get("AZURE_OPENAI_ENDPOINT")
+    if not endpoint:
+        _require_explicit("azure", "endpoint", "AZURE_OPENAI_ENDPOINT", env_explicit=env_explicit)
+    api_key = extras.get("api_key") or env.get("AZURE_OPENAI_API_KEY")
+    if not api_key:
+        _require_explicit("azure", "api_key", "AZURE_OPENAI_API_KEY", env_explicit=env_explicit)
+
+    # Honour ``OPENAI_API_VERSION`` in addition to the more specific
+    # ``AZURE_OPENAI_API_VERSION`` (Codex P2 on PR-17): the Azure SDK
+    # documents ``OPENAI_API_VERSION`` as its fallback, and we'd
+    # otherwise pin ``_DEFAULT_AZURE_API_VERSION`` even when the
+    # operator already set ``OPENAI_API_VERSION`` for the broader
+    # OpenAI tooling.
     api_version = (
         extras.get("api_version")
         or env.get("AZURE_OPENAI_API_VERSION")
+        or env.get("OPENAI_API_VERSION")
         or _DEFAULT_AZURE_API_VERSION
     )
-    endpoint = extras.get("endpoint") or env.get("AZURE_OPENAI_ENDPOINT")
-    api_key = extras.get("api_key") or env.get("AZURE_OPENAI_API_KEY")
     return (
         AzureOpenAILLMClient(
             deployment=deployment,
             api_version=api_version,
             endpoint=endpoint,
             api_key=api_key,
+            timeout_seconds=settings.timeout_seconds,
         ),
         f"azure/{deployment}",
     )
@@ -251,14 +324,19 @@ _LLM_BUILDERS: dict[str, _LlmBuilder] = {
 }
 
 
-def _build_llm(settings: LLMSettings, env: Mapping[str, str]) -> tuple[LLMClient, str]:
+def _build_llm(
+    settings: LLMSettings,
+    env: Mapping[str, str],
+    *,
+    env_explicit: bool,
+) -> tuple[LLMClient, str]:
     name = settings.provider.lower()
     builder = _LLM_BUILDERS.get(name)
     if builder is None:
         raise ValueError(
             f"Unknown llm.provider={settings.provider!r}; expected one of: {sorted(_LLM_BUILDERS)}"
         )
-    return builder(settings, env)
+    return builder(settings, env, env_explicit)
 
 
 __all__ = ["BuiltRuntime", "build_runtime"]

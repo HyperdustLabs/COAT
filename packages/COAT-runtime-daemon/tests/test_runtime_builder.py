@@ -209,3 +209,100 @@ class TestLLM:
         )
         with build_runtime(cfg, env={}) as built:
             assert built.llm_label == "openai/gpt-9000-imaginary"
+
+
+class TestExplicitEnvIsHermetic:
+    """Codex P1 on PR-17: explicit ``env=`` must not leak to ``os.environ``."""
+
+    def test_openai_without_key_in_explicit_env_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-from-os-environ")
+        cfg = _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="openai"),
+        )
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+            build_runtime(cfg, env={})
+
+    def test_anthropic_without_key_in_explicit_env_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-real")
+        cfg = _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="anthropic"),
+        )
+        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+            build_runtime(cfg, env={})
+
+    def test_azure_without_credentials_in_explicit_env_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Both endpoint and api_key live in os.environ; the explicit
+        # env mapping only carries the deployment — every other
+        # credential must come from the injected env, not os.environ.
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://leak.openai.azure.com/")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "leaked-key")
+        cfg = _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="azure"),
+        )
+        with pytest.raises(RuntimeError, match=r"AZURE_OPENAI_(ENDPOINT|API_KEY)"):
+            build_runtime(cfg, env={"AZURE_OPENAI_DEPLOYMENT": "my-deployment"})
+
+
+class TestAzureExtras:
+    """Codex P2 on PR-17: Azure must honour timeout + OPENAI_API_VERSION env."""
+
+    @staticmethod
+    def _patch_azure(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+        """Replace the lazy Azure client with a kwargs-capturing stub."""
+        import COAT_runtime_llm as llm_pkg
+
+        captured: dict[str, object] = {}
+
+        def fake_client(**kwargs: object) -> object:
+            captured.update(kwargs)
+            return object()
+
+        monkeypatch.setattr(llm_pkg, "AzureOpenAILLMClient", fake_client, raising=False)
+        return captured
+
+    def test_azure_picks_api_version_from_openai_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured = self._patch_azure(monkeypatch)
+        cfg = _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="azure"),
+        )
+        build_runtime(
+            cfg,
+            env={
+                "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
+                "AZURE_OPENAI_API_KEY": "azkey-fake",
+                "AZURE_OPENAI_DEPLOYMENT": "my-deployment",
+                "OPENAI_API_VERSION": "2099-12-31",
+            },
+        )
+        assert captured["api_version"] == "2099-12-31"
+
+    def test_azure_propagates_timeout_seconds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured = self._patch_azure(monkeypatch)
+        cfg = _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="azure", timeout_seconds=42.5),
+        )
+        build_runtime(
+            cfg,
+            env={
+                "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
+                "AZURE_OPENAI_API_KEY": "azkey-fake",
+                "AZURE_OPENAI_DEPLOYMENT": "my-deployment",
+            },
+        )
+        assert captured["timeout_seconds"] == 42.5
