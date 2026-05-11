@@ -1,9 +1,11 @@
-"""OpenClaw adapter implementing :class:`HostAdapter` (M5 #28 / #29).
+"""OpenClaw adapter implementing :class:`HostAdapter` (M5 #28 / #29 / #30).
 
 Translates OpenClaw lifecycle events into :class:`JoinpointEvent`
-envelopes the runtime can consume, and applies
-:class:`ConcernInjection` results back into the host's mutable context
-via :class:`OpenClawInjector` (M5 #29).
+envelopes the runtime can consume, applies :class:`ConcernInjection`
+results back into the host's mutable context via
+:class:`OpenClawInjector` (M5 #29), and decodes
+:data:`AdviceType.TOOL_GUARD` advice into a structured
+:class:`ToolGuardOutcome` via :class:`OpenClawToolGuard` (M5 #30).
 
 Mapping flow for events (see :meth:`map_host_event`):
 
@@ -44,6 +46,7 @@ from .config import OpenClawAdapterConfig
 from .events import OpenClawEvent
 from .injector import OpenClawInjector
 from .joinpoint_map import lookup_joinpoint
+from .tool_guard import OpenClawToolGuard, ToolGuardOutcome
 
 # Sentinel host name — also surfaces in :attr:`JoinpointEvent.host`.
 _HOST_NAME = "openclaw"
@@ -61,6 +64,10 @@ class OpenClawAdapter(HostAdapter):
     def __init__(self, config: OpenClawAdapterConfig | None = None) -> None:
         self._config = config or OpenClawAdapterConfig()
         self._injector = OpenClawInjector(self._config)
+        # Share the injector so wildcard / runtime_prompt config stays
+        # consistent across :meth:`apply_injection` and
+        # :meth:`guard_tool_call`.
+        self._tool_guard = OpenClawToolGuard(self._injector)
 
     @property
     def host_name(self) -> str:
@@ -120,6 +127,25 @@ class OpenClawAdapter(HostAdapter):
     ) -> dict[str, Any]:
         """Merge ``injection`` into a deep-copied ``host_context``."""
         return self._injector.apply(injection, host_context)
+
+    # ------------------------------------------------------------------
+    # tool_guard → outcome (M5 #30)
+    # ------------------------------------------------------------------
+
+    def guard_tool_call(
+        self,
+        tool_call: dict[str, Any],
+        injection: ConcernInjection,
+    ) -> ToolGuardOutcome:
+        """Decode ``TOOL_GUARD`` rows in ``injection`` against ``tool_call``.
+
+        Returns a :class:`ToolGuardOutcome` the host can branch on:
+        ``blocked`` ⇒ refuse the call; otherwise dispatch using
+        :attr:`ToolGuardOutcome.arguments` and surface
+        :attr:`ToolGuardOutcome.notes` to its audit stream. The input
+        ``tool_call`` is never mutated.
+        """
+        return self._tool_guard.guard(tool_call, injection)
 
 
 __all__ = ["OpenClawAdapter"]
