@@ -2,7 +2,7 @@
   <img src="docs/moss-coat.png" alt="COAT Runtime logo" width="300" />
 </p>
 
-<h1 align="center">COAT</h1>
+<h1 align="center">OpenCOAT</h1>
 
 <p align="center">
   <strong>Concern-Oriented Agent Thinking Runtime</strong><br />
