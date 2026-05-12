@@ -1,7 +1,7 @@
 [project]
 name = "COAT-runtime-cli"
 version = "0.0.1"
-description = "COATr — command line for the COAT Runtime."
+description = "Open COAT Runtime — COATr command-line interface."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
