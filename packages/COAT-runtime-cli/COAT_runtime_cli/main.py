@@ -43,14 +43,25 @@ COMMANDS: tuple[CommandRegistrar, ...] = (
 
 
 def _strip_no_banner_flag(argv: list[str]) -> tuple[list[str], bool]:
-    """Allow ``--no-banner`` anywhere in ``argv`` (before or after subcommands)."""
+    """Pre-parse strip of the global ``--no-banner`` flag.
+
+    Accepted anywhere *before* the POSIX end-of-options marker ``--``;
+    once ``--`` is seen the rest of ``argv`` is forwarded untouched so
+    a subcommand can legitimately receive a literal token named
+    ``--no-banner`` (e.g. ``COATr replay -- --no-banner``).
+    """
     out: list[str] = []
     no_banner = False
-    for word in argv:
+    it = iter(argv)
+    for word in it:
+        if word == "--":
+            out.append(word)
+            out.extend(it)
+            break
         if word == "--no-banner":
             no_banner = True
-        else:
-            out.append(word)
+            continue
+        out.append(word)
     return out, no_banner
 
 

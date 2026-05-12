@@ -77,3 +77,37 @@ def test_no_banner_can_appear_after_subcommand_name(
     rc = main_mod.main(["inspect", "--no-banner", "joinpoints"])
     assert rc == 0
     assert "M4 daemon:" not in capsys.readouterr().out
+
+
+class TestStripNoBannerFlag:
+    """Pin POSIX ``--`` semantics for the pre-parse stripper (Codex P2 #36)."""
+
+    def test_strips_global_flag(self) -> None:
+        from COAT_runtime_cli.main import _strip_no_banner_flag
+
+        rest, no_banner = _strip_no_banner_flag(["--no-banner", "inspect", "joinpoints"])
+        assert no_banner is True
+        assert rest == ["inspect", "joinpoints"]
+
+    def test_strips_flag_between_subcommand_and_positional(self) -> None:
+        from COAT_runtime_cli.main import _strip_no_banner_flag
+
+        rest, no_banner = _strip_no_banner_flag(["inspect", "--no-banner", "joinpoints"])
+        assert no_banner is True
+        assert rest == ["inspect", "joinpoints"]
+
+    def test_double_dash_freezes_remaining_argv(self) -> None:
+        """After ``--`` the stripper must not touch literal ``--no-banner``."""
+        from COAT_runtime_cli.main import _strip_no_banner_flag
+
+        rest, no_banner = _strip_no_banner_flag(["replay", "--", "--no-banner", "session.jsonl"])
+        assert no_banner is False
+        assert rest == ["replay", "--", "--no-banner", "session.jsonl"]
+
+    def test_pre_double_dash_flag_still_stripped(self) -> None:
+        """Only post-``--`` tokens are preserved; pre-``--`` flag still removed."""
+        from COAT_runtime_cli.main import _strip_no_banner_flag
+
+        rest, no_banner = _strip_no_banner_flag(["--no-banner", "replay", "--", "--no-banner"])
+        assert no_banner is True
+        assert rest == ["replay", "--", "--no-banner"]
