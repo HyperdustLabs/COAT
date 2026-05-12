@@ -256,6 +256,21 @@ class ConcernSource(_Base):
     trust: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+class ChainRef(_Base):
+    """Optional pointer to an external on-chain / content-addressed reference.
+
+    Schema-only placeholder: the COAT runtime never interprets this field.
+    Reserved for future MOSSAI / L3 transports — see
+    ``docs/07-mvp/post-m5-roadmap.md`` §6 for the rationale on landing this
+    surface early. No resolver, no fetcher, no validators against
+    ``network`` / ``ref`` shapes — those belong in a separate L3 RFC.
+    """
+
+    network: str = Field(min_length=1)
+    ref: str = Field(min_length=1)
+    content_uri: str | None = Field(default=None, min_length=1)
+
+
 class ConcernScope(_Base):
     crosscutting: bool = False
     duration: Literal["transient", "turn", "session", "long_term"] = "turn"
@@ -293,6 +308,7 @@ class Concern(_Base):
     name: str = Field(min_length=1)
     description: str = ""
     source: ConcernSource | None = None
+    chain_ref: ChainRef | None = None
     joinpoint_selectors: list[JoinpointSelector] = Field(default_factory=list)
     pointcut: Pointcut | None = None
     advice: Advice | None = None
