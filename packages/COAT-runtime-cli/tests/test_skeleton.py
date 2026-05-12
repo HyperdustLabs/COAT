@@ -19,6 +19,7 @@ import pytest
         "COAT_runtime_cli.commands.replay_cmd",
         "COAT_runtime_cli.commands.inspect_cmd",
         "COAT_runtime_cli.commands.plugin_cmd",
+        "COAT_runtime_cli.demo_concerns",
         "COAT_runtime_cli.plugin_templates",
         "COAT_runtime_cli.plugin_templates.openclaw",
         "COAT_runtime_cli.plugin_templates.custom",
