@@ -10,6 +10,7 @@ from COAT_runtime_protocol import (
     SCHEMA_FILES,
     Advice,
     AdviceType,
+    ChainRef,
     Concern,
     ConcernInjection,
     ConcernKind,
@@ -219,3 +220,91 @@ def test_extra_fields_rejected_by_pydantic() -> None:
     """Pydantic envelopes are the strict source of truth for extra-field policy."""
     with pytest.raises(Exception):
         Concern(id="c-x", name="bad", weird_unknown_field=1)  # type: ignore[call-arg]
+
+
+class TestConcernChainRef:
+    """``Concern.chain_ref`` — schema-only L3 placeholder (post-M5 roadmap §6).
+
+    The runtime never interprets this field; these tests pin the *surface*
+    so future MOSSAI / external callers can populate it without schema
+    churn. No resolver / fetcher is in scope.
+    """
+
+    def test_omitted_by_default(self) -> None:
+        c = Concern(id="c-no-chain", name="no chain ref")
+        assert c.chain_ref is None
+        payload = c.model_dump(mode="json", exclude_none=True)
+        assert "chain_ref" not in payload
+        _validate("concern.schema.json", payload)
+
+    def test_minimal_chain_ref_roundtrips(self) -> None:
+        c = Concern(
+            id="c-with-chain",
+            name="anchored concern",
+            chain_ref=ChainRef(network="evm:1", ref="0xabc"),
+        )
+        payload = c.model_dump(mode="json", exclude_none=True)
+        _validate("concern.schema.json", payload)
+        assert payload["chain_ref"] == {"network": "evm:1", "ref": "0xabc"}
+        again = Concern.model_validate(payload)
+        assert again.chain_ref is not None
+        assert again.chain_ref.network == "evm:1"
+        assert again.chain_ref.ref == "0xabc"
+        assert again.chain_ref.content_uri is None
+
+    def test_full_chain_ref_with_content_uri(self) -> None:
+        c = Concern(
+            id="c-ipfs",
+            name="ipfs-anchored concern",
+            chain_ref=ChainRef(
+                network="evm:1",
+                ref="0x" + "a" * 64,
+                content_uri="ipfs://bafy.../concern.json",
+            ),
+        )
+        payload = c.model_dump(mode="json", exclude_none=True)
+        _validate("concern.schema.json", payload)
+        assert payload["chain_ref"]["content_uri"] == "ipfs://bafy.../concern.json"
+
+    def test_chain_ref_required_fields_via_schema(self) -> None:
+        """Schema must reject a chain_ref missing ``network`` or ``ref``."""
+        bad = {
+            "id": "c-bad",
+            "kind": "concern",
+            "name": "missing ref",
+            "schema_version": "0.1.0",
+            "chain_ref": {"network": "evm:1"},
+        }
+        with pytest.raises(AssertionError):
+            _validate("concern.schema.json", bad)
+
+    def test_chain_ref_required_fields_via_pydantic(self) -> None:
+        with pytest.raises(Exception):
+            ChainRef(network="evm:1")  # type: ignore[call-arg]
+        with pytest.raises(Exception):
+            ChainRef(ref="0xabc")  # type: ignore[call-arg]
+
+    def test_chain_ref_rejects_extra_fields(self) -> None:
+        """``ChainRef`` follows the package-wide ``extra='forbid'`` policy."""
+        with pytest.raises(Exception):
+            ChainRef(network="evm:1", ref="0xabc", chain_id=1)  # type: ignore[call-arg]
+
+    def test_chain_ref_rejects_empty_strings(self) -> None:
+        with pytest.raises(Exception):
+            ChainRef(network="", ref="0xabc")
+        with pytest.raises(Exception):
+            ChainRef(network="evm:1", ref="")
+
+    def test_meta_concern_inherits_chain_ref(self) -> None:
+        """``MetaConcern`` extends ``Concern`` → ``chain_ref`` is available."""
+        from COAT_runtime_protocol.envelopes import GovernanceCapability
+
+        m = MetaConcern(
+            id="mc-anchor",
+            name="anchored governance",
+            governance_capability=GovernanceCapability.LIFECYCLE_CONTROL,
+            chain_ref=ChainRef(network="evm:1", ref="0xdef"),
+        )
+        payload = m.model_dump(mode="json", exclude_none=True)
+        _validate("meta_concern.schema.json", payload)
+        assert payload["chain_ref"] == {"network": "evm:1", "ref": "0xdef"}

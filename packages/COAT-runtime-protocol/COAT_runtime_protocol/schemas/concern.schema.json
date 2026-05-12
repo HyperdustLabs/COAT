@@ -32,6 +32,18 @@
       }
     },
 
+    "chain_ref": {
+      "type": "object",
+      "description": "Optional pointer to an external on-chain or content-addressed reference for this concern. Schema-only placeholder; the runtime never interprets this field. Reserved for future MOSSAI / L3 transports — see docs/07-mvp/post-m5-roadmap.md §6.",
+      "additionalProperties": false,
+      "required": ["network", "ref"],
+      "properties": {
+        "network":     { "type": "string", "minLength": 1 },
+        "ref":         { "type": "string", "minLength": 1 },
+        "content_uri": { "type": "string", "minLength": 1 }
+      }
+    },
+
     "joinpoint_selectors": {
       "type": "array",
       "items": { "$ref": "joinpoint.schema.json#/$defs/JoinpointSelector" },
