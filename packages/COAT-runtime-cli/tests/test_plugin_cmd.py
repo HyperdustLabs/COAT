@@ -132,3 +132,40 @@ class TestPluginDisable:
         rc = cli_main(["--no-banner", "plugin", "disable", "some-name"])
         assert rc == 2
         assert "post-M6" in capsys.readouterr().err
+
+
+class TestScaffoldJoinpointsAreReachable:
+    """Pin the scaffold concerns to joinpoints that actually fire.
+
+    Codex P2 on PR #37 flagged that ``on_request_received`` was unreachable
+    via the OpenClaw adapter / default event subscription; this test pins
+    the reachability invariant for both scaffolds so the regression cannot
+    silently return.
+    """
+
+    def test_openclaw_concerns_reach_default_subscription(self) -> None:
+        from COAT_runtime_cli.plugin_templates.openclaw.bootstrap_coat import (
+            DEFAULT_EVENT_NAMES,
+        )
+        from COAT_runtime_cli.plugin_templates.openclaw.concerns import seed_concerns
+        from COAT_runtime_host_openclaw.joinpoint_map import OPENCLAW_EVENT_MAP
+
+        reachable = {OPENCLAW_EVENT_MAP[name] for name in DEFAULT_EVENT_NAMES}
+        for concern in seed_concerns():
+            for jp in concern.pointcut.joinpoints:
+                assert jp in reachable, (
+                    f"concern {concern.id!r} uses joinpoint {jp!r} which is not "
+                    f"emitted by the default OpenClaw event subscription "
+                    f"({sorted(reachable)})"
+                )
+
+    def test_custom_concerns_reference_catalog_joinpoints(self) -> None:
+        from COAT_runtime_cli.plugin_templates.custom.concerns import seed_concerns
+        from COAT_runtime_core.joinpoint import JOINPOINT_CATALOG
+
+        for concern in seed_concerns():
+            for jp in concern.pointcut.joinpoints:
+                assert jp in JOINPOINT_CATALOG, (
+                    f"concern {concern.id!r} uses joinpoint {jp!r} which is not "
+                    f"in the built-in JOINPOINT_CATALOG"
+                )

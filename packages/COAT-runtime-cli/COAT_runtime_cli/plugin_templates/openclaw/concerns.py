@@ -21,12 +21,16 @@ from COAT_runtime_protocol import (
 from COAT_runtime_protocol.envelopes import PointcutMatch
 
 
-def _coat_prompt_prefix() -> Concern:
+def _coat_session_start() -> Concern:
     return Concern(
-        id="c-openclaw-prompt-prefix",
-        name="OpenClaw scaffold — system prompt prefix",
-        description="Prepend a small policy line to the system prompt.",
-        pointcut=Pointcut(joinpoints=["on_request_received"]),
+        id="c-openclaw-session-start",
+        name="OpenClaw scaffold — session start notice",
+        description=(
+            "Fires on ``runtime_start`` (mapped from OpenClaw's "
+            "``agent.started``) so the scaffold lights up on the very "
+            "first event the host emits."
+        ),
+        pointcut=Pointcut(joinpoints=["runtime_start"]),
         advice=Advice(
             type=AdviceType.RESPONSE_REQUIREMENT,
             content="You are running under the COAT runtime. Be concise.",
@@ -34,7 +38,7 @@ def _coat_prompt_prefix() -> Concern:
         weaving_policy=WeavingPolicy(
             mode=WeavingOperation.INSERT,
             level=WeavingLevel.PROMPT_LEVEL,
-            target="runtime_prompt.system_prefix",
+            target="runtime_prompt.active_concerns",
             priority=0.5,
         ),
     )
@@ -82,7 +86,7 @@ def _coat_user_keyword() -> Concern:
 
 
 def seed_concerns() -> list[Concern]:
-    return [_coat_prompt_prefix(), _coat_memory_note(), _coat_user_keyword()]
+    return [_coat_session_start(), _coat_memory_note(), _coat_user_keyword()]
 
 
 __all__ = ["seed_concerns"]

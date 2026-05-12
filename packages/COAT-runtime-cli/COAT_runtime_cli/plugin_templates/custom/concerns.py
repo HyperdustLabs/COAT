@@ -20,8 +20,13 @@ def _coat_demo() -> Concern:
     return Concern(
         id="c-custom-demo",
         name="Custom scaffold — demo concern",
-        description="Trivial concern proving the wiring works end-to-end.",
-        pointcut=Pointcut(joinpoints=["on_request_received"]),
+        description=(
+            "Trivial concern proving the wiring works end-to-end. "
+            "``on_user_input`` is a built-in joinpoint in the COAT "
+            "catalog; your adapter's ``map_host_event`` must emit it "
+            "for this concern to fire."
+        ),
+        pointcut=Pointcut(joinpoints=["on_user_input"]),
         advice=Advice(
             type=AdviceType.RESPONSE_REQUIREMENT,
             content="Acknowledge the COAT runtime is active.",
@@ -29,7 +34,7 @@ def _coat_demo() -> Concern:
         weaving_policy=WeavingPolicy(
             mode=WeavingOperation.INSERT,
             level=WeavingLevel.PROMPT_LEVEL,
-            target="runtime_prompt.system_prefix",
+            target="runtime_prompt.active_concerns",
             priority=0.5,
         ),
     )
