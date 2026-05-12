@@ -90,7 +90,7 @@ PR-15 gh/#18  feat/m3-jsonl-replay         → append-only event log + replay to
 PR-16 gh/#20  feat/m3-persistence-example  → examples/03_persistent_agent_demo                   ✅ landed
 ```
 
-### Suggested split for M4
+### Suggested split for M4 (✅ landed)
 
 ```text
 PR-17 gh/#21  feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (storage + LLM selector) ✅ landed
@@ -108,14 +108,14 @@ post-PR-8 doc sync), `#17` (closed README patch), and `#19` (JSONL
 header reopen fix) sit between milestone tasks — they're real PRs but
 not part of the milestone plan.
 
-### Suggested split for M5
+### Suggested split for M5 (✅ landed)
 
 ```text
 gh/#28  feat/m5-openclaw-adapter        → OpenClawEvent + joinpoint_map + adapter.map_host_event(s) ✅ landed
 gh/#29  feat/m5-openclaw-injector       → ConcernInjection → OpenClaw context (per weaving target) + span_extractor ✅ landed
 gh/#30  feat/m5-openclaw-tool-guard     → AdviceType.TOOL_GUARD on tool_call.arguments (mutate / block) ✅ landed
 gh/#31  feat/m5-openclaw-memory-bridge  → memory_bridge + install_hooks() lifecycle binding ✅ landed
-gh/#32  feat/m5-example-openclaw        → examples/04_openclaw_with_runtime end-to-end + integration test ← this PR
+gh/#32  feat/m5-example-openclaw        → examples/04_openclaw_with_runtime end-to-end + integration test ✅ landed
 ```
 
 The PR-N parallel index is gone from M5 onwards (see the "Milestone PR
