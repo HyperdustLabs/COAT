@@ -50,7 +50,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
+
+from opencoat_runtime_protocol import ConcernInjection, JoinpointEvent
 
 from .adapter import OpenClawAdapter
 from .events import OpenClawEvent, OpenClawEventName
@@ -61,8 +63,28 @@ from .memory_bridge import OpenClawMemoryBridge
 # envelope shape the adapter expects without losing turn correlation.
 _ENVELOPE_FIELDS = frozenset(OpenClawEvent.model_fields.keys())
 
-if TYPE_CHECKING:
-    from opencoat_runtime_core.runtime import OpenCOATRuntime
+
+@runtime_checkable
+class RuntimeLike(Protocol):
+    """Structural shape :func:`install_hooks` needs from a runtime.
+
+    The concrete :class:`opencoat_runtime_core.OpenCOATRuntime`
+    satisfies this naturally, but so does any object that forwards
+    joinpoints elsewhere — e.g. a thin proxy over
+    :class:`opencoat_runtime_host_sdk.Client` that routes every
+    submit through HTTP JSON-RPC to a running daemon. This is what
+    the daemon-backed ``opencoat plugin install openclaw`` scaffold
+    uses to share concern + DCN state with ``opencoat runtime up``.
+    """
+
+    def on_joinpoint(
+        self,
+        jp: JoinpointEvent,
+        *,
+        context: dict[str, Any] | None = ...,
+        return_none_when_empty: bool = ...,
+    ) -> ConcernInjection | None: ...
+
 
 # Type aliases — keep callback signatures readable.
 HostCallback = Callable[[dict[str, Any]], None]
@@ -95,7 +117,7 @@ class InstalledHooks:
     """
 
     host: OpenClawHost
-    runtime: OpenCOATRuntime
+    runtime: RuntimeLike
     adapter: OpenClawAdapter
     bridge: OpenClawMemoryBridge | None
     event_names: tuple[str, ...]
@@ -125,7 +147,7 @@ class InstalledHooks:
 def install_hooks(
     host: OpenClawHost,
     *,
-    runtime: OpenCOATRuntime,
+    runtime: RuntimeLike,
     adapter: OpenClawAdapter | None = None,
     bridge: OpenClawMemoryBridge | None = None,
     event_names: tuple[str, ...] | None = None,
@@ -138,7 +160,10 @@ def install_hooks(
         Anything satisfying :class:`OpenClawHost` — i.e. exposes a
         ``subscribe(event_name, callback) -> unsubscribe`` method.
     runtime:
-        The :class:`OpenCOATRuntime` that should receive mapped joinpoints.
+        Anything satisfying :class:`RuntimeLike` — typically a real
+        :class:`opencoat_runtime_core.OpenCOATRuntime`, but a thin
+        proxy over a daemon :class:`Client` also works (and is what
+        the daemon-backed ``plugin install`` scaffold uses).
     adapter:
         :class:`OpenClawAdapter` used for event → joinpoint mapping. A
         fresh adapter is constructed when omitted, but in practice the
@@ -193,7 +218,7 @@ def _make_callback(
     *,
     name: str,
     adapter: OpenClawAdapter,
-    runtime: OpenCOATRuntime,
+    runtime: RuntimeLike,
     bridge: OpenClawMemoryBridge | None,
 ) -> HostCallback:
     """Build the single per-event callback we hand to ``host.subscribe``.
@@ -271,5 +296,6 @@ def _extract_memory_payload(
 __all__ = [
     "InstalledHooks",
     "OpenClawHost",
+    "RuntimeLike",
     "install_hooks",
 ]

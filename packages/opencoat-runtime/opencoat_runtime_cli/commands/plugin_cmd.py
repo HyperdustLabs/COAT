@@ -84,11 +84,18 @@ def _copy_templates(host: str, out: Path, *, force: bool) -> int:
     print()
     print("Next:")
     if host == "openclaw":
-        print("  1. Edit concerns.py to add your own concerns.")
-        print("  2. Call bootstrap_opencoat.install(your_openclaw_host) from your app.")
+        print("  1. Start a daemon:           opencoat runtime up")
+        print("  2. Seed some concerns:        opencoat concern import --demo")
+        print("  3. Call from your app:        bootstrap_opencoat.install(your_openclaw_host)")
+        print("     (uses HTTP to the daemon; for an embedded runtime instead see")
+        print("      install_in_process()).")
     else:
-        print("  1. Fill in map_host_event / apply_injection in host_adapter.py.")
-        print("  2. Drive the adapter from your agent loop; seed concerns.py.")
+        print("  1. Start a daemon:           opencoat runtime up")
+        print("  2. Seed some concerns:        opencoat concern import --demo")
+        print("  3. Fill in map_host_event / apply_injection in host_adapter.py.")
+        print("  4. Drive the adapter from your agent loop, using:")
+        print("       client = bootstrap_opencoat.daemon_client()")
+        print("       client.emit(jp)   # forwards over HTTP to the daemon")
     return 0
 
 

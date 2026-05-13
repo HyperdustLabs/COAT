@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from opencoat_runtime_cli.commands import plugin_cmd
@@ -169,3 +170,151 @@ class TestScaffoldJoinpointsAreReachable:
                     f"concern {concern.id!r} uses joinpoint {jp!r} which is not "
                     f"in the built-in JOINPOINT_CATALOG"
                 )
+
+
+class TestScaffoldExposesDaemonBackedSurface:
+    """The 0.1.0 scaffold ships two install paths: daemon-backed (the
+    default, paired with ``opencoat runtime up``) and in-process. The
+    daemon-backed path is what the ``opencoat-skill`` demo flow expects.
+    These tests pin the public surface so the skill's copy-paste
+    instructions can't go stale.
+    """
+
+    def test_openclaw_scaffold_exposes_daemon_install_and_legacy_install(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.openclaw import bootstrap_opencoat
+
+        # Daemon-backed entry points.
+        assert callable(bootstrap_opencoat.install)
+        assert callable(bootstrap_opencoat.daemon_client)
+        assert bootstrap_opencoat.DEFAULT_DAEMON_URL == "http://127.0.0.1:7878"
+        # Legacy in-process path is still available, renamed to make
+        # the daemon-vs-embedded choice explicit at the call site.
+        assert callable(bootstrap_opencoat.install_in_process)
+        assert callable(bootstrap_opencoat.build_runtime)
+        assert callable(bootstrap_opencoat.seed_stores)
+        # The events the adapter subscribes to are unchanged; pinned by
+        # the reachability test below.
+        assert bootstrap_opencoat.DEFAULT_EVENT_NAMES == (
+            "agent.started",
+            "agent.user_message",
+            "agent.memory_write",
+        )
+
+    def test_custom_scaffold_exposes_daemon_client_helper(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom import bootstrap_opencoat
+
+        assert callable(bootstrap_opencoat.daemon_client)
+        assert bootstrap_opencoat.DEFAULT_DAEMON_URL == "http://127.0.0.1:7878"
+        # In-process path stays available for tests / scripts.
+        assert callable(bootstrap_opencoat.build_runtime_with_adapter)
+
+    def test_openclaw_daemon_client_honours_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from opencoat_runtime_cli.plugin_templates.openclaw import bootstrap_opencoat
+        from opencoat_runtime_host_sdk.transport.http import HttpTransport
+
+        monkeypatch.setenv("OPENCOAT_DAEMON_URL", "http://10.0.0.7:9999")
+        client = bootstrap_opencoat.daemon_client()
+        assert isinstance(client.transport, HttpTransport)
+        assert client.transport.endpoint == "http://10.0.0.7:9999/rpc"
+
+    def test_openclaw_daemon_client_explicit_url_wins(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from opencoat_runtime_cli.plugin_templates.openclaw import bootstrap_opencoat
+
+        monkeypatch.setenv("OPENCOAT_DAEMON_URL", "http://from-env:1")
+        client = bootstrap_opencoat.daemon_client("http://explicit:2")
+        assert client.transport.endpoint == "http://explicit:2/rpc"
+
+    def test_custom_scaffold_imports_without_host_sdk(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The custom scaffold must be importable in a runtime-only
+        install (no ``opencoat-runtime-host`` on path).
+
+        ``opencoat-runtime`` does not declare ``opencoat-runtime-host``
+        as a dependency, so users on a ``pipx install opencoat-runtime``
+        topology must still be able to ``import bootstrap_opencoat``
+        and use :func:`build_runtime_with_adapter` for the in-process
+        path. Only :func:`daemon_client` actually needs the host SDK,
+        and pays the import cost lazily.
+        """
+        # Pretend the host SDK is uninstalled.
+        monkeypatch.setitem(sys.modules, "opencoat_runtime_host_sdk", None)
+        # Force a re-import so the top-of-file import block re-runs
+        # under the simulated missing-package state.
+        sys.modules.pop(
+            "opencoat_runtime_cli.plugin_templates.custom.bootstrap_opencoat",
+            None,
+        )
+
+        from opencoat_runtime_cli.plugin_templates.custom import bootstrap_opencoat
+
+        # In-process path still works — that's the whole point of the
+        # lazy import. We don't actually call build_runtime_with_adapter
+        # here because the runtime + LLM stub paths are exercised
+        # elsewhere; we just want to prove the module loaded.
+        assert callable(bootstrap_opencoat.build_runtime_with_adapter)
+        assert callable(bootstrap_opencoat.build_runtime)
+
+        # daemon_client is still exposed (for type discovery / docs),
+        # but calling it without the host SDK fails *at call time*,
+        # not at import time, with the same error the user would get
+        # from ``from opencoat_runtime_host_sdk import Client``.
+        with pytest.raises((ModuleNotFoundError, ImportError)):
+            bootstrap_opencoat.daemon_client()
+
+    def test_openclaw_daemon_runtime_proxy_forwards_to_client(self) -> None:
+        """The :class:`_DaemonRuntime` proxy must satisfy ``RuntimeLike``
+        and forward every :meth:`on_joinpoint` call to ``client.emit``.
+        """
+        from opencoat_runtime_cli.plugin_templates.openclaw.bootstrap_opencoat import (
+            _DaemonRuntime,
+        )
+        from opencoat_runtime_host_openclaw.hooks import RuntimeLike
+
+        captured: list[tuple[Any, dict[str, Any]]] = []
+
+        class _FakeClient:
+            def emit(self, jp, **kw):  # type: ignore[no-untyped-def]
+                captured.append((jp, kw))
+                return "sentinel"
+
+        proxy = _DaemonRuntime(_FakeClient())  # type: ignore[arg-type]
+        # Pin both the structural Protocol satisfaction and the
+        # forwarding semantics — these are the two things install_hooks
+        # relies on when ``install()`` wires the proxy in for the
+        # daemon-backed path.
+        assert isinstance(proxy, RuntimeLike)
+        out = proxy.on_joinpoint("jp-fake", context={"k": "v"}, return_none_when_empty=True)  # type: ignore[arg-type]
+        assert out == "sentinel"
+        assert captured == [("jp-fake", {"context": {"k": "v"}, "return_none_when_empty": True})]
+
+
+class TestPluginInstallNextOutput:
+    """Pin the post-install ``Next:`` guidance so users see the
+    daemon-first flow that matches the ``opencoat-skill`` demo, not
+    the legacy in-process call.
+    """
+
+    def test_openclaw_next_steps_lead_with_runtime_up(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        capsys.readouterr()
+        _scaffold_dir(tmp_path, "openclaw")
+        out = capsys.readouterr().out
+        assert "opencoat runtime up" in out
+        assert "opencoat concern import --demo" in out
+        assert "bootstrap_opencoat.install" in out
+        # The in-process path is still mentioned as an alternative.
+        assert "install_in_process" in out
+
+    def test_custom_next_steps_lead_with_runtime_up(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        capsys.readouterr()
+        _scaffold_dir(tmp_path, "custom")
+        out = capsys.readouterr().out
+        assert "opencoat runtime up" in out
+        assert "daemon_client" in out
+        assert "client.emit" in out
