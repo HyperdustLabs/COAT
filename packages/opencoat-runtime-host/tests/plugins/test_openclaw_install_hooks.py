@@ -503,9 +503,7 @@ class TestPendingBufferCapture:
         no-op at apply_to time and would muddy ``pending`` snapshots.
         """
         host = FakeHost()
-        runtime = _FakeRuntime(
-            {"on_user_input": ConcernInjection(turn_id="t-1", injections=[])}
-        )
+        runtime = _FakeRuntime({"on_user_input": ConcernInjection(turn_id="t-1", injections=[])})
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
         assert installed.pending == ()
@@ -550,9 +548,7 @@ class TestApplyTo:
 
     def test_apply_to_drains_by_default(self) -> None:
         host = FakeHost()
-        runtime = _FakeRuntime(
-            {"on_user_input": _injection_with("runtime_prompt.note", "once")}
-        )
+        runtime = _FakeRuntime({"on_user_input": _injection_with("runtime_prompt.note", "once")})
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
         assert len(installed.pending) == 1
@@ -567,9 +563,7 @@ class TestApplyTo:
 
     def test_apply_to_drain_false_peeks_without_consuming(self) -> None:
         host = FakeHost()
-        runtime = _FakeRuntime(
-            {"on_user_input": _injection_with("runtime_prompt.note", "twice")}
-        )
+        runtime = _FakeRuntime({"on_user_input": _injection_with("runtime_prompt.note", "twice")})
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
 
@@ -677,9 +671,7 @@ class TestApplyTo:
         must still fire.
         """
         host = FakeHost()
-        runtime = _FakeRuntime(
-            {"on_user_input": _injection_with("runtime_prompt.note", "n")}
-        )
+        runtime = _FakeRuntime({"on_user_input": _injection_with("runtime_prompt.note", "n")})
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
         assert len(installed.pending) == 1
@@ -726,9 +718,7 @@ class TestGuardToolCall:
 
     def test_returns_none_when_no_tool_guard_buffered(self) -> None:
         host = FakeHost()
-        runtime = _FakeRuntime(
-            {"on_user_input": _injection_with("runtime_prompt.note", "n")}
-        )
+        runtime = _FakeRuntime({"on_user_input": _injection_with("runtime_prompt.note", "n")})
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
 
@@ -754,9 +744,7 @@ class TestGuardToolCall:
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
 
-        first = installed.guard_tool_call(
-            {"name": "x", "arguments": {"command": "x"}}, drain=False
-        )
+        first = installed.guard_tool_call({"name": "x", "arguments": {"command": "x"}}, drain=False)
         second = installed.guard_tool_call(
             {"name": "x", "arguments": {"command": "x"}}, drain=False
         )
@@ -793,9 +781,7 @@ class TestGuardToolCall:
 class TestClearPending:
     def test_clear_pending_empties_buffer(self) -> None:
         host = FakeHost()
-        runtime = _FakeRuntime(
-            {"on_user_input": _injection_with("runtime_prompt.note", "drop me")}
-        )
+        runtime = _FakeRuntime({"on_user_input": _injection_with("runtime_prompt.note", "drop me")})
         installed = install_hooks(host, runtime=runtime)
         host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
 

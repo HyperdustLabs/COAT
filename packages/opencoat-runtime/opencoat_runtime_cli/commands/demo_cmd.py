@@ -299,7 +299,10 @@ def _run_scenes(host: _FakeHost, installed: Any, *, stream: Any = None) -> int:
     else:
         failed.append("demo-tool-block")
         print("  outcome    : allowed (no TOOL_GUARD advice fired)", file=out)
-        print("  ⚠ is demo-tool-block active? keyword matcher needs 'rm -rf' in payload text.", file=out)
+        print(
+            "  ⚠ is demo-tool-block active? keyword matcher needs 'rm -rf' in payload text.",
+            file=out,
+        )
     print(file=out)
 
     # ------------------------------------------------------------------
@@ -335,8 +338,12 @@ def _run_scenes(host: _FakeHost, installed: Any, *, stream: Any = None) -> int:
     print("Next:", file=out)
     print("  • opencoat dcn activation-log --limit 10        # which concerns fired", file=out)
     print("  • opencoat concern list                          # what's seeded", file=out)
-    print("  • opencoat plugin install openclaw               # scaffold a real host plugin", file=out)
-    print("  • opencoat demo --script-out demo_host.py        # dump the equivalent Python", file=out)
+    print(
+        "  • opencoat plugin install openclaw               # scaffold a real host plugin", file=out
+    )
+    print(
+        "  • opencoat demo --script-out demo_host.py        # dump the equivalent Python", file=out
+    )
     return 0
 
 

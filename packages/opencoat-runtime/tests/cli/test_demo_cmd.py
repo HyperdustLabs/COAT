@@ -22,17 +22,13 @@ class TestDemoCommandRegistration:
     + ``--script-out``).
     """
 
-    def test_demo_subcommand_appears_in_root_help(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_demo_subcommand_appears_in_root_help(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             opencoat_main(["--no-banner", "--help"])
         out = capsys.readouterr().out
         assert " demo " in out  # listed in subcommand table
 
-    def test_demo_help_advertises_both_modes(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_demo_help_advertises_both_modes(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             opencoat_main(["--no-banner", "demo", "--help"])
         out = capsys.readouterr().out
@@ -51,9 +47,7 @@ class TestInProcMode:
     just three scenes against an embedded runtime.
     """
 
-    def test_three_scenes_all_show_visible_change(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_three_scenes_all_show_visible_change(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = opencoat_main(["--no-banner", "demo", "--in-proc"])
         assert rc == 0
         out = capsys.readouterr().out
@@ -116,9 +110,7 @@ class TestInProcMode:
 
 
 class TestDaemonUnreachable:
-    def test_friendly_hint_when_daemon_down(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_friendly_hint_when_daemon_down(self, capsys: pytest.CaptureFixture[str]) -> None:
         # Port 9 (discard) is reserved and reliably refuses connections.
         rc = opencoat_main(
             [
