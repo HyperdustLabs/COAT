@@ -197,16 +197,41 @@ class Daemon:
 
     @staticmethod
     def _resolve_pid_path(_config: DaemonConfig, override: str | Path | None) -> Path | None:
-        # PR-21 (CLI) wires ``--pid-file`` through. For now we only
-        # honour the explicit constructor argument so the daemon
-        # doesn't accidentally write a pid file during tests.
+        """Pick a PID file location for the daemon.
+
+        Precedence:
+
+        1. Explicit ``pid_file=`` constructor argument (or
+           ``--pid-file`` from the CLI, which forwards here).
+        2. ``OPENCOAT_PID_FILE`` env var — handy for ``launchctl``
+           plists / ``systemd`` units that want to pin the path
+           without rewriting the daemon config.
+        3. ``None`` — no PID file, original M0 behaviour. The
+           ``opencoat runtime`` CLI passes its own default
+           (``~/.opencoat/opencoat.pid``) so a CLI-driven daemon
+           always gets a stable PID location; tests and embedded
+           callers that construct ``Daemon`` directly opt out by
+           passing nothing.
+        """
+        import os as _os
+
         if override is not None:
             return Path(override)
+        env = _os.environ.get("OPENCOAT_PID_FILE")
+        if env:
+            return Path(env).expanduser()
         return None
 
     def _acquire_pid_file(self) -> None:
         if self._pid_file_path is None:
             return
+        # ``~/.opencoat`` may not exist on a fresh install; create it
+        # eagerly so the PidFile lock can land without callers having
+        # to ``mkdir -p`` first. Storage backends already do this for
+        # their sqlite files, but the PID file is created earlier in
+        # ``start()`` than the stores are.
+        with contextlib.suppress(OSError):
+            self._pid_file_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             self._pid_file = PidFile(self._pid_file_path)
             self._pid_file.acquire()

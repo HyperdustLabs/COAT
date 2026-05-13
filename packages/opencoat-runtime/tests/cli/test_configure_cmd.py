@@ -113,3 +113,82 @@ def test_non_interactive_inline_auto_rejected(tmp_path: Path) -> None:
     p = tmp_path / "x.env"
     p.write_text("A=1\n# c\nB=two\n", encoding="utf-8")
     assert configure_cmd._parse_env_file(p) == {"A": "1", "B": "two"}
+
+
+# ---------------------------------------------------------------------------
+# configure daemon
+# ---------------------------------------------------------------------------
+
+
+def _daemon_ns(**kwargs: object) -> Namespace:
+    defaults: dict[str, object] = {
+        "yaml": Path("/dev/null"),
+        "concern_db": Path("/dev/null/concerns.sqlite"),
+        "dcn_db": Path("/dev/null/dcn.sqlite"),
+        "http_host": "127.0.0.1",
+        "http_port": 7878,
+        "http_path": "/rpc",
+        "pid_file": Path("/dev/null/opencoat.pid"),
+    }
+    defaults.update(kwargs)
+    return Namespace(**defaults)
+
+
+def test_configure_daemon_writes_sqlite_storage(tmp_path: Path) -> None:
+    y = tmp_path / "daemon.yaml"
+    cdb = tmp_path / "store" / "concerns.sqlite"
+    ddb = tmp_path / "store" / "dcn.sqlite"
+    args = _daemon_ns(yaml=y, concern_db=cdb, dcn_db=ddb, pid_file=tmp_path / "opencoat.pid")
+    assert configure_cmd._configure_daemon(args) == 0
+
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["storage"]["concern_store"] == {"kind": "sqlite", "path": str(cdb)}
+    assert data["storage"]["dcn_store"] == {"kind": "sqlite", "path": str(ddb)}
+    assert data["ipc"]["http"] == {
+        "enabled": True,
+        "host": "127.0.0.1",
+        "port": 7878,
+        "path": "/rpc",
+    }
+    # Parent dir for the sqlite files exists after configure runs.
+    assert cdb.parent.is_dir()
+
+
+def test_configure_daemon_preserves_existing_llm_block(tmp_path: Path) -> None:
+    y = tmp_path / "daemon.yaml"
+    y.write_text(
+        "llm:\n  provider: openai\n  model: gpt-4o-mini\n  timeout_seconds: 30.0\n",
+        encoding="utf-8",
+    )
+    args = _daemon_ns(
+        yaml=y,
+        concern_db=tmp_path / "c.sqlite",
+        dcn_db=tmp_path / "d.sqlite",
+        pid_file=tmp_path / "opencoat.pid",
+    )
+    assert configure_cmd._configure_daemon(args) == 0
+
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["llm"]["provider"] == "openai"
+    assert data["llm"]["model"] == "gpt-4o-mini"
+    assert data["storage"]["concern_store"]["kind"] == "sqlite"
+
+
+def test_configure_daemon_then_llm_round_trip(tmp_path: Path) -> None:
+    """Either-order: configure daemon → configure llm leaves both blocks intact."""
+    y = tmp_path / "daemon.yaml"
+    daemon_args = _daemon_ns(
+        yaml=y,
+        concern_db=tmp_path / "c.sqlite",
+        dcn_db=tmp_path / "d.sqlite",
+        pid_file=tmp_path / "opencoat.pid",
+    )
+    assert configure_cmd._configure_daemon(daemon_args) == 0
+
+    llm_args = _ns(yaml=y, env=tmp_path / "e.env", mode="env-file", provider="openai")
+    assert configure_cmd._configure_llm(llm_args) == 0
+
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["storage"]["concern_store"]["kind"] == "sqlite"
+    assert data["llm"]["provider"] == "openai"
+    assert data["ipc"]["http"]["port"] == 7878

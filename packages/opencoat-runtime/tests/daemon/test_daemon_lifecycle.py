@@ -93,6 +93,41 @@ def test_pid_file_collision_blocks_start(tmp_path: Path) -> None:
     assert pid.read_text().strip() == "1"
 
 
+def test_resolve_pid_path_prefers_explicit_override(tmp_path: Path) -> None:
+    cfg = _no_http_cfg()
+    explicit = tmp_path / "explicit.pid"
+    assert Daemon._resolve_pid_path(cfg, explicit) == explicit
+
+
+def test_resolve_pid_path_uses_env_var(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = _no_http_cfg()
+    target = tmp_path / "env.pid"
+    monkeypatch.setenv("OPENCOAT_PID_FILE", str(target))
+    assert Daemon._resolve_pid_path(cfg, None) == target
+
+
+def test_resolve_pid_path_returns_none_without_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = _no_http_cfg()
+    monkeypatch.delenv("OPENCOAT_PID_FILE", raising=False)
+    assert Daemon._resolve_pid_path(cfg, None) is None
+
+
+def test_acquire_creates_parent_directory(tmp_path: Path) -> None:
+    """Daemon.start() should ``mkdir -p`` the pid file's parent dir."""
+    cfg = _no_http_cfg()
+    pid = tmp_path / "nested" / "dir" / "opencoat.pid"
+    assert not pid.parent.exists()
+    d = Daemon(cfg, env={}, pid_file=pid)
+    d.start()
+    try:
+        assert pid.parent.is_dir()
+        assert pid.exists()
+    finally:
+        d.stop()
+
+
 def test_http_endpoint_serves_jsonrpc(tmp_path: Path) -> None:
     cfg = _http_cfg()
     d = Daemon(cfg, env={}, pid_file=tmp_path / "opencoat.pid")

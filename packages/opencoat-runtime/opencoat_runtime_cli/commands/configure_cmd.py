@@ -104,6 +104,32 @@ def _write_yaml_llm(
         _chmod_secret(path)
 
 
+def _write_yaml_section(
+    path: Path,
+    *,
+    storage: dict[str, Any] | None = None,
+    ipc: dict[str, Any] | None = None,
+) -> None:
+    """Merge ``storage`` / ``ipc`` blocks into ``path`` without touching ``llm``.
+
+    Used by ``opencoat configure daemon`` to flip the stores to sqlite
+    (and pin the HTTP endpoint) while preserving whatever the LLM
+    wizard previously wrote.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    merged = _load_yaml_dict(path)
+    if storage is not None:
+        existing = merged.get("storage")
+        existing_dict = existing if isinstance(existing, dict) else {}
+        merged["storage"] = {**existing_dict, **storage}
+    if ipc is not None:
+        existing = merged.get("ipc")
+        existing_dict = existing if isinstance(existing, dict) else {}
+        merged["ipc"] = {**existing_dict, **ipc}
+    text = yaml.safe_dump(merged, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    path.write_text(text, encoding="utf-8")
+
+
 def _collect_interactive() -> tuple[str, Mode, dict[str, str], dict[str, Any]]:
     print("OpenCOAT — configure daemon LLM\n", file=sys.stderr)
     print(
@@ -380,6 +406,139 @@ def _configure_llm(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# configure daemon — persistent storage + HTTP endpoint
+# ---------------------------------------------------------------------------
+
+
+_DEFAULT_CONCERN_DB_REL = Path(".opencoat") / "concerns.sqlite"
+_DEFAULT_DCN_DB_REL = Path(".opencoat") / "dcn.sqlite"
+_DEFAULT_PID_REL = Path(".opencoat") / "opencoat.pid"
+
+
+def _configure_daemon(args: argparse.Namespace) -> int:
+    """Write a sqlite-backed daemon profile to the user's YAML.
+
+    The wizard is intentionally narrow:
+
+    * It flips ``storage.concern_store`` and ``storage.dcn_store`` to
+      ``kind: sqlite`` with files under ``~/.opencoat/`` so concerns
+      and the DCN activation log survive daemon restarts and reboots.
+    * It pins the HTTP listener (``ipc.http``) so ``opencoat runtime``
+      and the host-side SDK / OpenClaw plugins talk to a known
+      endpoint.
+
+    Anything the LLM wizard already wrote (``llm:`` block) is
+    preserved — both wizards target the same ``~/.opencoat/daemon.yaml``
+    and merge their slices, so operators can run them in either order.
+    """
+    yaml_path: Path = args.yaml.expanduser()
+    concern_db: Path = Path(args.concern_db).expanduser()
+    dcn_db: Path = Path(args.dcn_db).expanduser()
+
+    storage_block: dict[str, Any] = {
+        "concern_store": {"kind": "sqlite", "path": str(concern_db)},
+        "dcn_store": {"kind": "sqlite", "path": str(dcn_db)},
+    }
+    ipc_block: dict[str, Any] = {
+        "http": {
+            "enabled": True,
+            "host": args.http_host,
+            "port": int(args.http_port),
+            "path": args.http_path,
+        },
+    }
+
+    _write_yaml_section(yaml_path, storage=storage_block, ipc=ipc_block)
+    # Make sure the parent dir for the sqlite files exists eagerly so a
+    # follow-up ``opencoat runtime up`` doesn't have to. The stores
+    # themselves also ``mkdir -p`` on first construction; doing it here
+    # too keeps the wizard's output ("wrote …") honest.
+    for db_path in (concern_db, dcn_db):
+        with contextlib.suppress(OSError):
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"configure daemon: wrote {yaml_path}", file=sys.stderr)
+    print(
+        "  storage.concern_store -> sqlite "
+        f"({concern_db})\n  storage.dcn_store     -> sqlite ({dcn_db})\n"
+        f"  ipc.http              -> http://{args.http_host}:{args.http_port}{args.http_path}",
+        file=sys.stderr,
+    )
+
+    pid_path = Path(args.pid_file).expanduser() if args.pid_file else None
+    pid_arg = f" --pid-file {pid_path}" if pid_path else ""
+
+    print("\n--- Next steps ---", file=sys.stderr)
+    print(
+        "  1. (If you haven't yet) configure your LLM credentials:\n"
+        f"       opencoat configure llm --yaml {yaml_path}\n"
+        "  2. Start the daemon — `runtime up` double-forks by default, so the\n"
+        "     daemon stays alive after the terminal closes. Just don't run\n"
+        "     `runtime down` and it'll keep serving across host-agent sessions:\n"
+        f"       opencoat runtime up --config {yaml_path}{pid_arg}\n"
+        "  3. Confirm:\n"
+        f"       opencoat runtime status --config {yaml_path}{pid_arg}\n"
+        "\n"
+        "  Stores live at the paths above; restart the daemon any time without\n"
+        "  losing concerns or the DCN activation log.\n",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _register_daemon(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser(
+        "daemon",
+        help=(
+            "configure persistent storage + HTTP endpoint for the long-running "
+            "daemon (writes ~/.opencoat/daemon.yaml)"
+        ),
+    )
+    p.add_argument(
+        "--yaml",
+        dest="yaml",
+        type=Path,
+        default=_default_yaml_path(),
+        help=f"path to daemon YAML to create/update (default: ~/{_DEFAULT_YAML_REL})",
+    )
+    p.add_argument(
+        "--concern-db",
+        type=Path,
+        default=Path.home() / _DEFAULT_CONCERN_DB_REL,
+        help=f"path to ConcernStore sqlite file (default: ~/{_DEFAULT_CONCERN_DB_REL})",
+    )
+    p.add_argument(
+        "--dcn-db",
+        type=Path,
+        default=Path.home() / _DEFAULT_DCN_DB_REL,
+        help=f"path to DCNStore sqlite file (default: ~/{_DEFAULT_DCN_DB_REL})",
+    )
+    p.add_argument(
+        "--http-host",
+        default="127.0.0.1",
+        help="ipc.http.host (default: 127.0.0.1 — local only)",
+    )
+    p.add_argument(
+        "--http-port",
+        type=int,
+        default=7878,
+        help="ipc.http.port (default: 7878)",
+    )
+    p.add_argument(
+        "--http-path",
+        default="/rpc",
+        help="ipc.http.path (default: /rpc)",
+    )
+    p.add_argument(
+        "--pid-file",
+        type=Path,
+        default=Path.home() / _DEFAULT_PID_REL,
+        help=f"PID file path printed in the next-steps hint (default: ~/{_DEFAULT_PID_REL})",
+    )
+    p.set_defaults(func=_configure_daemon)
+
+
 def _register_llm(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser(
         "llm",
@@ -455,6 +614,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     inner = p.add_subparsers(dest="configure_target", required=True)
     _register_llm(inner)
+    _register_daemon(inner)
 
 
 __all__ = ["register"]

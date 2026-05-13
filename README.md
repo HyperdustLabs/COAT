@@ -217,6 +217,45 @@ both go quiet for that explicit choice.
 
 ---
 
+### Make the daemon long-running + persistent
+
+The bundled default keeps both concern + DCN stores in-process so
+`pytest` / examples stay hermetic. Real users want the opposite: a
+daemon that survives restarts and remembers concerns across host-agent
+sessions. One command takes you there:
+
+```bash
+opencoat configure daemon
+```
+
+That writes `storage.concern_store` and `storage.dcn_store` blocks
+pointing at sqlite files under `~/.opencoat/` (and pins the HTTP
+endpoint) into the same `~/.opencoat/daemon.yaml` the LLM wizard writes
+— the two can run in either order.
+
+Then start the daemon and *leave it alone*:
+
+```bash
+opencoat runtime up --config ~/.opencoat/daemon.yaml \
+                    --pid-file ~/.opencoat/opencoat.pid
+```
+
+`runtime up` double-forks by default so the daemon is owned by init,
+not your terminal. Close the terminal, switch host-agent sessions, run
+`opencoat concern …` / `opencoat inspect …` from anywhere — the daemon
+just stays up. The only way to stop it is to deliberately run:
+
+```bash
+opencoat runtime down --pid-file ~/.opencoat/opencoat.pid
+```
+
+If you need it to survive reboots too, hook `opencoat runtime up`
+into your usual startup mechanism (`launchctl`, `systemd --user`,
+crontab `@reboot`, …) — it's a single command, so a one-line wrapper
+is plenty; no first-party service installer needed.
+
+---
+
 ## Contributing
 
 All changes land via pull request — branch protection on `main` requires CI
