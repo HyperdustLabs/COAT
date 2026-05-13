@@ -86,23 +86,19 @@ def _copy_templates(host: str, out: Path, *, force: bool) -> int:
     if host == "openclaw":
         print("  1. Start a daemon:           opencoat runtime up")
         print("  2. Seed some concerns:        opencoat concern import --demo")
-        print("  3. Wire your agent loop:")
-        print("       installed = bootstrap_opencoat.install(your_openclaw_host)")
-        print("       try:")
-        print("           # ... events flow into the daemon through install_hooks ...")
-        print("           prompt_ctx = installed.apply_to(prompt_ctx)       # fold advice")
-        print("           outcome    = installed.guard_tool_call(call)      # check guards")
-        print("       finally:")
-        print("           installed.uninstall()")
+        print("  3. Call from your app:        bootstrap_opencoat.install(your_openclaw_host)")
         print("     (uses HTTP to the daemon; for an embedded runtime instead see")
         print("      install_in_process()).")
     else:
         print("  1. Start a daemon:           opencoat runtime up")
         print("  2. Seed some concerns:        opencoat concern import --demo")
-        print("  3. Fill in map_host_event / apply_injection in host_adapter.py.")
-        print("  4. Drive the adapter from your agent loop, using:")
+        print("  3. Drive the adapter from your agent loop, using:")
         print("       client = bootstrap_opencoat.daemon_client()")
         print("       client.emit(jp)   # forwards over HTTP to the daemon")
+        print("     CustomHostAdapter ships with map_host_event +")
+        print("     apply_injection pre-implemented for the most common")
+        print("     event-name conventions (type/name/event/event_name);")
+        print("     edit EVENT_TO_JOINPOINT in host_adapter.py to extend.")
     return 0
 
 

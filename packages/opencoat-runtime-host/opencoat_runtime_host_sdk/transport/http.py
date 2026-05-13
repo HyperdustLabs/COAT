@@ -120,6 +120,22 @@ class HttpTransport:
             return None
         return ConcernInjection.model_validate(raw)
 
+    def call(self, method: str, params: dict[str, Any]) -> Any:
+        """Generic JSON-RPC dispatch for non-``joinpoint.submit`` methods.
+
+        Exposed publicly for the host SDK ``Client`` wrappers that
+        target RPC methods beyond joinpoint submission — currently
+        ``concern.extract`` (M5 PR-48), but the surface is intentionally
+        generic so future methods (``runtime.snapshot``,
+        ``dcn.activation_log``, …) don't each need a private leak of
+        ``_call``. Returns the raw JSON-RPC ``result`` (typed
+        ``Any``); the typed wrappers reshape it into their public
+        domain objects.
+
+        Errors raise the same typed subclasses as :meth:`emit`.
+        """
+        return self._call(method, params)
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------

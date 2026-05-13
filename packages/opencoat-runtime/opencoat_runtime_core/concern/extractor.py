@@ -53,7 +53,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from opencoat_runtime_protocol import COPR, Concern
 
@@ -283,6 +283,73 @@ class ConcernExtractor:
     # ------------------------------------------------------------------
     # Public entry points
     # ------------------------------------------------------------------
+
+    # Canonical origin → (instruction, ref-needed?) table used by the
+    # by-origin :meth:`extract` dispatcher. Each origin keeps the same
+    # per-origin instruction the type-specific entry points use, so
+    # going through ``extract(origin=…)`` produces byte-identical
+    # output to calling ``extract_from_<origin>()`` directly. New
+    # origins added in the future need only land an entry here and a
+    # _DEFAULT_TRUST_BY_ORIGIN row.
+    _ORIGIN_INSTRUCTIONS: ClassVar[dict[str, str]] = {
+        "manual_import": _INSTRUCTION_GOVERNANCE,
+        "user_input": _INSTRUCTION_USER,
+        "tool_result": _INSTRUCTION_TOOL,
+        "draft_output": _INSTRUCTION_DRAFT,
+        "feedback": _INSTRUCTION_FEEDBACK,
+    }
+
+    @classmethod
+    def supported_origins(cls) -> tuple[str, ...]:
+        """Origins :meth:`extract` accepts, in catalog order.
+
+        Stable wire surface for the daemon's ``concern.extract`` RPC
+        and the ``opencoat concern extract --origin`` CLI: callers
+        should refuse anything outside this tuple at the boundary
+        rather than relying on the extractor to raise.
+        """
+        return tuple(cls._ORIGIN_INSTRUCTIONS)
+
+    def extract(
+        self,
+        text: str,
+        *,
+        origin: str,
+        ref: str | None = None,
+    ) -> ExtractionResult:
+        """Generic by-origin entry point — the one the RPC layer drives.
+
+        ``origin`` selects the per-origin LLM instruction (governance
+        text reads as authoritative policy, user input as constraint
+        wishes, …) so the model's interpretation of the same span
+        depends on where the host says it came from. The dispatch
+        table is exposed via :meth:`supported_origins`.
+
+        Equivalent to calling the type-specific
+        ``extract_from_<origin>`` method with a string payload, with
+        two narrow differences:
+
+        * **``tool_result`` / ``feedback``** — the type-specific
+          methods accept a structured ``dict`` and serialise it
+          internally; here we take the *already-serialised* string
+          so the wire stays flat (the host that knows the original
+          dict shape is in a better position to format it). Pre-flatten
+          via :func:`json.dumps` if you only have a dict.
+        * The ``COPR``-derived ``ref`` of
+          :meth:`extract_from_user_input` is replaced by the explicit
+          ``ref`` kwarg, since by the time a request reaches the
+          daemon the host typically doesn't ship the live COPR.
+
+        Raises
+        ------
+        ValueError
+            If ``origin`` is not in :meth:`supported_origins`.
+        """
+        instruction = self._ORIGIN_INSTRUCTIONS.get(origin)
+        if instruction is None:
+            allowed = ", ".join(self.supported_origins())
+            raise ValueError(f"unsupported extract origin {origin!r}; expected one of: {allowed}")
+        return self._extract(text, origin=origin, ref=ref, instruction=instruction)
 
     def extract_from_governance_doc(
         self,

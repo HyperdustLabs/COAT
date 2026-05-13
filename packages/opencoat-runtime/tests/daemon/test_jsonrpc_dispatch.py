@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
+from opencoat_runtime_core import OpenCOATRuntime
+from opencoat_runtime_core.llm import StubLLMClient
 from opencoat_runtime_daemon import LLMInfo, build_runtime
 from opencoat_runtime_daemon.config import load_config
 from opencoat_runtime_daemon.ipc.jsonrpc_dispatch import JsonRpcHandler
@@ -20,6 +23,7 @@ from opencoat_runtime_protocol import (
     WeavingPolicy,
 )
 from opencoat_runtime_protocol.envelopes import PointcutMatch
+from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
 
 def _concern(cid: str = "c-rpc") -> Concern:
@@ -215,6 +219,248 @@ class TestInvalidEnvelopeStillResponds:
         assert out is not None
         assert out["error"]["code"] == -32601
         assert out["id"] == 5
+
+
+# ---------------------------------------------------------------------------
+# concern.extract (M5 PR-48)
+# ---------------------------------------------------------------------------
+
+
+def _scripted_extract_handler(structured: dict[str, Any]) -> JsonRpcHandler:
+    """Build a handler over a runtime whose LLM hands back ``structured``.
+
+    The default :class:`StubLLMClient` returns ``{}`` on ``structured()``,
+    which the extractor (correctly) reads as "no concern in this span".
+    For ``concern.extract`` tests we need at least one real candidate
+    coming back, so we plant a minimal valid emitted dict and let the
+    extractor stamp provenance + run pydantic validation as usual.
+    """
+    llm = StubLLMClient(default_structured=structured)
+    rt = OpenCOATRuntime(
+        concern_store=MemoryConcernStore(),
+        dcn_store=MemoryDCNStore(),
+        llm=llm,
+    )
+    return JsonRpcHandler(rt)
+
+
+class TestConcernExtract:
+    """``concern.extract`` — the wire entry point that wraps
+    :class:`~opencoat_runtime_core.concern.ConcernExtractor`.
+
+    These tests pin three things the host SDK and CLI will lean on:
+
+    1. Param validation routes to JSON-RPC ``-32602`` (not -32603),
+       including the "origin must be in the catalog" rule.
+    2. The happy path returns ``{candidates: [...], rejected: [...],
+       upserted: bool}`` and side-effects the concern store when
+       ``dry_run=false``.
+    3. ``dry_run=true`` produces the same candidate set without
+       touching the store — so the CLI's ``--dry-run`` preview is
+       safe to run repeatedly.
+    """
+
+    def test_missing_text_is_invalid_params(self) -> None:
+        h = _scripted_extract_handler({})
+        out = h.handle(_req("concern.extract", {"origin": "user_input"}))
+        assert out["error"]["code"] == -32602
+        assert "text" in out["error"]["message"]
+
+    def test_blank_text_is_invalid_params(self) -> None:
+        h = _scripted_extract_handler({})
+        out = h.handle(_req("concern.extract", {"text": "   ", "origin": "user_input"}))
+        assert out["error"]["code"] == -32602
+        assert "text" in out["error"]["message"]
+
+    def test_missing_origin_is_invalid_params(self) -> None:
+        h = _scripted_extract_handler({})
+        out = h.handle(_req("concern.extract", {"text": "hello"}))
+        assert out["error"]["code"] == -32602
+        assert "origin" in out["error"]["message"]
+
+    def test_unsupported_origin_lists_allowed_set(self) -> None:
+        h = _scripted_extract_handler({})
+        out = h.handle(
+            _req("concern.extract", {"text": "hello world long enough", "origin": "memory"})
+        )
+        assert out["error"]["code"] == -32602
+        msg = out["error"]["message"]
+        assert "memory" in msg
+        # Surface the catalog so the user knows what to fix.
+        assert "user_input" in msg
+        assert "manual_import" in msg
+
+    def test_ref_must_be_string_when_provided(self) -> None:
+        h = _scripted_extract_handler({})
+        out = h.handle(
+            _req(
+                "concern.extract",
+                {
+                    "text": "long enough text",
+                    "origin": "user_input",
+                    "ref": 17,
+                },
+            )
+        )
+        assert out["error"]["code"] == -32602
+        assert "ref" in out["error"]["message"]
+
+    def test_dry_run_must_be_bool(self) -> None:
+        h = _scripted_extract_handler({})
+        out = h.handle(
+            _req(
+                "concern.extract",
+                {
+                    "text": "long enough text",
+                    "origin": "user_input",
+                    "dry_run": "yes",
+                },
+            )
+        )
+        assert out["error"]["code"] == -32602
+        assert "dry_run" in out["error"]["message"]
+
+    def test_happy_path_returns_candidates_and_upserts(self) -> None:
+        h = _scripted_extract_handler({"name": "be brief"})
+        out = h.handle(
+            _req(
+                "concern.extract",
+                {
+                    "text": "Please keep every answer under three sentences.",
+                    "origin": "user_input",
+                    "ref": "prompt-42",
+                },
+            )
+        )
+        assert "error" not in out
+        result = out["result"]
+        assert result["upserted"] is True
+        assert len(result["candidates"]) == 1
+        c = result["candidates"][0]
+        assert c["name"] == "be brief"
+        assert c["source"]["origin"] == "user_input"
+        assert c["source"]["ref"] == "prompt-42"
+        # The candidate must now also be visible via concern.get.
+        got = h.handle(_req("concern.get", {"concern_id": c["id"]}))
+        assert got["result"] is not None
+        assert got["result"]["name"] == "be brief"
+
+    def test_dry_run_skips_store_upsert(self) -> None:
+        h = _scripted_extract_handler({"name": "be brief"})
+        out = h.handle(
+            _req(
+                "concern.extract",
+                {
+                    "text": "Please keep every answer under three sentences.",
+                    "origin": "user_input",
+                    "dry_run": True,
+                },
+            )
+        )
+        assert out["result"]["upserted"] is False
+        assert len(out["result"]["candidates"]) == 1
+        cid = out["result"]["candidates"][0]["id"]
+        # Store must be empty — dry_run is a contract.
+        rows = h.handle(_req("concern.list", {})).get("result", [])
+        assert all(c["id"] != cid for c in rows)
+
+    def test_no_candidates_means_empty_dict_signal(self) -> None:
+        # Default stub returns ``{}`` → extractor reads "no rule in
+        # this span", silent skip, zero candidates, zero rejections.
+        h = _scripted_extract_handler({})
+        out = h.handle(
+            _req(
+                "concern.extract",
+                {
+                    "text": "Some innocuous prose that isn't a rule at all.",
+                    "origin": "manual_import",
+                },
+            )
+        )
+        assert out["result"]["candidates"] == []
+        assert out["result"]["rejected"] == []
+        assert out["result"]["upserted"] is True  # nothing to upsert, but call did run
+
+    def test_supported_origins_all_round_trip(self) -> None:
+        # Every advertised origin must produce a valid response (not
+        # a -32602). Use ``{}`` as the LLM reply so we don't pay
+        # validation overhead — we only want the dispatch path
+        # exercised.
+        for origin in (
+            "manual_import",
+            "user_input",
+            "tool_result",
+            "draft_output",
+            "feedback",
+        ):
+            h = _scripted_extract_handler({})
+            out = h.handle(
+                _req(
+                    "concern.extract",
+                    {
+                        "text": "A long enough span of free text to pass the segmenter.",
+                        "origin": origin,
+                    },
+                )
+            )
+            assert "error" not in out, (origin, out)
+
+
+def _scripted_failure_handler(error: Exception) -> JsonRpcHandler:
+    """Handler whose LLM ``.structured()`` raises ``error`` on every call.
+
+    Used to pin the "LLM down → rejection, not -32603" contract: the
+    extractor catches per-span LLM errors and surfaces them via
+    ``ExtractionResult.rejected``. Bug regressions that let a raw
+    exception escape would surface here as ``-32603`` instead of a
+    rejection row.
+    """
+
+    class _ExplodingLLM:
+        def structured(self, *_a: object, **_k: object) -> dict[str, Any]:
+            raise error
+
+        def complete(self, *_a: object, **_k: object) -> str:
+            raise AssertionError("unexpected complete() call")
+
+        def chat(self, *_a: object, **_k: object) -> str:
+            raise AssertionError("unexpected chat() call")
+
+        def score(self, *_a: object, **_k: object) -> float:
+            raise AssertionError("unexpected score() call")
+
+    rt = OpenCOATRuntime(
+        concern_store=MemoryConcernStore(),
+        dcn_store=MemoryDCNStore(),
+        llm=_ExplodingLLM(),  # type: ignore[arg-type]
+    )
+    return JsonRpcHandler(rt)
+
+
+class TestConcernExtractLLMFailures:
+    """If the LLM provider is unreachable / errors, the extractor must
+    surface that as a per-span ``rejected`` row, not let a server
+    exception escape as JSON-RPC ``-32603``. The host can then show
+    "couldn't extract because LLM is down" instead of paging on-call.
+    """
+
+    def test_llm_runtime_error_lands_as_rejection(self) -> None:
+        h = _scripted_failure_handler(RuntimeError("provider unreachable"))
+        out = h.handle(
+            _req(
+                "concern.extract",
+                {
+                    "text": "Please always keep replies under 3 sentences.",
+                    "origin": "user_input",
+                },
+            )
+        )
+        assert "error" not in out
+        assert out["result"]["candidates"] == []
+        assert len(out["result"]["rejected"]) == 1
+        reason = out["result"]["rejected"][0]["reason"]
+        assert "RuntimeError" in reason
+        assert "provider unreachable" in reason
 
 
 # ---------------------------------------------------------------------------

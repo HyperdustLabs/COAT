@@ -15,6 +15,19 @@ Methods are dotted names grouped by domain:
 ``concern.list`` / ``concern.get`` / ``concern.upsert`` / ``concern.delete``
     Thin wrappers around :class:`~opencoat_runtime_core.ports.ConcernStore`.
 
+``concern.extract``
+    Params: ``{"text": str, "origin": str, "ref"?: str, "dry_run"?: bool}``.
+    Wraps :class:`~opencoat_runtime_core.concern.ConcernExtractor` over the
+    LLM the runtime is wired with (``runtime.llm``). Returns ``{"candidates":
+    [...Concern], "rejected": [{"span": str, "reason": str}]}``. When
+    ``dry_run=false`` (the default) the dispatcher additionally upserts
+    every candidate into ``runtime.concern_store`` so the host can
+    "extract → use" in a single round trip; pass ``dry_run=true`` to
+    inspect what *would* be extracted without touching the store.
+    ``origin`` must be one of
+    :meth:`ConcernExtractor.supported_origins`; anything else maps to
+    JSON-RPC ``-32602``. M5 PR-48.
+
 ``runtime.snapshot`` / ``runtime.current_vector`` / ``runtime.last_injection``
     Introspection helpers for health checks and the CLI.
 
@@ -42,6 +55,7 @@ from datetime import datetime
 from typing import Any
 
 from opencoat_runtime_core import OpenCOATRuntime
+from opencoat_runtime_core.concern import ConcernExtractor
 from opencoat_runtime_protocol import Concern, ConcernInjection, JoinpointEvent
 from pydantic import ValidationError
 
@@ -134,6 +148,11 @@ class JsonRpcHandler:
     ) -> None:
         self._rt = runtime
         self._llm_info = llm_info if llm_info is not None else _UNKNOWN_LLM_INFO
+        # ConcernExtractor is built lazily so the dispatcher pays the
+        # construction cost only when a host actually calls
+        # ``concern.extract`` (most daemons do nothing but
+        # ``joinpoint.submit`` for hours at a stretch).
+        self._extractor: ConcernExtractor | None = None
         self._methods: dict[str, Any] = {
             "health.ping": self._health_ping,
             "joinpoint.submit": self._joinpoint_submit,
@@ -141,6 +160,7 @@ class JsonRpcHandler:
             "concern.get": self._concern_get,
             "concern.upsert": self._concern_upsert,
             "concern.delete": self._concern_delete,
+            "concern.extract": self._concern_extract,
             "runtime.snapshot": self._runtime_snapshot,
             "runtime.current_vector": self._runtime_current_vector,
             "runtime.last_injection": self._runtime_last_injection,
@@ -266,6 +286,58 @@ class JsonRpcHandler:
         if not isinstance(cid, str) or not cid:
             raise JsonRpcParamsError("concern_id must be a non-empty string")
         self._rt.concern_store.delete(cid)
+
+    def _concern_extract(self, params: dict[str, Any] | list[Any]) -> dict[str, Any]:
+        """``concern.extract`` — host-driven dynamic concern creation (M5 PR-48).
+
+        Plumbs natural-language text through
+        :class:`~opencoat_runtime_core.concern.ConcernExtractor` and, by
+        default, upserts every produced candidate into the runtime's
+        :class:`~opencoat_runtime_core.ports.ConcernStore` — so a host
+        can collapse "extract candidates from what the user just said"
+        and "have them visible to the next ``joinpoint.submit``" into
+        one round trip. ``dry_run=true`` skips the upsert step (useful
+        for previews / CLI ``--dry-run``).
+
+        Rejections are passed through verbatim so the host can surface
+        them as warnings (LLM error, schema validation failure, …)
+        instead of silently swallowing failed spans.
+        """
+        p = _expect_params_dict(params)
+
+        text = p.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise JsonRpcParamsError("text must be a non-empty string")
+
+        origin = p.get("origin")
+        if not isinstance(origin, str) or not origin:
+            raise JsonRpcParamsError("origin must be a non-empty string")
+        if origin not in ConcernExtractor.supported_origins():
+            allowed = ", ".join(ConcernExtractor.supported_origins())
+            raise JsonRpcParamsError(f"unsupported origin {origin!r}; expected one of: {allowed}")
+
+        ref = p.get("ref")
+        if ref is not None and not isinstance(ref, str):
+            raise JsonRpcParamsError("ref must be a string when provided")
+
+        dry_run = p.get("dry_run", False)
+        if not isinstance(dry_run, bool):
+            raise JsonRpcParamsError("dry_run must be a boolean when provided")
+
+        if self._extractor is None:
+            self._extractor = ConcernExtractor(llm=self._rt.llm)
+
+        result = self._extractor.extract(text, origin=origin, ref=ref)
+
+        if not dry_run:
+            for candidate in result.candidates:
+                self._rt.concern_store.upsert(candidate)
+
+        return {
+            "candidates": [c.model_dump(mode="json") for c in result.candidates],
+            "rejected": [{"span": r.span, "reason": r.reason} for r in result.rejected],
+            "upserted": not dry_run,
+        }
 
     def _runtime_snapshot(self, _params: dict[str, Any] | list[Any]) -> Any:
         return self._rt.snapshot()

@@ -140,6 +140,18 @@ class OpenCOATRuntime:
     def dcn_store(self) -> DCNStore:
         return self._dcn_store
 
+    @property
+    def llm(self) -> LLMClient:
+        """Read-only access to the wired LLM client.
+
+        Exposed so the daemon's JSON-RPC dispatcher can lazily build a
+        :class:`~opencoat_runtime_core.concern.ConcernExtractor` over the
+        same provider the runtime is already configured with (M5 PR-48 —
+        ``concern.extract`` RPC). The host should not mutate the
+        returned client.
+        """
+        return self._llm
+
     def on_joinpoint(
         self,
         jp: JoinpointEvent,
