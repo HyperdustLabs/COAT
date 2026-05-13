@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 from .stub_client import StubLLMClient
 
 try:
-    __version__ = _version("opencoat-runtime-llm")
+    __version__ = _version("opencoat-runtime")
 except PackageNotFoundError:
     __version__ = "0.0.0"
 

@@ -13,7 +13,7 @@ stay host-agnostic and not grow `if openclaw: …` branches.
 ## Decision
 
 Each host ships an *adapter plugin* in
-`packages/opencoat-runtime-host-plugins/<host>/`. The plugin implements
+`packages/opencoat-runtime-host/opencoat_runtime_host_<host>/`. The plugin implements
 :class:`HostAdapter` (mapping host events → joinpoints, applying
 injections back to the host's context) and registers itself via
 `pyproject.toml` entrypoints.

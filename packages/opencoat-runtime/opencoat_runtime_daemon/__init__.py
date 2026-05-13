@@ -7,7 +7,7 @@ from .daemon import Daemon, DaemonAlreadyStartedError
 from .runtime_builder import BuiltRuntime, build_runtime
 
 try:
-    __version__ = _version("opencoat-runtime-daemon")
+    __version__ = _version("opencoat-runtime")
 except PackageNotFoundError:
     __version__ = "0.0.0"
 

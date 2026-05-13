@@ -1,22 +1,65 @@
 name: Release
 
+# Publishes the 3 OpenCOAT runtime packages:
+#   * opencoat-runtime-protocol
+#   * opencoat-runtime
+#   * opencoat-runtime-host
+#
+# Trigger: push a tag matching `v*.*.*`.
+# Auth:    long-lived PyPI API token in `secrets.PYPI_API_TOKEN`
+#          (org-scoped or account-scoped; see RELEASING.md).
+#
+# This deliberately uses the simplest path. Trusted Publishing / OIDC /
+# environments can be layered in later without changing the surface
+# (`uv publish` accepts either form). See RELEASING.md §Future.
+
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build only, do not upload"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
 
 jobs:
   release:
-    name: Build & publish (placeholder)
+    name: Build + publish 3 packages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: astral-sh/setup-uv@v3
-      - name: Build wheels
+        with:
+          enable-cache: true
+
+      - name: Build every package
         run: |
-          for pkg in packages/*/; do
-            (cd "$pkg" && uv build) || true
+          rm -rf dist/
+          for pkg in packages/opencoat-runtime-protocol \
+                     packages/opencoat-runtime \
+                     packages/opencoat-runtime-host; do
+            (cd "$pkg" && uv build --out-dir ../../dist)
           done
-      - name: List artefacts
-        run: ls -R packages/*/dist || true
-      # Real `pypi-publish` step lands at M2+.
+          ls -la dist/
+
+      - name: twine check
+        run: uv run --with twine twine check dist/*.whl dist/*.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish to PyPI
+        if: github.event_name == 'push' || inputs.dry_run == false
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish dist/*

@@ -11,10 +11,10 @@ as a long-lived service shared by multiple host processes.
 
 ## Decision
 
-Split the codebase into a **core library** (`opencoat-runtime-core`,
-no I/O assumptions, hexagonal ports) and a **daemon process**
-(`opencoat-runtime-daemon`) that composes the core with concrete adapters
-and exposes:
+Split the codebase into a **core library** (Python module
+`opencoat_runtime_core`, no I/O assumptions, hexagonal ports) and a
+**daemon process** (Python module `opencoat_runtime_daemon`) that
+composes the core with concrete adapters and exposes:
 
 - in-proc API (no transport)
 - Unix domain socket
@@ -31,3 +31,8 @@ daemon-server). Hosts pick at connection time.
   cross-session learning later.
 - The daemon owns scheduling, IPC, observability — those concerns
   never leak into the core.
+
+> The two **processes** are independent (you can run the runtime in-proc
+> without the daemon, or run the daemon as a sidecar service). Since
+> ADR 0009 they ship in the same PyPI **package** (`opencoat-runtime`)
+> because users always need both together.

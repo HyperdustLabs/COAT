@@ -4,7 +4,7 @@ services:
   opencoat-runtime:
     build:
       context: ..
-      dockerfile: packages/opencoat-runtime-daemon/docker/Dockerfile
+      dockerfile: packages/opencoat-runtime/docker/Dockerfile
     image: opencoat-runtime:dev
     container_name: opencoat-runtime
     environment:

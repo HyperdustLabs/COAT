@@ -1,0 +1,83 @@
+[project]
+name = "opencoat-runtime"
+version = "0.1.0"
+description = "OpenCOAT Runtime — concern/joinpoint/pointcut/advice/weaving/copr/dcn + storage + LLM + daemon + CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "HyperdustLabs" }]
+dependencies = [
+    "opencoat-runtime-protocol>=0.1.0,<0.2.0",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+]
+keywords = [
+    "opencoat",
+    "agent-runtime",
+    "concerns",
+    "aop",
+    "joinpoint",
+    "pointcut",
+    "weaving",
+    "dcn",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+# Storage backends
+postgres  = ["psycopg[binary]>=3.1"]
+vector    = ["faiss-cpu>=1.7"]
+# LLM provider SDKs
+openai    = ["openai>=1.40"]
+anthropic = ["anthropic>=0.30"]
+azure     = ["openai>=1.40"]
+ollama    = ["httpx>=0.27"]
+# Daemon transports
+http      = ["fastapi>=0.110", "uvicorn>=0.30"]
+grpc      = ["grpcio>=1.60", "grpcio-tools>=1.60"]
+# Convenience aggregator — everything except framework-specific deps
+all = [
+    "psycopg[binary]>=3.1",
+    "faiss-cpu>=1.7",
+    "openai>=1.40",
+    "anthropic>=0.30",
+    "httpx>=0.27",
+    "fastapi>=0.110",
+    "uvicorn>=0.30",
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60",
+]
+
+[project.scripts]
+opencoat        = "opencoat_runtime_cli.main:main"
+opencoat-daemon = "opencoat_runtime_daemon.__main__:main"
+
+[project.urls]
+Homepage      = "https://github.com/HyperdustLabs/OpenCOAT"
+Repository    = "https://github.com/HyperdustLabs/OpenCOAT"
+Issues        = "https://github.com/HyperdustLabs/OpenCOAT/issues"
+Documentation = "https://github.com/HyperdustLabs/OpenCOAT/tree/main/docs"
+Changelog     = "https://github.com/HyperdustLabs/OpenCOAT/releases"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "opencoat_runtime_core",
+    "opencoat_runtime_storage",
+    "opencoat_runtime_llm",
+    "opencoat_runtime_daemon",
+    "opencoat_runtime_cli",
+]

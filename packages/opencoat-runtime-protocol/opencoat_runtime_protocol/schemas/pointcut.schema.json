@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hyperdustlab.github.io/OpenCOAT/schemas/pointcut.schema.json",
+  "$id": "https://hyperdustlabs.github.io/OpenCOAT/schemas/pointcut.schema.json",
   "title": "Pointcut",
   "description": "Concern activation rule. Multiple match strategies can be combined; semantics is AND across blocks, OR within '*_keywords' lists.",
   "type": "object",

@@ -15,7 +15,9 @@ want each one to be a plugin, not a hard dependency.
 Adopt ports & adapters (hexagonal architecture). Each port lives in
 `opencoat_runtime_core/ports/` as a `typing.Protocol` (runtime_checkable).
 Concrete adapters live in their own packages
-(`opencoat-runtime-storage`, `opencoat-runtime-llm`, `opencoat-runtime-host-plugins/*`).
+(`opencoat_runtime_storage`, `opencoat_runtime_llm`, and the
+`opencoat_runtime_host_*` adapter modules — see ADR 0009 for the
+package layout).
 
 Current ports:
 

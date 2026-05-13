@@ -67,18 +67,18 @@ uv run pytest
 
 ---
 
-## Ports & packages touched
+## Packages / modules touched
 
 Check any that apply:
 
-- [ ] `opencoat-runtime-protocol`
-- [ ] `opencoat-runtime-core`
-- [ ] `opencoat-runtime-storage`
-- [ ] `opencoat-runtime-llm`
-- [ ] `opencoat-runtime-host-sdk`
-- [ ] `opencoat-runtime-daemon`
-- [ ] `opencoat-runtime-cli`
-- [ ] `opencoat-runtime-host-plugins`
+- [ ] `opencoat-runtime-protocol` (PyPI package — schema / data contract)
+- [ ] `opencoat-runtime` → `opencoat_runtime_core`
+- [ ] `opencoat-runtime` → `opencoat_runtime_storage`
+- [ ] `opencoat-runtime` → `opencoat_runtime_llm`
+- [ ] `opencoat-runtime` → `opencoat_runtime_daemon`
+- [ ] `opencoat-runtime` → `opencoat_runtime_cli`
+- [ ] `opencoat-runtime-host` → `opencoat_runtime_host_sdk`
+- [ ] `opencoat-runtime-host` → adapter (`openclaw` / `hermes` / `langgraph` / `autogen` / `crewai` / `custom`)
 - [ ] Root workspace / CI / deploy / docs only
 
 ---

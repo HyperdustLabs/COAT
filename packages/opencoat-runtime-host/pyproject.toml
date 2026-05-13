@@ -1,0 +1,73 @@
+[project]
+name = "opencoat-runtime-host"
+version = "0.1.0"
+description = "Host-side integration for OpenCOAT Runtime — joinpoint emitter, injection consumer, and first-party framework adapters (openclaw, hermes, langgraph, autogen, crewai, custom)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "HyperdustLabs" }]
+dependencies = [
+    "opencoat-runtime-protocol>=0.1.0,<0.2.0",
+    # Adapters import `opencoat_runtime_core.ports.HostAdapter` and
+    # `opencoat_runtime_core.joinpoint.JOINPOINT_CATALOG` at module load
+    # time, so the runtime package is required for any adapter to import.
+    # The Protocol type and the joinpoint catalog are arguably protocol-level
+    # concepts that will likely migrate into `opencoat-runtime-protocol` in
+    # a future release — see ADR 0009 (§Future work). Until then this is a
+    # hard dep, not an extra.
+    "opencoat-runtime>=0.1.0,<0.2.0",
+]
+keywords = [
+    "opencoat",
+    "agent-runtime",
+    "concerns",
+    "aop",
+    "joinpoint",
+    "pointcut",
+    "weaving",
+    "dcn",
+    "host-adapter",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+# Host-SDK transports
+http      = ["httpx>=0.27"]
+# Framework adapters — pull in the framework only if you actually use it
+openclaw  = []
+hermes    = []
+langgraph = ["langgraph>=0.2"]
+autogen   = []
+crewai    = []
+
+[project.urls]
+Homepage      = "https://github.com/HyperdustLabs/OpenCOAT"
+Repository    = "https://github.com/HyperdustLabs/OpenCOAT"
+Issues        = "https://github.com/HyperdustLabs/OpenCOAT/issues"
+Documentation = "https://github.com/HyperdustLabs/OpenCOAT/tree/main/docs"
+Changelog     = "https://github.com/HyperdustLabs/OpenCOAT/releases"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "opencoat_runtime_host_sdk",
+    "opencoat_runtime_host_openclaw",
+    "opencoat_runtime_host_hermes",
+    "opencoat_runtime_host_langgraph",
+    "opencoat_runtime_host_autogen",
+    "opencoat_runtime_host_crewai",
+    "opencoat_runtime_host_custom",
+]

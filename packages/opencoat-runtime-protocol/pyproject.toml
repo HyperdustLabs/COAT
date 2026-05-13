@@ -1,26 +1,48 @@
 [project]
 name = "opencoat-runtime-protocol"
-version = "0.0.1"
+version = "0.1.0"
 description = "JSON Schemas + pydantic envelopes for the OpenCOAT Runtime data contracts"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 authors = [{ name = "HyperdustLabs" }]
 dependencies = [
-  "pydantic>=2.7",
-  "jsonschema>=4.21",
+    "pydantic>=2.7",
+    "jsonschema>=4.21",
+]
+keywords = [
+    "opencoat",
+    "agent-runtime",
+    "concerns",
+    "aop",
+    "joinpoint",
+    "pointcut",
+    "weaving",
+    "dcn",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 
+[project.urls]
+Homepage = "https://github.com/HyperdustLabs/OpenCOAT"
+Repository = "https://github.com/HyperdustLabs/OpenCOAT"
+Issues = "https://github.com/HyperdustLabs/OpenCOAT/issues"
+Documentation = "https://github.com/HyperdustLabs/OpenCOAT/tree/main/docs"
+Changelog = "https://github.com/HyperdustLabs/OpenCOAT/releases"
 [build-system]
-requires = ["hatchling>=1.24"]
+requires = [
+    "hatchling>=1.27",
+]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["opencoat_runtime_protocol"]
-
-[tool.hatch.build.targets.wheel.sources]
-"opencoat_runtime_protocol" = "opencoat_runtime_protocol"
-
-[tool.hatch.build.targets.wheel.force-include]
-"opencoat_runtime_protocol/schemas" = "opencoat_runtime_protocol/schemas"
-"opencoat_runtime_protocol/openapi" = "opencoat_runtime_protocol/openapi"

@@ -54,15 +54,17 @@ The full per-PR M1 / M2 / M3 split lives in [`CONTRIBUTING.md`](CONTRIBUTING.md)
 ```text
 opencoat/
 ├── docs/                         # design docs, ADRs, concept guides, cookbooks
-├── packages/
-│   ├── opencoat-runtime-protocol/    # JSON schemas + pydantic envelopes (source of truth)
-│   ├── opencoat-runtime-core/        # L2 pure logic: concern, joinpoint, pointcut, advice, weaving, copr, coordinator, resolver, dcn, meta, loops, ports
-│   ├── opencoat-runtime-storage/     # ConcernStore / DCNStore backends (memory, sqlite, postgres, jsonl, vector)
-│   ├── opencoat-runtime-llm/         # LLM / Embedder clients (openai, anthropic, azure, ollama, stub)
-│   ├── opencoat-runtime-host-sdk/    # Host-side SDK (joinpoint emitter, injection consumer, transports)
-│   ├── opencoat-runtime-daemon/      # Long-running runtime: scheduler, workers, IPC, HTTP/JSON-RPC API
-│   ├── opencoat-runtime-cli/         # `opencoat` CLI: runtime up/down, concern list, replay, dcn visualize
-│   └── opencoat-runtime-host-plugins/ # First-party host adapters (openclaw, hermes, langgraph, autogen, crewai, custom)
+├── packages/                     # 3 PyPI packages, organised by consumer (see ADR 0009)
+│   ├── opencoat-runtime-protocol/   # JSON Schemas + pydantic envelopes — the data contract
+│   ├── opencoat-runtime/            # Runtime stack: core + storage + LLM + daemon + CLI
+│   │   ├── opencoat_runtime_core/       # L2 pure logic: concern, joinpoint, pointcut, advice, weaving, copr, coordinator, resolver, dcn, meta, loops, ports
+│   │   ├── opencoat_runtime_storage/    # ConcernStore / DCNStore backends (memory, sqlite, postgres, jsonl, vector)
+│   │   ├── opencoat_runtime_llm/        # LLM / Embedder clients (openai, anthropic, azure, ollama, stub)
+│   │   ├── opencoat_runtime_daemon/     # Long-running runtime: scheduler, workers, IPC, HTTP/JSON-RPC API
+│   │   └── opencoat_runtime_cli/        # `opencoat` CLI: runtime up/down, concern list, replay, dcn visualize
+│   └── opencoat-runtime-host/       # Host-side integration (different consumer audience)
+│       ├── opencoat_runtime_host_sdk/   # Joinpoint emitter, injection consumer, transports
+│       └── opencoat_runtime_host_*/     # First-party adapters (openclaw, hermes, langgraph, autogen, crewai, custom)
 ├── plugins/                      # out-of-tree plugin discovery (matchers, advisors, storage)
 ├── examples/                     # end-to-end usage examples
 ├── benchmarks/                   # extraction / matching / weaving benchmarks
@@ -127,7 +129,7 @@ To swap the stub for a real provider, install the matching extra and pass an
 runtime:
 
 ```bash
-pip install "opencoat-runtime-llm[openai]"
+pip install "opencoat-runtime[openai]"
 export OPENAI_API_KEY=sk-...
 ```
 
@@ -146,7 +148,7 @@ runtime = OpenCOATRuntime(
 
 The same client works against any OpenAI-compatible gateway (Azure, vLLM,
 OpenRouter, TogetherAI, …) by setting `base_url=`. See
-[`packages/opencoat-runtime-llm/README.md`](packages/opencoat-runtime-llm/README.md)
+[`packages/opencoat-runtime/README.md`](packages/opencoat-runtime/README.md)
 for the full surface.
 
 ---

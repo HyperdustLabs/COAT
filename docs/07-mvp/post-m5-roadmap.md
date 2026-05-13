@@ -35,7 +35,7 @@
   [`adr/0008-meta-concern-as-governance.md`](../adr/0008-meta-concern-as-governance.md).
 - Exit criteria (unchanged): 24 h soak run; DCN converges; token budget
   stable; decay / conflict / merge / archive / meta-review jobs all wired.
-- Touches: `opencoat-runtime-core` workers + scheduler, `MetaConcern`
+- Touches: `opencoat_runtime_core` workers + scheduler, `MetaConcern`
   governance loop, admin surfaces in `opencoat`.
 - Risk: invisible to non-runtime users; heaviest milestone so far;
   needs the soak harness and convergence metrics.
@@ -44,7 +44,7 @@
 
 Three sub-deliverables, each a small PR (no new packages):
 
-1. **CLI banner** in `packages/opencoat-runtime-cli`
+1. **CLI banner** in `packages/opencoat-runtime/opencoat_runtime_cli`
    - `OpenCOAT` ASCII art (pyfiglet `big`, embedded as a constant — no
      runtime `pyfiglet` dependency).
    - Render once on `opencoat` invocation when `stdout.isatty()` and
@@ -69,7 +69,7 @@ Three sub-deliverables, each a small PR (no new packages):
 - Contents: `SKILL.md`, `inspection.md`, `concerns.md`, `rules.md`,
   `skill.json`, `LICENSE` (Apache-2.0), `.github/workflows/verify.yml`.
 - Skill body wraps thread 2B: instructs the host agent to run
-  `pipx install opencoat-runtime-cli && opencoat plugin install openclaw`
+  `pipx install opencoat-runtime && opencoat plugin install openclaw`
   and points at the demo concerns from 2B.
 - **Strict** dependency on 2B (no install affordance to wrap otherwise).
 
@@ -156,8 +156,10 @@ gh/#38  feat/dx-demo-concerns      → 3 dramatic concerns + opencoat concern im
   bootstrapped with the file set listed in §2C
   (`SKILL.md` + `skill.json` + `inspection.md` + `concerns.md` +
   `rules.md` + `LICENSE` + `.github/workflows/verify.yml`).
-- Versioned to track `opencoat-runtime-cli` major (declared via
-  `tracks: opencoat-runtime-cli@major` in `skill.json`).
+- Versioned to track `opencoat-runtime` major. The live `skill.json`
+  still has `tracks: opencoat-runtime-cli@major` from before ADR 0009
+  consolidated the CLI into the `opencoat-runtime` package; a
+  trivial follow-up PR on the skill repo retargets it.
 - CI green on first push; verifies `skill.json` shape, SKILL.md
   frontmatter + line count, and walks every internal link.
 
@@ -198,7 +200,7 @@ gh/#38  feat/dx-demo-concerns      → 3 dramatic concerns + opencoat concern im
   `feat/dx-cli-banner` PR description.
 - **`opencoat plugin install` output dir**: cwd default with `--out`
   override; directory-exists handling defers to the PR.
-- **Demo concerns packaging**: ship inside `opencoat-runtime-cli` (no new
+- **Demo concerns packaging**: ship inside `opencoat_runtime_cli` (no new
   package), gated by `--demo`.
 - **M6 soak harness location**: `tests/soak/` (ephemeral) vs.
   `benchmarks/` (tracked). Decided in `feat/m6-soak-and-example`.

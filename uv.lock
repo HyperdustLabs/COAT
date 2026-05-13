@@ -8,14 +8,9 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "opencoat-runtime-cli",
-    "opencoat-runtime-core",
-    "opencoat-runtime-daemon",
-    "opencoat-runtime-host-plugins",
-    "opencoat-runtime-host-sdk",
-    "opencoat-runtime-llm",
+    "opencoat-runtime",
+    "opencoat-runtime-host",
     "opencoat-runtime-protocol",
-    "opencoat-runtime-storage",
     "opencoat-runtime-workspace",
 ]
 
@@ -1035,54 +1030,33 @@ wheels = [
 ]
 
 [[package]]
-name = "opencoat-runtime-cli"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-cli" }
-dependencies = [
-    { name = "opencoat-runtime-core" },
-    { name = "opencoat-runtime-daemon" },
-    { name = "opencoat-runtime-protocol" },
-    { name = "opencoat-runtime-storage" },
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "opencoat-runtime-core", editable = "packages/opencoat-runtime-core" },
-    { name = "opencoat-runtime-daemon", editable = "packages/opencoat-runtime-daemon" },
-    { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-    { name = "opencoat-runtime-storage", editable = "packages/opencoat-runtime-storage" },
-    { name = "pyyaml", specifier = ">=6.0" },
-]
-
-[[package]]
-name = "opencoat-runtime-core"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-core" }
+name = "opencoat-runtime"
+version = "0.1.0"
+source = { editable = "packages/opencoat-runtime" }
 dependencies = [
     { name = "opencoat-runtime-protocol" },
     { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-    { name = "pydantic", specifier = ">=2.7" },
-]
-
-[[package]]
-name = "opencoat-runtime-daemon"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-daemon" }
-dependencies = [
-    { name = "opencoat-runtime-core" },
-    { name = "opencoat-runtime-llm" },
-    { name = "opencoat-runtime-protocol" },
-    { name = "opencoat-runtime-storage" },
     { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "anthropic" },
+    { name = "faiss-cpu" },
+    { name = "fastapi" },
+    { name = "grpcio" },
+    { name = "grpcio-tools" },
+    { name = "httpx" },
+    { name = "openai" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "uvicorn" },
+]
+anthropic = [
+    { name = "anthropic" },
+]
+azure = [
+    { name = "openai" },
+]
 grpc = [
     { name = "grpcio" },
     { name = "grpcio-tools" },
@@ -1091,50 +1065,52 @@ http = [
     { name = "fastapi" },
     { name = "uvicorn" },
 ]
+ollama = [
+    { name = "httpx" },
+]
+openai = [
+    { name = "openai" },
+]
+postgres = [
+    { name = "psycopg", extra = ["binary"] },
+]
+vector = [
+    { name = "faiss-cpu" },
+]
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", marker = "extra == 'all'", specifier = ">=0.30" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.30" },
+    { name = "faiss-cpu", marker = "extra == 'all'", specifier = ">=1.7" },
+    { name = "faiss-cpu", marker = "extra == 'vector'", specifier = ">=1.7" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.110" },
     { name = "fastapi", marker = "extra == 'http'", specifier = ">=0.110" },
+    { name = "grpcio", marker = "extra == 'all'", specifier = ">=1.60" },
     { name = "grpcio", marker = "extra == 'grpc'", specifier = ">=1.60" },
+    { name = "grpcio-tools", marker = "extra == 'all'", specifier = ">=1.60" },
     { name = "grpcio-tools", marker = "extra == 'grpc'", specifier = ">=1.60" },
-    { name = "opencoat-runtime-core", editable = "packages/opencoat-runtime-core" },
-    { name = "opencoat-runtime-llm", editable = "packages/opencoat-runtime-llm" },
+    { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'ollama'", specifier = ">=0.27" },
+    { name = "openai", marker = "extra == 'all'", specifier = ">=1.40" },
+    { name = "openai", marker = "extra == 'azure'", specifier = ">=1.40" },
+    { name = "openai", marker = "extra == 'openai'", specifier = ">=1.40" },
     { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-    { name = "opencoat-runtime-storage", editable = "packages/opencoat-runtime-storage" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'all'", specifier = ">=3.1" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
+    { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "uvicorn", marker = "extra == 'all'", specifier = ">=0.30" },
     { name = "uvicorn", marker = "extra == 'http'", specifier = ">=0.30" },
 ]
-provides-extras = ["http", "grpc"]
+provides-extras = ["postgres", "vector", "openai", "anthropic", "azure", "ollama", "http", "grpc", "all"]
 
 [[package]]
-name = "opencoat-runtime-host-plugins"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-host-plugins" }
+name = "opencoat-runtime-host"
+version = "0.1.0"
+source = { editable = "packages/opencoat-runtime-host" }
 dependencies = [
-    { name = "opencoat-runtime-core" },
-    { name = "opencoat-runtime-host-sdk" },
-    { name = "opencoat-runtime-protocol" },
-]
-
-[package.optional-dependencies]
-langgraph = [
-    { name = "langgraph" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=0.2" },
-    { name = "opencoat-runtime-core", editable = "packages/opencoat-runtime-core" },
-    { name = "opencoat-runtime-host-sdk", editable = "packages/opencoat-runtime-host-sdk" },
-    { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-]
-provides-extras = ["openclaw", "hermes", "langgraph", "autogen", "crewai"]
-
-[[package]]
-name = "opencoat-runtime-host-sdk"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-host-sdk" }
-dependencies = [
+    { name = "opencoat-runtime" },
     { name = "opencoat-runtime-protocol" },
 ]
 
@@ -1142,51 +1118,22 @@ dependencies = [
 http = [
     { name = "httpx" },
 ]
+langgraph = [
+    { name = "langgraph" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
+    { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=0.2" },
+    { name = "opencoat-runtime", editable = "packages/opencoat-runtime" },
     { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
 ]
-provides-extras = ["http"]
-
-[[package]]
-name = "opencoat-runtime-llm"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-llm" }
-dependencies = [
-    { name = "opencoat-runtime-core" },
-    { name = "opencoat-runtime-protocol" },
-]
-
-[package.optional-dependencies]
-anthropic = [
-    { name = "anthropic" },
-]
-azure = [
-    { name = "openai" },
-]
-ollama = [
-    { name = "httpx" },
-]
-openai = [
-    { name = "openai" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.30" },
-    { name = "httpx", marker = "extra == 'ollama'", specifier = ">=0.27" },
-    { name = "openai", marker = "extra == 'azure'", specifier = ">=1.40" },
-    { name = "openai", marker = "extra == 'openai'", specifier = ">=1.40" },
-    { name = "opencoat-runtime-core", editable = "packages/opencoat-runtime-core" },
-    { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-]
-provides-extras = ["openai", "anthropic", "azure", "ollama"]
+provides-extras = ["http", "openclaw", "hermes", "langgraph", "autogen", "crewai"]
 
 [[package]]
 name = "opencoat-runtime-protocol"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-protocol" }
 dependencies = [
     { name = "jsonschema" },
@@ -1200,44 +1147,13 @@ requires-dist = [
 ]
 
 [[package]]
-name = "opencoat-runtime-storage"
-version = "0.0.1"
-source = { editable = "packages/opencoat-runtime-storage" }
-dependencies = [
-    { name = "opencoat-runtime-core" },
-    { name = "opencoat-runtime-protocol" },
-]
-
-[package.optional-dependencies]
-postgres = [
-    { name = "psycopg", extra = ["binary"] },
-]
-vector = [
-    { name = "faiss-cpu" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "faiss-cpu", marker = "extra == 'vector'", specifier = ">=1.7" },
-    { name = "opencoat-runtime-core", editable = "packages/opencoat-runtime-core" },
-    { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
-]
-provides-extras = ["postgres", "vector"]
-
-[[package]]
 name = "opencoat-runtime-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "opencoat-runtime-cli" },
-    { name = "opencoat-runtime-core" },
-    { name = "opencoat-runtime-daemon" },
-    { name = "opencoat-runtime-host-plugins" },
-    { name = "opencoat-runtime-host-sdk" },
-    { name = "opencoat-runtime-llm" },
+    { name = "opencoat-runtime" },
+    { name = "opencoat-runtime-host" },
     { name = "opencoat-runtime-protocol" },
-    { name = "opencoat-runtime-storage" },
 ]
 
 [package.dev-dependencies]
@@ -1254,14 +1170,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "opencoat-runtime-cli", editable = "packages/opencoat-runtime-cli" },
-    { name = "opencoat-runtime-core", editable = "packages/opencoat-runtime-core" },
-    { name = "opencoat-runtime-daemon", editable = "packages/opencoat-runtime-daemon" },
-    { name = "opencoat-runtime-host-plugins", editable = "packages/opencoat-runtime-host-plugins" },
-    { name = "opencoat-runtime-host-sdk", editable = "packages/opencoat-runtime-host-sdk" },
-    { name = "opencoat-runtime-llm", editable = "packages/opencoat-runtime-llm" },
+    { name = "opencoat-runtime", editable = "packages/opencoat-runtime" },
+    { name = "opencoat-runtime-host", editable = "packages/opencoat-runtime-host" },
     { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
-    { name = "opencoat-runtime-storage", editable = "packages/opencoat-runtime-storage" },
 ]
 
 [package.metadata.requires-dev]

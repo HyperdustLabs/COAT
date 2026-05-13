@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hyperdustlab.github.io/OpenCOAT/schemas/meta_concern.schema.json",
+  "$id": "https://hyperdustlabs.github.io/OpenCOAT/schemas/meta_concern.schema.json",
   "title": "MetaConcern",
   "description": "Specialization of Concern (kind=meta_concern) that governs the runtime itself rather than business semantics. The runtime supports 8 governance capabilities: extraction / separation / activation / conflict_resolution / verification / lifecycle / budget / evolution.",
   "type": "object",
