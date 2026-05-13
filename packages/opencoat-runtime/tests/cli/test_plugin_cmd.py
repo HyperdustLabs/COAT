@@ -308,6 +308,12 @@ class TestPluginInstallNextOutput:
         assert "bootstrap_opencoat.install" in out
         # The in-process path is still mentioned as an alternative.
         assert "install_in_process" in out
+        # The pickup API — the half M5 #31 left half-wired — must
+        # appear in the post-install hint so users see the full
+        # event → apply_to / guard_tool_call loop, not just the
+        # ``install()`` call that subscribes to events.
+        assert "apply_to" in out
+        assert "guard_tool_call" in out
 
     def test_custom_next_steps_lead_with_runtime_up(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
