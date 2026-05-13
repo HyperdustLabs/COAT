@@ -105,7 +105,10 @@ class Daemon:
             try:
                 self._acquire_pid_file()
                 self._built = build_runtime(self._config, env=self._env)
-                self._handler = JsonRpcHandler(self._built.runtime)
+                self._handler = JsonRpcHandler(
+                    self._built.runtime,
+                    llm_info=self._built.llm_info,
+                )
                 self._maybe_start_http()
                 logger.info(
                     "OpenCOAT daemon started (llm=%s, http=%s)",
@@ -132,7 +135,7 @@ class Daemon:
                 raise RuntimeError("Daemon is not started")
             old_built = self._built
             new_built = build_runtime(self._config, env=self._env)
-            new_handler = JsonRpcHandler(new_built.runtime)
+            new_handler = JsonRpcHandler(new_built.runtime, llm_info=new_built.llm_info)
             # Swap before closing the old runtime so in-flight RPCs that
             # already grabbed the handler reference keep working; new
             # arrivals immediately see the new runtime.

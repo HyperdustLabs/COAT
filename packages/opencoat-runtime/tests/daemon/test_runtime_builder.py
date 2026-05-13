@@ -79,13 +79,48 @@ def _joinpoint() -> JoinpointEvent:
 
 
 class TestDefaults:
-    def test_default_config_yields_memory_and_stub(self) -> None:
+    def test_default_config_with_no_credentials_yields_stub_fallback(self) -> None:
+        # Default config ships ``provider: auto``. An empty env mapping
+        # has none of the marker variables, so auto-detection must
+        # fall back to stub — with the *distinct* ``stub-fallback``
+        # label and a fix-it hint so the operator sees it loudly in
+        # the daemon log + CLI banner.
         with build_runtime(load_config(), env={}) as built:
             assert isinstance(built.runtime, OpenCOATRuntime)
             assert isinstance(built.runtime.concern_store, MemoryConcernStore)
             assert isinstance(built.runtime.dcn_store, MemoryDCNStore)
-            assert built.llm_label == "stub"
+            assert built.llm_label == "stub-fallback"
+            assert built.llm_info.kind == "stub"
+            assert built.llm_info.real is False
+            assert built.llm_info.requested == "auto"
+            assert "OPENAI_API_KEY" in built.llm_info.hint  # actionable hint
             assert isinstance(built.runtime._llm, StubLLMClient)  # type: ignore[attr-defined]
+
+    def test_default_config_with_openai_key_picks_openai(self) -> None:
+        # Same default config, but the operator exported a real key.
+        # Auto-detection must pick OpenAI and ``llm_info.real`` flips
+        # to ``True`` — this is the headline value prop of ``auto``.
+        with build_runtime(load_config(), env={"OPENAI_API_KEY": "sk-fake-auto"}) as built:
+            assert built.llm_info.kind == "openai"
+            assert built.llm_info.real is True
+            assert built.llm_info.requested == "auto"
+            assert built.llm_label.startswith("openai/")
+            assert built.llm_info.hint == ""
+
+    def test_explicit_provider_stub_skips_fallback_hint(self) -> None:
+        # ``provider: stub`` is a deliberate choice (hermetic tests,
+        # examples) and must not be nagged about. Distinguished from
+        # ``stub-fallback`` by both ``label`` and ``hint``.
+        cfg = _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="stub"),
+        )
+        with build_runtime(cfg, env={}) as built:
+            assert built.llm_label == "stub"
+            assert built.llm_info.kind == "stub"
+            assert built.llm_info.requested == "stub"
+            assert built.llm_info.hint == ""
 
     def test_close_is_idempotent_on_memory(self) -> None:
         built = build_runtime(load_config(), env={})
@@ -209,6 +244,133 @@ class TestLLM:
         )
         with build_runtime(cfg, env={}) as built:
             assert built.llm_label == "openai/gpt-9000-imaginary"
+
+
+class TestAutoProvider:
+    """``provider: auto`` — the new default.
+
+    Pinned contracts the daemon (and the docs that point at it) rely
+    on:
+
+    1. ``OPENAI_API_KEY`` beats ``ANTHROPIC_API_KEY`` beats
+       ``AZURE_OPENAI_*`` (matches install precedence in the docs).
+    2. Azure auto-detection requires *both* the API key and the
+       deployment — picking ``provider=azure`` without a deployment
+       would just rediscover the same RuntimeError ``_build_azure``
+       raises later. Without the deployment, auto must keep looking
+       (or fall back to stub).
+    3. No credentials → ``stub-fallback``, not ``stub`` — distinct
+       label + fix-it hint so the operator can tell "I deliberately
+       picked stub" from "the daemon couldn't find my key".
+    4. The chosen provider's ``LLMInfo`` carries
+       ``requested="auto"`` so dashboards can show "we asked for
+       auto, we got openai".
+    """
+
+    def _cfg(self) -> DaemonConfig:
+        return _bare_config(
+            concern=StorageBackend(kind="memory"),
+            dcn=StorageBackend(kind="memory"),
+            llm=LLMSettings(provider="auto"),
+        )
+
+    def test_picks_openai_when_openai_key_present(self) -> None:
+        with build_runtime(self._cfg(), env={"OPENAI_API_KEY": "sk-fake"}) as built:
+            assert built.llm_info.kind == "openai"
+            assert built.llm_info.real is True
+            assert built.llm_info.requested == "auto"
+            assert built.llm_label.startswith("openai/")
+
+    def test_picks_anthropic_when_only_anthropic_key_present(self) -> None:
+        with build_runtime(self._cfg(), env={"ANTHROPIC_API_KEY": "sk-ant-fake"}) as built:
+            assert built.llm_info.kind == "anthropic"
+            assert built.llm_info.real is True
+            assert built.llm_label.startswith("anthropic/")
+
+    def test_picks_azure_when_only_azure_creds_present(self) -> None:
+        with build_runtime(
+            self._cfg(),
+            env={
+                "AZURE_OPENAI_API_KEY": "azkey",
+                "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
+                "AZURE_OPENAI_DEPLOYMENT": "my-deployment",
+            },
+        ) as built:
+            assert built.llm_info.kind == "azure"
+            assert built.llm_info.real is True
+            assert built.llm_label == "azure/my-deployment"
+
+    def test_skips_azure_when_deployment_missing(self) -> None:
+        # API key alone isn't enough — auto must keep looking (find
+        # nothing) and fall back to stub rather than handing
+        # ``_build_azure`` a deployment-less config that it'd reject.
+        with build_runtime(
+            self._cfg(),
+            env={"AZURE_OPENAI_API_KEY": "azkey"},
+        ) as built:
+            assert built.llm_info.kind == "stub"
+            assert built.llm_info.label == "stub-fallback"
+
+    def test_openai_beats_anthropic(self) -> None:
+        with build_runtime(
+            self._cfg(),
+            env={"OPENAI_API_KEY": "sk-fake", "ANTHROPIC_API_KEY": "sk-ant"},
+        ) as built:
+            assert built.llm_info.kind == "openai"
+
+    def test_anthropic_beats_azure(self) -> None:
+        with build_runtime(
+            self._cfg(),
+            env={
+                "ANTHROPIC_API_KEY": "sk-ant",
+                "AZURE_OPENAI_API_KEY": "az",
+                "AZURE_OPENAI_DEPLOYMENT": "d",
+            },
+        ) as built:
+            assert built.llm_info.kind == "anthropic"
+
+    def test_no_credentials_falls_back_to_stub_with_hint(self) -> None:
+        with build_runtime(self._cfg(), env={}) as built:
+            assert built.llm_info.kind == "stub"
+            assert built.llm_info.label == "stub-fallback"
+            assert built.llm_info.real is False
+            assert built.llm_info.requested == "auto"
+            # The hint must enumerate the env vars to set so users can
+            # just read the daemon log and fix the problem.
+            hint = built.llm_info.hint
+            assert "OPENAI_API_KEY" in hint
+            assert "ANTHROPIC_API_KEY" in hint
+            assert "AZURE_OPENAI" in hint
+
+    def test_stub_fallback_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        # The daemon log is the operator's first signal — drop a
+        # WARNING (not INFO) so it surfaces in ``opencoat runtime
+        # status`` style log scans and any monitoring stack that
+        # filters by level.
+        import logging
+
+        caplog.set_level(logging.WARNING, logger="opencoat_runtime_daemon.runtime_builder")
+        with build_runtime(self._cfg(), env={}):
+            pass
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "stub-fallback" in r.getMessage()
+        ]
+        assert warnings, "expected stub-fallback WARNING in daemon log"
+
+    def test_real_provider_does_not_log_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
+        caplog.set_level(logging.WARNING, logger="opencoat_runtime_daemon.runtime_builder")
+        with build_runtime(self._cfg(), env={"OPENAI_API_KEY": "sk-fake"}):
+            pass
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "stub-fallback" in r.getMessage()
+        ]
+        assert not warnings, f"unexpected WARNING(s): {[r.getMessage() for r in warnings]}"
 
 
 class TestExplicitEnvIsHermetic:

@@ -18,6 +18,13 @@ Methods are dotted names grouped by domain:
 ``runtime.snapshot`` / ``runtime.current_vector`` / ``runtime.last_injection``
     Introspection helpers for health checks and the CLI.
 
+``runtime.llm_info``
+    Surface the LLM the daemon ended up wired with (label, kind, real-
+    or-stub flag, plus an optional fix-it hint when degraded). Lets
+    CLI commands like ``opencoat concern extract`` warn loudly when
+    the daemon is on stub-fallback instead of silently returning
+    empty results.
+
 ``dcn.activation_log``
     Params: ``{"concern_id"?: str, "limit"?: int}`` — forwards to
     :meth:`~opencoat_runtime_core.ports.DCNStore.activation_log`.
@@ -37,6 +44,8 @@ from typing import Any
 from opencoat_runtime_core import OpenCOATRuntime
 from opencoat_runtime_protocol import Concern, ConcernInjection, JoinpointEvent
 from pydantic import ValidationError
+
+from ..runtime_builder import LLMInfo
 
 # JSON-RPC 2.0 error codes (subset we use today).
 _PARSE_ERROR = -32700
@@ -94,11 +103,37 @@ def _error_response(req_id: Any, code: int, message: str) -> dict[str, Any]:
     }
 
 
+# Sentinel returned by ``runtime.llm_info`` when the dispatcher was
+# constructed without an explicit ``llm_info=`` argument — i.e. an
+# in-test or embedded caller that doesn't go through the daemon
+# bootstrap. Marked ``real=False`` so CLI / banner branches that
+# refuse to proceed on stub still fire; ``kind="unknown"`` keeps
+# code that *does* care about provider distinct from a deliberate
+# ``provider: stub`` choice.
+_UNKNOWN_LLM_INFO = LLMInfo(
+    label="unknown",
+    kind="unknown",
+    real=False,
+    requested="unknown",
+    hint=(
+        "JsonRpcHandler was constructed without llm_info — the LLM "
+        "the handler is actually talking to is not introspectable. "
+        "Expected only in tests / embedded callers."
+    ),
+)
+
+
 class JsonRpcHandler:
     """Dispatch JSON-RPC requests against a live :class:`OpenCOATRuntime`."""
 
-    def __init__(self, runtime: OpenCOATRuntime) -> None:
+    def __init__(
+        self,
+        runtime: OpenCOATRuntime,
+        *,
+        llm_info: LLMInfo | None = None,
+    ) -> None:
         self._rt = runtime
+        self._llm_info = llm_info if llm_info is not None else _UNKNOWN_LLM_INFO
         self._methods: dict[str, Any] = {
             "health.ping": self._health_ping,
             "joinpoint.submit": self._joinpoint_submit,
@@ -109,6 +144,7 @@ class JsonRpcHandler:
             "runtime.snapshot": self._runtime_snapshot,
             "runtime.current_vector": self._runtime_current_vector,
             "runtime.last_injection": self._runtime_last_injection,
+            "runtime.llm_info": self._runtime_llm_info,
             "dcn.activation_log": self._dcn_activation_log,
         }
 
@@ -241,6 +277,30 @@ class JsonRpcHandler:
     def _runtime_last_injection(self, _params: dict[str, Any] | list[Any]) -> Any:
         inj = self._rt.last_injection()
         return None if inj is None else inj.model_dump(mode="json")
+
+    def _runtime_llm_info(self, _params: dict[str, Any] | list[Any]) -> dict[str, Any]:
+        """Surface the resolved LLM provider so the CLI / banner can warn.
+
+        Stable wire shape so external dashboards can also poll this:
+
+        ``label``    Human-friendly identifier (``"openai/gpt-4o-mini"``).
+        ``kind``     Coarse provider class: ``"openai" | "anthropic" |
+                     "azure" | "stub" | "unknown"`` — branch on this
+                     instead of parsing ``label``.
+        ``real``     ``True`` iff a real provider is wired.
+        ``requested``The provider value the daemon config asked for —
+                     ``"auto"`` when auto-detection chose ``kind``.
+        ``hint``     Empty string on the happy path; otherwise a short
+                     fix-it line callers should surface verbatim.
+        """
+        info = self._llm_info
+        return {
+            "label": info.label,
+            "kind": info.kind,
+            "real": info.real,
+            "requested": info.requested,
+            "hint": info.hint,
+        }
 
     def _dcn_activation_log(self, params: dict[str, Any] | list[Any]) -> list[Any]:
         p = _expect_params_dict(params)

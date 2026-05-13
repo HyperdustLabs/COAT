@@ -32,7 +32,12 @@ class StorageSettings(BaseModel):
 
 class LLMSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
-    provider: str = "stub"
+    # Default ``auto`` so a zero-config daemon picks the operator's
+    # real provider whenever one is available, and only falls back to
+    # stub (with a loud warning) when no credentials are present. See
+    # :func:`opencoat_runtime_daemon.runtime_builder._build_auto` for
+    # the probe order.
+    provider: str = "auto"
     timeout_seconds: float = 20.0
 
 
