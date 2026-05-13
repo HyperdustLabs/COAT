@@ -16,7 +16,7 @@ This package ships:
 | `opencoat_runtime_host_crewai`        | CrewAI adapter                                                    |
 | `opencoat_runtime_host_custom`        | scaffold for a fully custom host                                  |
 
-Only depends on [`opencoat-runtime-protocol`](https://pypi.org/project/opencoat-runtime-protocol/) — the runtime daemon you talk to lives in [`opencoat-runtime`](https://pypi.org/project/opencoat-runtime/).
+Pulls in [`opencoat-runtime-protocol`](https://pypi.org/project/opencoat-runtime-protocol/) (the wire contract) and [`opencoat-runtime`](https://pypi.org/project/opencoat-runtime/) (for the `HostAdapter` protocol type and the joinpoint catalog the adapters import at module load). You do not need to run a daemon process just to use the SDK — the transports talk to whichever daemon is live, but importing the package only requires the wheels above.
 
 ## Install
 

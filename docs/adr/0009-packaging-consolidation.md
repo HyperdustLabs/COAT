@@ -96,10 +96,30 @@ them would force every `langgraph` user to install the CLI and daemon,
 or every operator to install all 6 adapters. The split here matches a
 real consumer boundary, not just an internal one.
 
-Crucially: `opencoat-runtime-host` depends only on
-`opencoat-runtime-protocol`, not on `opencoat-runtime`. Host code never
-imports from the core runtime in production (verified at the time of
-this ADR — the only cross-import lived in one integration test).
+### Host → runtime dependency (current shape, 0.1.0)
+
+`opencoat-runtime-host` declares a hard runtime dependency on
+`opencoat-runtime` (`>=0.1.0,<0.2.0`). Each first-party adapter imports
+two symbols from the core runtime at module load time:
+
+- `opencoat_runtime_core.ports.HostAdapter` — the `typing.Protocol` an
+  adapter satisfies. Lives in core today but is a pure structural type
+  with no runtime behaviour.
+- `opencoat_runtime_core.joinpoint.{JOINPOINT_CATALOG, JoinpointLevel}` —
+  static enumeration of the 8-level joinpoint model + the standard
+  catalog. Pure data.
+
+Both are arguably **protocol-level concepts** that happen to live in
+`opencoat_runtime_core` for historical reasons. A 0.2.x clean-up will
+likely move them into `opencoat_runtime_protocol`, at which point
+`opencoat-runtime-host` can drop the hard dep and go back to depending
+only on `opencoat-runtime-protocol`. That refactor is out of scope here
+because it touches the public `opencoat_runtime_core.*` import surface
+and deserves its own ADR amendment. Until then the hard dep is the
+honest declaration of the actual import graph.
+
+(An earlier draft of this ADR claimed host depended only on protocol;
+that claim was wrong — see the post-merge fix introducing this section.)
 
 ## Consequences
 

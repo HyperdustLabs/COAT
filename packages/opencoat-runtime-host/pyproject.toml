@@ -8,6 +8,14 @@ license = "Apache-2.0"
 authors = [{ name = "HyperdustLabs" }]
 dependencies = [
     "opencoat-runtime-protocol>=0.1.0,<0.2.0",
+    # Adapters import `opencoat_runtime_core.ports.HostAdapter` and
+    # `opencoat_runtime_core.joinpoint.JOINPOINT_CATALOG` at module load
+    # time, so the runtime package is required for any adapter to import.
+    # The Protocol type and the joinpoint catalog are arguably protocol-level
+    # concepts that will likely migrate into `opencoat-runtime-protocol` in
+    # a future release — see ADR 0009 (§Future work). Until then this is a
+    # hard dep, not an extra.
+    "opencoat-runtime>=0.1.0,<0.2.0",
 ]
 keywords = [
     "opencoat",

@@ -1110,6 +1110,7 @@ name = "opencoat-runtime-host"
 version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-host" }
 dependencies = [
+    { name = "opencoat-runtime" },
     { name = "opencoat-runtime-protocol" },
 ]
 
@@ -1125,6 +1126,7 @@ langgraph = [
 requires-dist = [
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
     { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=0.2" },
+    { name = "opencoat-runtime", editable = "packages/opencoat-runtime" },
     { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
 ]
 provides-extras = ["http", "openclaw", "hermes", "langgraph", "autogen", "crewai"]
