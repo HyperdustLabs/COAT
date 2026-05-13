@@ -1,9 +1,9 @@
-"""Three "dramatic" demo concerns loaded by ``COATr concern import --demo``.
+"""Three "dramatic" demo concerns loaded by ``opencoat concern import --demo``.
 
 This module ships **inside** ``opencoat-runtime-cli`` (no new package) and is
 opt-in: the CLI never seeds the daemon with these by default. They exist
 to give a brand-new install something visible to chew on within seconds
-of running ``COATr plugin install openclaw``.
+of running ``opencoat plugin install openclaw``.
 
 Each concern is hand-tuned to fire on a joinpoint that:
 

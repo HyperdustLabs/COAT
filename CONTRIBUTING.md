@@ -97,8 +97,8 @@ PR-17 gh/#21  feat/m4-runtime-builder    → DaemonConfig → OpenCOATRuntime fa
 PR-18 gh/#22  feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure)               ✅ landed
 PR-19 gh/#23  feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler      ✅ landed
 PR-20 gh/#24  feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file   ✅ landed
-PR-21 gh/#25  feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client)            ✅ landed
-PR-22 gh/#26  feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)           ✅ landed
+PR-21 gh/#25  feat/m4-cli-runtime        → opencoat runtime up|down|status (HTTP client)            ✅ landed
+PR-22 gh/#26  feat/m4-cli-concern-dcn    → opencoat concern + dcn + inspect (HTTP client)           ✅ landed
 PR-23 gh/#27  feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end            ✅ landed
 ```
 

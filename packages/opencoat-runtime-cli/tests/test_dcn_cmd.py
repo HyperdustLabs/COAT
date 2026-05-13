@@ -1,4 +1,4 @@
-"""Tests for ``COATr dcn`` (M4 PR-22)."""
+"""Tests for ``opencoat dcn`` (M4 PR-22)."""
 
 from __future__ import annotations
 

@@ -1,8 +1,8 @@
-"""``COATr inspect joinpoints | pointcuts`` (M0 baseline + M4 PR-22).
+"""``opencoat inspect joinpoints | pointcuts`` (M0 baseline + M4 PR-22).
 
 Both targets are read-only catalogs that live inside
 :mod:`opencoat_runtime_core` — they don't depend on a running daemon. We
-read them directly so ``COATr inspect`` works offline.
+read them directly so ``opencoat inspect`` works offline.
 """
 
 from __future__ import annotations

@@ -55,7 +55,7 @@ class TestJoinpointMap:
 
     def test_every_mapped_target_is_in_the_v01_catalog(self) -> None:
         # The runtime would still accept an off-catalog joinpoint name,
-        # but downstream tooling (catalog-driven docs, `COATr inspect
+        # but downstream tooling (catalog-driven docs, `opencoat inspect
         # joinpoints`) assumes catalog membership. Keep them aligned.
         for jp_name in OPENCLAW_EVENT_MAP.values():
             assert jp_name in JOINPOINT_CATALOG, f"missing from catalog: {jp_name!r}"

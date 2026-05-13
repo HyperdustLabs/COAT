@@ -11,7 +11,7 @@ What you saw vs. what you expected.
 
 **Reproduction**
 
-Minimal `pytest` test, code snippet, or `COATr` invocation.
+Minimal `pytest` test, code snippet, or `opencoat` invocation.
 
 **Versions**
 
@@ -21,4 +21,4 @@ Minimal `pytest` test, code snippet, or `COATr` invocation.
 
 **Logs / traces**
 
-Attach JSONL replay or relevant `COATr` output if available.
+Attach JSONL replay or relevant `opencoat` output if available.

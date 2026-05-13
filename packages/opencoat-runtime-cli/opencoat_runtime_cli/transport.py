@@ -8,7 +8,7 @@ runtime dependencies on httpx/requests.
 Errors map cleanly so callers can branch on transport vs RPC failure:
 
 * :class:`HttpRpcConnectionError` — the daemon isn't listening (refused,
-  timeout, DNS, etc.). Used by ``COATr runtime status`` to say *stopped*
+  timeout, DNS, etc.). Used by ``opencoat runtime status`` to say *stopped*
   instead of crashing.
 * :class:`HttpRpcProtocolError` — the daemon responded but with the
   wrong shape (non-2xx, non-JSON body, missing ``jsonrpc``).

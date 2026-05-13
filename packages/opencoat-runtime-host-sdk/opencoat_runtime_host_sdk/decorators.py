@@ -21,7 +21,7 @@ def joinpoint(name: str, *, client: Client, level: int = 1) -> Callable[..., Any
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
 
-        wrapper.__COATr_joinpoint__ = {  # type: ignore[attr-defined]
+        wrapper.__opencoat_joinpoint__ = {  # type: ignore[attr-defined]
             "name": name,
             "level": level,
         }

@@ -1,17 +1,17 @@
 # opencoat-runtime-cli
 
-`COATr` — command-line interface for the OpenCOAT Runtime. Talks to a local
+`opencoat` — command-line interface for the OpenCOAT Runtime. Talks to a local
 daemon over stdlib HTTP JSON-RPC (M4 PR-19), or replays a recorded
 session locally without a daemon.
 
 ```bash
-COATr runtime up --config /etc/opencoat/daemon.yaml --pid-file /run/opencoat.pid
-COATr runtime status --pid-file /run/opencoat.pid
-COATr runtime down --pid-file /run/opencoat.pid
-COATr replay session.jsonl
+opencoat runtime up --config /etc/opencoat/daemon.yaml --pid-file /run/opencoat.pid
+opencoat runtime status --pid-file /run/opencoat.pid
+opencoat runtime down --pid-file /run/opencoat.pid
+opencoat replay session.jsonl
 ```
 
-## `COATr runtime` (M4 PR-21)
+## `opencoat runtime` (M4 PR-21)
 
 `up | down | status | reload` manage the long-running daemon over its
 HTTP JSON-RPC listener:
@@ -29,9 +29,9 @@ configuration when omitted). The same flags work across all three
 actions so the same shell snippet covers the full lifecycle.
 
 ```bash
-COATr runtime up    --config daemon.yaml --pid-file /tmp/opencoat.pid
-COATr runtime status --pid-file /tmp/opencoat.pid    # → endpoint + pid state
-COATr runtime down  --pid-file /tmp/opencoat.pid     # → SIGTERM, polls
+opencoat runtime up    --config daemon.yaml --pid-file /tmp/opencoat.pid
+opencoat runtime status --pid-file /tmp/opencoat.pid    # → endpoint + pid state
+opencoat runtime down  --pid-file /tmp/opencoat.pid     # → SIGTERM, polls
 ```
 
 The underlying HTTP JSON-RPC client lives in
@@ -40,9 +40,9 @@ The underlying HTTP JSON-RPC client lives in
 `HttpRpcProtocolError` / `HttpRpcCallError` so callers can branch on
 *daemon stopped* vs *daemon answered with an error*.
 
-## `COATr concern` (M4 PR-22)
+## `opencoat concern` (M4 PR-22)
 
-`COATr concern` talks to the daemon over HTTP JSON-RPC:
+`opencoat concern` talks to the daemon over HTTP JSON-RPC:
 
 | Action | Wire | Notes |
 | --- | --- | --- |
@@ -53,13 +53,13 @@ The underlying HTTP JSON-RPC client lives in
 | `diff A B` | `concern.get` × 2 | Unified diff over canonical JSON. |
 
 ```bash
-COATr concern list --lifecycle-state active
-COATr concern export -o /tmp/concerns.json
-COATr concern import /tmp/concerns.json
-COATr concern diff c-1 c-2
+opencoat concern list --lifecycle-state active
+opencoat concern export -o /tmp/concerns.json
+opencoat concern import /tmp/concerns.json
+opencoat concern diff c-1 c-2
 ```
 
-## `COATr dcn` (M4 PR-22)
+## `opencoat dcn` (M4 PR-22)
 
 A clean *full* DCN export will arrive when the `DCNStore` port exposes
 enumeration over RPC. Today the CLI ships the *shallow* snapshot the
@@ -74,11 +74,11 @@ activation history — which is enough to drive visualisation:
 | `import` | — | Reserved for a future PR; needs write API on `DCNStore`. |
 
 ```bash
-COATr dcn activation-log --limit 50
-COATr dcn export --format dot -o dcn.dot && dot -Tsvg dcn.dot -o dcn.svg
+opencoat dcn activation-log --limit 50
+opencoat dcn export --format dot -o dcn.dot && dot -Tsvg dcn.dot -o dcn.svg
 ```
 
-## `COATr inspect` (M4 PR-22)
+## `opencoat inspect` (M4 PR-22)
 
 `inspect` reads the catalogs baked into `opencoat_runtime_core`, so it
 works without a running daemon:
@@ -89,12 +89,12 @@ works without a running daemon:
 | `pointcuts`  | The 12 strategies under `opencoat_runtime_core.pointcut.strategies` (v0.1 §13.2). |
 
 ```bash
-COATr inspect joinpoints
-COATr inspect pointcuts
+opencoat inspect joinpoints
+opencoat inspect pointcuts
 ```
 
 ## Other subcommands
 
-`COATr replay session.jsonl` replays a JSONL session recorded via
+`opencoat replay session.jsonl` replays a JSONL session recorded via
 `opencoat_runtime_storage.jsonl.SessionJsonlRecorder` (M3).
-`COATr plugin` remains a stub until M5.
+`opencoat plugin` remains a stub until M5.

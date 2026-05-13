@@ -1,4 +1,4 @@
-"""Tests for ``COATr concern import --demo`` (DX sprint #3)."""
+"""Tests for ``opencoat concern import --demo`` (DX sprint #3)."""
 
 from __future__ import annotations
 

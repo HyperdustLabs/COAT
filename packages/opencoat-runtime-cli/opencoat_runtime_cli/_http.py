@@ -1,4 +1,4 @@
-"""Shared HTTP endpoint resolution for ``COATr`` subcommands (M4 PR-22).
+"""Shared HTTP endpoint resolution for ``opencoat`` subcommands (M4 PR-22).
 
 All daemon-facing subcommands (``runtime``, ``concern``, ``dcn``,
 ``inspect``) accept the same four endpoint flags:

@@ -15,7 +15,7 @@ offline.
 
 The JSONL backend is a first-class storage option. It writes one record
 per joinpoint and one per injection, in append-only files keyed by
-session. `COATr replay session.jsonl` re-feeds the joinpoints into a
+session. `opencoat replay session.jsonl` re-feeds the joinpoints into a
 fresh runtime and diffs the injections.
 
 ## Consequences

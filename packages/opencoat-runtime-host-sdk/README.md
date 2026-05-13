@@ -6,7 +6,7 @@ consume injections without coupling to the runtime's internals.
 ```python
 from opencoat_runtime_host_sdk import Client, joinpoint
 
-client = Client.connect("unix:///run/COATr.sock")
+client = Client.connect("unix:///run/opencoat.sock")
 
 @joinpoint("before_response", client=client)
 def generate_response(ctx): ...

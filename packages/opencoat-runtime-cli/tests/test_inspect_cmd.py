@@ -1,4 +1,4 @@
-"""Tests for ``COATr inspect joinpoints | pointcuts`` (M4 PR-22)."""
+"""Tests for ``opencoat inspect joinpoints | pointcuts`` (M4 PR-22)."""
 
 from __future__ import annotations
 

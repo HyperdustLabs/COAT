@@ -2,7 +2,7 @@
 
 Single-process **sqlite** persistence for `ConcernStore` + `DCNStore`
 (one shared database file) plus an optional **append-only JSONL**
-session log compatible with `COATr replay`.
+session log compatible with `opencoat replay`.
 
 This example mirrors the turn shape of [`01_simple_chat_agent`](../01_simple_chat_agent/README.md)
 (stub LLM, verifier, hand-authored concerns) so you can focus on the
@@ -44,7 +44,7 @@ uv run python -m examples.03_persistent_agent_demo.main --no-jsonl
 After a run with JSONL enabled:
 
 ```bash
-COATr replay ./.opencoat-persistent-demo/session.jsonl
+opencoat replay ./.opencoat-persistent-demo/session.jsonl
 ```
 
 Or via this package’s CLI (no daemon):

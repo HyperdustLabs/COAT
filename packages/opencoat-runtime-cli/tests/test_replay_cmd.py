@@ -1,4 +1,4 @@
-"""Tests for ``COATr replay`` (M3 PR-15)."""
+"""Tests for ``opencoat replay`` (M3 PR-15)."""
 
 from __future__ import annotations
 

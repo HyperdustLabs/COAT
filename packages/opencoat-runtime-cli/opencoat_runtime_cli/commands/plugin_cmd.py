@@ -1,4 +1,4 @@
-"""``COATr plugin`` — host plugin scaffolding (post-M5 DX sprint).
+"""``opencoat plugin`` — host plugin scaffolding (post-M5 DX sprint).
 
 ``plugin install <host>`` copies a small, lint-clean starter set of
 files into ``--out`` (default ``./opencoat_plugin``) so a user can wire a

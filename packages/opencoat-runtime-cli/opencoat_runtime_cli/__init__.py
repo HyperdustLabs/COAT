@@ -1,4 +1,4 @@
-"""COATr command line."""
+"""opencoat command line."""
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version

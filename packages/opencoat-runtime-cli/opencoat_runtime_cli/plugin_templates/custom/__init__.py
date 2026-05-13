@@ -1,1 +1,1 @@
-"""Template files for ``COATr plugin install custom``."""
+"""Template files for ``opencoat plugin install custom``."""

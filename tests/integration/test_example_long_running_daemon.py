@@ -2,8 +2,8 @@
 
 Pins M4 PR-23: a real :class:`opencoat_runtime_daemon.Daemon` is started
 on a free loopback port, then driven from the same
-:class:`opencoat_runtime_cli.transport.HttpRpcClient` that ``COATr concern``
-/ ``COATr dcn`` ship. If anything in PR-17→PR-22 regresses on the wire
+:class:`opencoat_runtime_cli.transport.HttpRpcClient` that ``opencoat concern``
+/ ``opencoat dcn`` ship. If anything in PR-17→PR-22 regresses on the wire
 this test trips, with the example folder doubling as both the docs
 artefact and the integration fixture.
 

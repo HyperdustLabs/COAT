@@ -1,8 +1,8 @@
-"""Top-level COATr dispatcher.
+"""Top-level opencoat dispatcher.
 
 Subcommand modules under :mod:`.commands` register themselves here. M0 wires
 ``runtime``, ``concern``, ``dcn``, ``replay``, ``inspect``, ``plugin`` as
-no-op stubs so ``COATr <cmd> --help`` works end-to-end.
+no-op stubs so ``opencoat <cmd> --help`` works end-to-end.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ _BANNER = (
     "       |_|                                         "
 )
 
-_SUBTITLE = "Open Concern-Oriented Agent Thinking · COATr v{ver}"
+_SUBTITLE = "Open Concern-Oriented Agent Thinking · opencoat v{ver}"
 
 CommandRegistrar = Callable[[argparse._SubParsersAction], None]
 COMMANDS: tuple[CommandRegistrar, ...] = (
@@ -48,7 +48,7 @@ def _strip_no_banner_flag(argv: list[str]) -> tuple[list[str], bool]:
     Accepted anywhere *before* the POSIX end-of-options marker ``--``;
     once ``--`` is seen the rest of ``argv`` is forwarded untouched so
     a subcommand can legitimately receive a literal token named
-    ``--no-banner`` (e.g. ``COATr replay -- --no-banner``).
+    ``--no-banner`` (e.g. ``opencoat replay -- --no-banner``).
     """
     out: list[str] = []
     no_banner = False
@@ -118,11 +118,11 @@ def _render_banner(stream) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="COATr",
-        description="OpenCOAT Runtime CLI (COATr).",
+        prog="opencoat",
+        description="OpenCOAT Runtime CLI.",
         epilog="Global: pass --no-banner anywhere to suppress the startup banner.",
     )
-    parser.add_argument("--version", action="version", version=f"COATr {__version__}")
+    parser.add_argument("--version", action="version", version=f"opencoat {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     for register in COMMANDS:
         register(sub)

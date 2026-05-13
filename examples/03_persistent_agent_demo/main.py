@@ -9,7 +9,7 @@ Paths default to ``./.opencoat-persistent-demo/state.db`` and
 automatically). Override with ``--state-db`` / ``--session-log``, or pass
 ``--no-jsonl`` to skip the append-only session file.
 
-Replay a recorded session (same semantics as ``COATr replay``)::
+Replay a recorded session (same semantics as ``opencoat replay``)::
 
     uv run python -m examples.03_persistent_agent_demo.main \\
         --replay ./.opencoat-persistent-demo/session.jsonl
@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{sum(len(r.reinforced_concern_ids) for r in reports)} reinforcements."
     )
     if log_path is not None:
-        print(f"\nReplay: COATr replay {log_path}")
+        print(f"\nReplay: opencoat replay {log_path}")
     return 0
 
 

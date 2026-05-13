@@ -9,7 +9,7 @@ SQLite file (see storage README).
 
 Optionally appends an ADR-0007 JSONL session via
 :class:`~opencoat_runtime_storage.jsonl.SessionJsonlRecorder` so
-``COATr replay session.jsonl`` can diff injections offline.
+``opencoat replay session.jsonl`` can diff injections offline.
 
 **Seeding:** ``concerns=None`` upserts :func:`seed_concerns` only when the
 on-disk store is empty — a second process (or a second in-process agent)

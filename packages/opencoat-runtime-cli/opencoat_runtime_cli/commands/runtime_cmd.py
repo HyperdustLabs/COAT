@@ -1,4 +1,4 @@
-"""``COATr runtime up | down | status`` over the daemon's HTTP JSON-RPC (M4 PR-21).
+"""``opencoat runtime up | down | status`` over the daemon's HTTP JSON-RPC (M4 PR-21).
 
 * ``up`` spawns ``python -m opencoat_runtime_daemon`` (double-forking when
   ``--detach`` is set so the daemon is owned by init, not the CLI),

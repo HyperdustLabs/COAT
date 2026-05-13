@@ -21,7 +21,7 @@
   `opencoat_runtime_host_openclaw`
   (`adapter` + `injector` + `tool_guard` + `memory_bridge` +
   `install_hooks`); demo proven by `examples/04_openclaw_with_runtime`.
-- CLI (`COATr runtime|concern|dcn|inspect`) talks to the daemon over
+- CLI (`opencoat runtime|concern|dcn|inspect`) talks to the daemon over
   HTTP/JSON-RPC; **no host-install affordance yet**.
 - No external user has run OpenCOAT against a real OpenClaw build — the
   M5 example uses an in-tree toy bus.
@@ -36,7 +36,7 @@
 - Exit criteria (unchanged): 24 h soak run; DCN converges; token budget
   stable; decay / conflict / merge / archive / meta-review jobs all wired.
 - Touches: `opencoat-runtime-core` workers + scheduler, `MetaConcern`
-  governance loop, admin surfaces in `COATr`.
+  governance loop, admin surfaces in `opencoat`.
 - Risk: invisible to non-runtime users; heaviest milestone so far;
   needs the soak harness and convergence metrics.
 
@@ -47,11 +47,11 @@ Three sub-deliverables, each a small PR (no new packages):
 1. **CLI banner** in `packages/opencoat-runtime-cli`
    - `OpenCOAT` ASCII art (pyfiglet `big`, embedded as a constant — no
      runtime `pyfiglet` dependency).
-   - Render once on `COATr` invocation when `stdout.isatty()` and
+   - Render once on `opencoat` invocation when `stdout.isatty()` and
      `NO_COLOR` is unset and `--no-banner` is not passed.
    - Subtitle line: daemon status + active profile + loaded host plugins.
    - `pyproject.toml` `description` flips to "OpenCOAT Runtime".
-2. **`COATr plugin install <host>`**
+2. **`opencoat plugin install <host>`**
    - Generates `host_adapter.py` / `concerns.py` / `bootstrap_opencoat.py`
      stubs into a target dir (default cwd, `--out` override) for the
      `openclaw` and `custom` hosts.
@@ -60,7 +60,7 @@ Three sub-deliverables, each a small PR (no new packages):
    - `demo-tool-block` — `TOOL_GUARD` blocks `shell.exec rm -rf …`.
    - `demo-memory-tag` — annotates every memory write.
    - `demo-prompt-prefix` — rewrites the system-prompt prefix.
-   - Loaded via `COATr concerns load --demo`; cookbook section appended
+   - Loaded via `opencoat concerns load --demo`; cookbook section appended
      to `examples/04_openclaw_with_runtime/README.md`.
 
 ### 2C. External skill repo — `HyperdustLabs/opencoat-skill`
@@ -69,7 +69,7 @@ Three sub-deliverables, each a small PR (no new packages):
 - Contents: `SKILL.md`, `inspection.md`, `concerns.md`, `rules.md`,
   `skill.json`, `LICENSE` (Apache-2.0), `.github/workflows/verify.yml`.
 - Skill body wraps thread 2B: instructs the host agent to run
-  `pipx install opencoat-runtime-cli && COATr plugin install openclaw`
+  `pipx install opencoat-runtime-cli && opencoat plugin install openclaw`
   and points at the demo concerns from 2B.
 - **Strict** dependency on 2B (no install affordance to wrap otherwise).
 
@@ -98,9 +98,9 @@ chain_ref schema ── (independent — protocol surface only)
    the protocol surface stable so MOSSAI / external callers can fill it
    later without schema churn. (See §6.)
 2. **`feat/dx-cli-banner`** — banner + status subtitle + `--no-banner`.
-3. **`feat/dx-plugin-install`** — `COATr plugin install <openclaw|custom>`.
+3. **`feat/dx-plugin-install`** — `opencoat plugin install <openclaw|custom>`.
 4. **`feat/dx-demo-concerns`** — three dramatic demo concerns +
-   `COATr concerns load --demo`.
+   `opencoat concerns load --demo`.
 5. **`HyperdustLabs/opencoat-skill`** — bootstrap commit batch in a
    *separate* repo (out-of-tree; not in this PR stream).
 6. **M6 mainline** — 4 PRs per the §5 split below.
@@ -132,11 +132,11 @@ Numbers will be assigned as PRs open, per the M5+ convention in
 
 ```text
 gh/#36  feat/dx-cli-banner         → OpenCOAT banner + status subtitle + --no-banner   ✅ landed
-gh/#37  feat/dx-plugin-install     → COATr plugin install <openclaw|custom>            ✅ landed
-gh/#?   feat/dx-demo-concerns      → 3 dramatic concerns + COATr concern import --demo (in flight)
+gh/#37  feat/dx-plugin-install     → opencoat plugin install <openclaw|custom>            ✅ landed
+gh/#?   feat/dx-demo-concerns      → 3 dramatic concerns + opencoat concern import --demo (in flight)
 ```
 
-> The concrete CLI verb shipped as ``COATr concern import --demo``
+> The concrete CLI verb shipped as ``opencoat concern import --demo``
 > (mutually exclusive with ``<path>``) — chosen over a separate
 > ``concerns load`` action so the demo set rides on the same
 > ``concern.upsert`` RPC path that file imports already use.
@@ -182,7 +182,7 @@ gh/#?   feat/dx-demo-concerns      → 3 dramatic concerns + COATr concern impor
 - **Banner pyfiglet dependency**: ASCII embedded as a constant → no
   runtime dep; pyfiglet only at author time. Confirmed in the
   `feat/dx-cli-banner` PR description.
-- **`COATr plugin install` output dir**: cwd default with `--out`
+- **`opencoat plugin install` output dir**: cwd default with `--out`
   override; directory-exists handling defers to the PR.
 - **Demo concerns packaging**: ship inside `opencoat-runtime-cli` (no new
   package), gated by `--demo`.

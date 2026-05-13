@@ -125,6 +125,6 @@ PID is no longer alive, and is removed on stop only if it still
 contains our own PID. Tests: `tests/test_pidfile.py` and
 `tests/test_daemon_lifecycle.py`.
 
-The CLI driver — `COATr runtime up | down | status` — lives in
+The CLI driver — `opencoat runtime up | down | status` — lives in
 `opencoat-runtime-cli` (M4 PR-21) and double-forks this daemon so it is
 owned by `init` rather than the calling shell.

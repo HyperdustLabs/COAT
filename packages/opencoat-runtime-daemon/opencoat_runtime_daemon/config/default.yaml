@@ -25,7 +25,7 @@ ipc:
     enabled: true
   unix_socket:
     enabled: false
-    path: /run/COATr.sock
+    path: /run/opencoat.sock
   http:
     enabled: false
     host: 127.0.0.1

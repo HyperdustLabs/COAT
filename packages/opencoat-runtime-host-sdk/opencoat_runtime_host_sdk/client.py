@@ -13,7 +13,7 @@ class Client:
     Connect string formats:
 
     * ``inproc://`` — direct in-process call (M1)
-    * ``unix:///run/COATr.sock`` — Unix domain socket (M4)
+    * ``unix:///run/opencoat.sock`` — Unix domain socket (M4)
     * ``http://127.0.0.1:7878`` — HTTP / JSON-RPC (M4)
     """
 

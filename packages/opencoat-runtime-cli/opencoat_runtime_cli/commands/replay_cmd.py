@@ -1,4 +1,4 @@
-"""COATr replay <session.jsonl>."""
+"""opencoat replay <session.jsonl>."""
 
 from __future__ import annotations
 

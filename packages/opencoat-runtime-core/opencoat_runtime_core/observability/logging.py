@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import logging
 
-_LOG_PREFIX = "COATr"
+_LOG_PREFIX = "opencoat"
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a logger named ``COATr.<name>``."""
+    """Return a logger named ``opencoat.<name>``."""
     return logging.getLogger(f"{_LOG_PREFIX}.{name}")

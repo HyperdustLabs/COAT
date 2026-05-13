@@ -33,4 +33,4 @@ def test_joinpoint_decorator_is_passthrough_for_now() -> None:
         return ctx["text"]
 
     assert gen({"text": "hi"}) == "hi"
-    assert gen.__COATr_joinpoint__ == {"name": "before_response", "level": 1}
+    assert gen.__opencoat_joinpoint__ == {"name": "before_response", "level": 1}

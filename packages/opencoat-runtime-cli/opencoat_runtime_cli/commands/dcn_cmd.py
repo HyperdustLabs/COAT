@@ -1,4 +1,4 @@
-"""``COATr dcn export | visualize | activation-log | import`` (M4 PR-22).
+"""``opencoat dcn export | visualize | activation-log | import`` (M4 PR-22).
 
 The DCN port doesn't (yet) expose a clean enumerate-everything API —
 nodes / edges are accessible only via private attributes on the
@@ -139,7 +139,7 @@ def _dcn_visualize(args: argparse.Namespace) -> int:
 def _dcn_import(_args: argparse.Namespace) -> int:
     print(
         "dcn import: not yet implemented — needs a write API on DCNStore (planned for M5+). "
-        "Use `COATr concern import` to load concerns; activation history is record-only.",
+        "Use `opencoat concern import` to load concerns; activation history is record-only.",
         file=sys.stderr,
     )
     return 2

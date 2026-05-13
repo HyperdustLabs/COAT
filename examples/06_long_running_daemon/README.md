@@ -4,7 +4,7 @@ End-to-end demo of the M4 stack: a real
 [`opencoat_runtime_daemon.Daemon`](../../packages/opencoat-runtime-daemon/opencoat_runtime_daemon/daemon.py)
 serving JSON-RPC over HTTP, driven from the same
 [`HttpRpcClient`](../../packages/opencoat-runtime-cli/opencoat_runtime_cli/transport.py)
-that backs `COATr concern` / `COATr dcn` / `COATr runtime status`. If
+that backs `opencoat concern` / `opencoat dcn` / `opencoat runtime status`. If
 this example runs green, PR-17 through PR-22 compose correctly.
 
 ## Layout
@@ -34,7 +34,7 @@ examples/06_long_running_daemon/
      pointcut keywords (`?`, `tell`, `email`)
    * `concern.list` again — to show activation counters moved
    * `dcn.activation_log` — to show the history rows
-   * `runtime.snapshot` — the same shape `COATr runtime status`
+   * `runtime.snapshot` — the same shape `opencoat runtime status`
      surfaces under the hood
 5. Optionally renders the activation snapshot via
    [`dcn_to_dot`](../../packages/opencoat-runtime-cli/opencoat_runtime_cli/visualize/dcn_dot.py)
@@ -51,7 +51,7 @@ uv run python -m examples.06_long_running_daemon.main
 Useful flags:
 
 ```bash
-# Use a fixed port (handy when you want to point COATr at it):
+# Use a fixed port (handy when you want to point opencoat at it):
 uv run python -m examples.06_long_running_daemon.main --port 17890
 
 # Explicitly ask for an OS-assigned free port (same as omitting --port).
@@ -64,20 +64,20 @@ uv run python -m examples.06_long_running_daemon.main --in-memory
 uv run python -m examples.06_long_running_daemon.main --dot-out /tmp/dcn.dot
 dot -Tsvg /tmp/dcn.dot -o /tmp/dcn.svg
 
-# Keep the daemon up so you can drive it from `COATr` in another shell:
+# Keep the daemon up so you can drive it from `opencoat` in another shell:
 uv run python -m examples.06_long_running_daemon.main --keep-running --port 17890
 ```
 
-## Drive it from `COATr` (PR-21 / PR-22)
+## Drive it from `opencoat` (PR-21 / PR-22)
 
 With `--keep-running --port 17890`:
 
 ```bash
-COATr runtime status --port 17890 --pid-file ./.opencoat-daemon-demo/opencoat.pid
-COATr concern list   --port 17890
-COATr concern show   c-cite --port 17890
-COATr dcn activation-log --port 17890
-COATr dcn export   --format dot --port 17890 -o /tmp/dcn.dot
+opencoat runtime status --port 17890 --pid-file ./.opencoat-daemon-demo/opencoat.pid
+opencoat concern list   --port 17890
+opencoat concern show   c-cite --port 17890
+opencoat dcn activation-log --port 17890
+opencoat dcn export   --format dot --port 17890 -o /tmp/dcn.dot
 ```
 
 ## Why is this in `examples/` and not `tests/`?
@@ -98,5 +98,5 @@ code than from any amount of prose.
 | HTTP server | `opencoat_runtime_daemon.ipc.http_server` ([PR-19 / #23](https://github.com/HyperdustLabs/COAT/pull/23)) |
 | JSON-RPC dispatcher | `opencoat_runtime_daemon.ipc.jsonrpc_dispatch` ([PR-18 / #22](https://github.com/HyperdustLabs/COAT/pull/22)) |
 | `build_runtime` | `opencoat_runtime_daemon.runtime_builder` ([PR-17 / #21](https://github.com/HyperdustLabs/COAT/pull/21)) |
-| HTTP client + `COATr runtime` | `opencoat_runtime_cli.transport`, `commands/runtime_cmd.py` ([PR-21 / #25](https://github.com/HyperdustLabs/COAT/pull/25)) |
-| `COATr concern / dcn / inspect` | `opencoat_runtime_cli.commands.{concern,dcn,inspect}_cmd` ([PR-22 / #26](https://github.com/HyperdustLabs/COAT/pull/26)) |
+| HTTP client + `opencoat runtime` | `opencoat_runtime_cli.transport`, `commands/runtime_cmd.py` ([PR-21 / #25](https://github.com/HyperdustLabs/COAT/pull/25)) |
+| `opencoat concern / dcn / inspect` | `opencoat_runtime_cli.commands.{concern,dcn,inspect}_cmd` ([PR-22 / #26](https://github.com/HyperdustLabs/COAT/pull/26)) |

@@ -2,7 +2,7 @@
 
 Boots a real :class:`~opencoat_runtime_daemon.Daemon` over HTTP JSON-RPC and
 drives it from the very same :class:`~opencoat_runtime_cli.transport.HttpRpcClient`
-that ``COATr concern`` / ``COATr dcn`` use on the wire. That makes this
+that ``opencoat concern`` / ``opencoat dcn`` use on the wire. That makes this
 script the integration story for the M4 stack:
 
 * PR-17 — ``build_runtime`` wires sqlite (or memory) stores + the LLM
@@ -31,10 +31,10 @@ Useful flags:
 
       uv run python -m examples.06_long_running_daemon.main --keep-running &
       # in another shell:
-      COATr runtime status --pid-file ./.opencoat-daemon-demo/opencoat.pid \\
+      opencoat runtime status --pid-file ./.opencoat-daemon-demo/opencoat.pid \\
                            --port <printed port>
-      COATr concern list --port <printed port>
-      COATr dcn export   --port <printed port>
+      opencoat concern list --port <printed port>
+      opencoat dcn export   --port <printed port>
 
 * ``--in-memory`` — skip sqlite and use the in-memory backend.
 * ``--dot-out PATH`` — render the activation snapshot to Graphviz
@@ -364,9 +364,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.keep_running:
             print()
             print("Daemon is up. Connect from another shell:")
-            print(f"  COATr runtime status --port {port}")
-            print(f"  COATr concern list   --port {port}")
-            print(f"  COATr dcn export     --port {port}")
+            print(f"  opencoat runtime status --port {port}")
+            print(f"  opencoat concern list   --port {port}")
+            print(f"  opencoat dcn export     --port {port}")
             print("Ctrl-C to stop.")
             _wait_for_ctrl_c(daemon)
     except HttpRpcError as exc:
@@ -380,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if rc == 0 and not args.keep_running:
         print()
-        print("Done. Re-run with --keep-running to drive the daemon from `COATr`.")
+        print("Done. Re-run with --keep-running to drive the daemon from `opencoat`.")
     return rc
 
 

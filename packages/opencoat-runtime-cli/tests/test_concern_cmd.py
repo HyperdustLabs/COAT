@@ -1,4 +1,4 @@
-"""Tests for ``COATr concern list | show | import | export | diff`` (M4 PR-22)."""
+"""Tests for ``opencoat concern list | show | import | export | diff`` (M4 PR-22)."""
 
 from __future__ import annotations
 

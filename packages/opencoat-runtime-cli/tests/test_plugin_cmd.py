@@ -1,4 +1,4 @@
-"""Tests for ``COATr plugin install <host>`` scaffolding (DX sprint)."""
+"""Tests for ``opencoat plugin install <host>`` scaffolding (DX sprint)."""
 
 from __future__ import annotations
 

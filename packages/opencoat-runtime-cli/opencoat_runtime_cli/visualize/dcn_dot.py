@@ -3,7 +3,7 @@
 A *full* Deep Concern Network export is gated on a future
 ``dcn.snapshot`` RPC that exposes nodes + edges over a clean port API
 (the M1 ``DCNStore`` Protocol doesn't yet enumerate either). Until that
-lands, ``COATr dcn export`` ships what the existing RPC methods can
+lands, ``opencoat dcn export`` ships what the existing RPC methods can
 return — the concern list plus the activation history — and this
 module turns that into a readable DOT graph:
 
@@ -52,7 +52,7 @@ def _node_id(prefix: str, raw: str) -> str:
 def dcn_to_dot(snapshot: Mapping[str, Any]) -> str:
     """Render ``snapshot`` to DOT.
 
-    ``snapshot`` shape (matches ``COATr dcn export --format json``):
+    ``snapshot`` shape (matches ``opencoat dcn export --format json``):
 
     .. code-block:: json
 

@@ -1,4 +1,4 @@
-"""``COATr concern list | show | import | export | diff`` (M4 PR-22).
+"""``opencoat concern list | show | import | export | diff`` (M4 PR-22).
 
 All actions reach the daemon over the HTTP JSON-RPC client introduced
 in PR-21. The wire methods are ``concern.list``, ``concern.get``, and
@@ -7,7 +7,7 @@ PR.
 
 Defaults are tuned for human terminals: ``list`` prints
 ``<id>  <state>  <name>`` columns; ``--json`` switches to a single
-JSON array suitable for piping into ``jq`` or another ``COATr concern
+JSON array suitable for piping into ``jq`` or another ``opencoat concern
 import``.
 """
 

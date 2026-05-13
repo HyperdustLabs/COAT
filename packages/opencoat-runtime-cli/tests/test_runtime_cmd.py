@@ -1,4 +1,4 @@
-"""Tests for ``COATr runtime up | down | status`` (M4 PR-21)."""
+"""Tests for ``opencoat runtime up | down | status`` (M4 PR-21)."""
 
 from __future__ import annotations
 

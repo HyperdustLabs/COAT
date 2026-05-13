@@ -67,5 +67,5 @@ assert replay_session_file("session.jsonl").ok
 CLI (requires `opencoat-runtime-cli`):
 
 ```bash
-COATr replay session.jsonl
+opencoat replay session.jsonl
 ```
