@@ -1,10 +1,10 @@
-"""OpenClaw-shaped host driving :class:`COATRuntime` (M5 #32).
+"""OpenClaw-shaped host driving :class:`OpenCOATRuntime` (M5 #32).
 
 Run with::
 
     uv run python -m examples.04_openclaw_with_runtime.main
 
-The script wires :func:`COAT_runtime_host_openclaw.install_hooks` against
+The script wires :func:`opencoat_runtime_host_openclaw.install_hooks` against
 an in-memory "OpenClaw" event bus, replays a tiny lifecycle (start → user
 message → memory write), prints the last :class:`ConcernInjection`, and
 shows DCN activation rows for the memory concern. No network and no real
@@ -18,15 +18,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from COAT_runtime_core import COATRuntime, RuntimeConfig
-from COAT_runtime_core.llm import StubLLMClient
-from COAT_runtime_host_openclaw import (
+from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
+from opencoat_runtime_core.llm import StubLLMClient
+from opencoat_runtime_host_openclaw import (
     OpenClawAdapter,
     OpenClawMemoryBridge,
     install_hooks,
 )
-from COAT_runtime_protocol import ConcernInjection
-from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+from opencoat_runtime_protocol import ConcernInjection
+from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
 from .concerns import seed_concerns
 
@@ -64,8 +64,8 @@ class OpenClawDemoReport:
     memory_bridge_logged_demo_key: bool
 
 
-def _build_runtime() -> COATRuntime:
-    return COATRuntime(
+def _build_runtime() -> OpenCOATRuntime:
+    return OpenCOATRuntime(
         RuntimeConfig(),
         concern_store=MemoryConcernStore(),
         dcn_store=MemoryDCNStore(),
@@ -73,7 +73,7 @@ def _build_runtime() -> COATRuntime:
     )
 
 
-def _seed_stores(runtime: COATRuntime) -> None:
+def _seed_stores(runtime: OpenCOATRuntime) -> None:
     for concern in seed_concerns():
         runtime.concern_store.upsert(concern)
         runtime.dcn_store.add_node(concern)
@@ -105,7 +105,7 @@ def run_demo(*, session_id: str = "demo-openclaw-session") -> OpenClawDemoReport
             {
                 "agent_session_id": session_id,
                 "turn_id": "t-1",
-                "payload": {"text": "What is the COAT runtime?"},
+                "payload": {"text": "What is the OpenCOAT runtime?"},
             },
         )
         host.fire(
@@ -115,7 +115,7 @@ def run_demo(*, session_id: str = "demo-openclaw-session") -> OpenClawDemoReport
                 "turn_id": "t-2",
                 "payload": {
                     "key": "episodic.openclaw-demo",
-                    "value": {"note": "user asked about COAT"},
+                    "value": {"note": "user asked about OpenCOAT"},
                     "concern_id": "c-openclaw-memory",
                 },
             },
@@ -137,7 +137,7 @@ def run_demo(*, session_id: str = "demo-openclaw-session") -> OpenClawDemoReport
 
 def _format_report(report: OpenClawDemoReport) -> str:
     lines = [
-        "── OpenClaw + COAT demo ─────────────────────────────────────────",
+        "── OpenClaw + OpenCOAT demo ─────────────────────────────────────────",
         f"memory activations (c-openclaw-memory): {report.memory_activation_count}",
         "  (includes turn-loop logging plus the memory-bridge mirror when",
         "   ``concern_id`` is set on ``agent.memory_write``.)",

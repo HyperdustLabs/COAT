@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from COAT_runtime_protocol import AdviceType
+from opencoat_runtime_protocol import AdviceType
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "01_simple_chat_agent"
 
@@ -25,7 +25,7 @@ EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "01_simple_chat
 def _load_example() -> tuple:
     """Import the example as a package and return ``(agent_mod, main_mod)``."""
     pkg_init = EXAMPLE_DIR / "__init__.py"
-    pkg_name = "_COAT_example_simple_chat_agent"
+    pkg_name = "_opencoat_example_simple_chat_agent"
 
     if pkg_name not in sys.modules:
         spec = importlib.util.spec_from_file_location(
@@ -66,7 +66,7 @@ class TestSimpleChatAgent:
     def test_one_turn_produces_injection_and_response(self, example_modules) -> None:
         agent_mod, _ = example_modules
         agent = agent_mod.SimpleChatAgent()
-        report = agent.handle("Who invented the COAT runtime?")
+        report = agent.handle("Who invented the OpenCOAT runtime?")
 
         # The pipeline produced a real injection from real concerns.
         assert report.injection.injections, "expected at least one injection"
@@ -104,7 +104,7 @@ class TestSimpleChatAgent:
         assert list(store.iter_all()) == [], "expected an empty store"
 
         # No concerns → no candidates → empty injection, no verifications.
-        report = agent.handle("Who invented the COAT runtime?")
+        report = agent.handle("Who invented the OpenCOAT runtime?")
         assert report.active_concern_ids == []
         assert report.injection.injections == []
         assert report.verifications == []
@@ -113,13 +113,13 @@ class TestSimpleChatAgent:
         # Companion to the empty-list test: a one-element override must
         # land verbatim, with no demo concerns sneaking in.
         agent_mod, _ = example_modules
-        from COAT_runtime_protocol import (
+        from opencoat_runtime_protocol import (
             Advice,
             AdviceType,
             Concern,
             Pointcut,
         )
-        from COAT_runtime_protocol.envelopes import PointcutMatch
+        from opencoat_runtime_protocol.envelopes import PointcutMatch
 
         only = Concern(
             id="c-only",
@@ -140,7 +140,7 @@ class TestSimpleChatAgent:
         # contract) trips this test.
         agent_mod, _ = example_modules
         agent = agent_mod.SimpleChatAgent()
-        report = agent.handle("Why does COAT work?")
+        report = agent.handle("Why does OpenCOAT work?")
         log = list(agent.runtime.dcn_store.activation_log())
         logged_ids = {entry["concern_id"] for entry in log}
         injection_ids = {inj.concern_id for inj in report.injection.injections}

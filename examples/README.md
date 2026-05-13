@@ -1,6 +1,6 @@
 # Examples
 
-End-to-end usage of the COAT Runtime.
+End-to-end usage of the OpenCOAT Runtime.
 
 | # | Folder | Lands in |
 | --- | --- | --- |

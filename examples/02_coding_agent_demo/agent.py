@@ -1,4 +1,4 @@
-"""CodingAgent — coding-agent host wired against :class:`COATRuntime`.
+"""CodingAgent — coding-agent host wired against :class:`OpenCOATRuntime`.
 
 The agent extends the M1 ``SimpleChatAgent`` along three M2 axes:
 
@@ -29,17 +29,17 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from COAT_runtime_core import COATRuntime, RuntimeConfig
-from COAT_runtime_core.concern.lifecycle import ConcernLifecycleManager
-from COAT_runtime_core.concern.verifier import ConcernVerifier, VerificationResult
-from COAT_runtime_core.ports import LLMClient
-from COAT_runtime_protocol import (
+from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
+from opencoat_runtime_core.concern.lifecycle import ConcernLifecycleManager
+from opencoat_runtime_core.concern.verifier import ConcernVerifier, VerificationResult
+from opencoat_runtime_core.ports import LLMClient
+from opencoat_runtime_protocol import (
     Concern,
     ConcernInjection,
     ConcernVector,
     JoinpointEvent,
 )
-from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
 from .concerns import seed_concerns
 from .llm import select_llm
@@ -78,7 +78,7 @@ class CodingAgent:
     Parameters
     ----------
     runtime:
-        Optional pre-built :class:`COATRuntime`.  If ``None``, the
+        Optional pre-built :class:`OpenCOATRuntime`.  If ``None``, the
         agent constructs one with in-memory stores and the
         env-detected LLM.
     llm:
@@ -110,7 +110,7 @@ class CodingAgent:
     def __init__(
         self,
         *,
-        runtime: COATRuntime | None = None,
+        runtime: OpenCOATRuntime | None = None,
         llm: LLMClient | None = None,
         llm_label: str | None = None,
         concerns: list[Concern] | None = None,
@@ -120,7 +120,7 @@ class CodingAgent:
     ) -> None:
         if runtime is None:
             client, label = (llm, llm_label or "<custom>") if llm is not None else select_llm()
-            runtime = COATRuntime(
+            runtime = OpenCOATRuntime(
                 RuntimeConfig(),
                 concern_store=MemoryConcernStore(),
                 dcn_store=MemoryDCNStore(),
@@ -157,7 +157,7 @@ class CodingAgent:
     # ------------------------------------------------------------------
 
     @property
-    def runtime(self) -> COATRuntime:
+    def runtime(self) -> OpenCOATRuntime:
         return self._runtime
 
     @property
@@ -247,7 +247,7 @@ class CodingAgent:
 
 
 _SYSTEM_PREAMBLE = (
-    "You are a careful Python coding assistant. The COAT runtime "
+    "You are a careful Python coding assistant. The OpenCOAT runtime "
     "has matched the following concerns to this turn — treat them "
     "as binding constraints on your answer. Each line is one "
     "directive."

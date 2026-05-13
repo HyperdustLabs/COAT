@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/moss-coat.png" alt="COAT Runtime logo" width="300" />
+  <img src="docs/moss-coat.png" alt="OpenCOAT Runtime logo" width="300" />
 </p>
 
 <h1 align="center">OpenCOAT</h1>
@@ -11,12 +11,12 @@
 
 ---
 
-> COAT Runtime applies *Separation of Concerns* to **agent thinking** instead of program code,
+> OpenCOAT Runtime applies *Separation of Concerns* to **agent thinking** instead of program code,
 > using `joinpoint / pointcut / advice / weaving` to organize, modulate, verify and evolve
 > the way Host Agents reason, plan, call tools, write memory, and respond.
 
 ```text
-COAT Runtime
+OpenCOAT Runtime
 = Concern-first Runtime
 + AOP-style Thinking Mechanism
 + Deep Concern Network
@@ -52,17 +52,17 @@ The full per-PR M1 / M2 / M3 split lives in [`CONTRIBUTING.md`](CONTRIBUTING.md)
 ## Repository layout (monorepo)
 
 ```text
-COAT/
+opencoat/
 ├── docs/                         # design docs, ADRs, concept guides, cookbooks
 ├── packages/
-│   ├── COAT-runtime-protocol/    # JSON schemas + pydantic envelopes (source of truth)
-│   ├── COAT-runtime-core/        # L2 pure logic: concern, joinpoint, pointcut, advice, weaving, copr, coordinator, resolver, dcn, meta, loops, ports
-│   ├── COAT-runtime-storage/     # ConcernStore / DCNStore backends (memory, sqlite, postgres, jsonl, vector)
-│   ├── COAT-runtime-llm/         # LLM / Embedder clients (openai, anthropic, azure, ollama, stub)
-│   ├── COAT-runtime-host-sdk/    # Host-side SDK (joinpoint emitter, injection consumer, transports)
-│   ├── COAT-runtime-daemon/      # Long-running runtime: scheduler, workers, IPC, HTTP/JSON-RPC API
-│   ├── COAT-runtime-cli/         # `COATr` CLI: runtime up/down, concern list, replay, dcn visualize
-│   └── COAT-runtime-host-plugins/ # First-party host adapters (openclaw, hermes, langgraph, autogen, crewai, custom)
+│   ├── opencoat-runtime-protocol/    # JSON schemas + pydantic envelopes (source of truth)
+│   ├── opencoat-runtime-core/        # L2 pure logic: concern, joinpoint, pointcut, advice, weaving, copr, coordinator, resolver, dcn, meta, loops, ports
+│   ├── opencoat-runtime-storage/     # ConcernStore / DCNStore backends (memory, sqlite, postgres, jsonl, vector)
+│   ├── opencoat-runtime-llm/         # LLM / Embedder clients (openai, anthropic, azure, ollama, stub)
+│   ├── opencoat-runtime-host-sdk/    # Host-side SDK (joinpoint emitter, injection consumer, transports)
+│   ├── opencoat-runtime-daemon/      # Long-running runtime: scheduler, workers, IPC, HTTP/JSON-RPC API
+│   ├── opencoat-runtime-cli/         # `COATr` CLI: runtime up/down, concern list, replay, dcn visualize
+│   └── opencoat-runtime-host-plugins/ # First-party host adapters (openclaw, hermes, langgraph, autogen, crewai, custom)
 ├── plugins/                      # out-of-tree plugin discovery (matchers, advisors, storage)
 ├── examples/                     # end-to-end usage examples
 ├── benchmarks/                   # extraction / matching / weaving benchmarks
@@ -103,7 +103,7 @@ uv run python -m examples.01_simple_chat_agent.main
 
 # or with your own prompts:
 uv run python -m examples.01_simple_chat_agent.main \
-  "Who invented COAT?" "Tell me how concerns are matched."
+  "Who invented OpenCOAT?" "Tell me how concerns are matched."
 ```
 
 Each turn shows the matched concerns, woven injection, and verifier verdicts —
@@ -123,20 +123,20 @@ uv run python -m examples.03_persistent_agent_demo.main
 ### Plug in a real LLM (M2)
 
 To swap the stub for a real provider, install the matching extra and pass an
-`OpenAILLMClient` (or any other adapter from `COAT_runtime_llm`) into the
+`OpenAILLMClient` (or any other adapter from `opencoat_runtime_llm`) into the
 runtime:
 
 ```bash
-pip install "COAT-runtime-llm[openai]"
+pip install "opencoat-runtime-llm[openai]"
 export OPENAI_API_KEY=sk-...
 ```
 
 ```python
-from COAT_runtime_core import COATRuntime, RuntimeConfig
-from COAT_runtime_llm import OpenAILLMClient
-from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
+from opencoat_runtime_llm import OpenAILLMClient
+from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
-runtime = COATRuntime(
+runtime = OpenCOATRuntime(
     RuntimeConfig(),
     concern_store=MemoryConcernStore(),
     dcn_store=MemoryDCNStore(),
@@ -146,7 +146,7 @@ runtime = COATRuntime(
 
 The same client works against any OpenAI-compatible gateway (Azure, vLLM,
 OpenRouter, TogetherAI, …) by setting `base_url=`. See
-[`packages/COAT-runtime-llm/README.md`](packages/COAT-runtime-llm/README.md)
+[`packages/opencoat-runtime-llm/README.md`](packages/opencoat-runtime-llm/README.md)
 for the full surface.
 
 ---

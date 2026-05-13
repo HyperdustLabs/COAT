@@ -1,6 +1,6 @@
 # 01 — Simple chat agent
 
-The smallest end-to-end run of the COAT Runtime.
+The smallest end-to-end run of the OpenCOAT Runtime.
 
 * In-process runtime, in-memory stores, deterministic stub LLM
 * Hand-authored concerns (the M1 extractor is still a stub; M2 will replace this step with a real extraction call)
@@ -15,7 +15,7 @@ runs in ≈ 50 ms on a laptop.
 examples/01_simple_chat_agent/
 ├── README.md          ← you are here
 ├── __init__.py        ← exports `SimpleChatAgent`, `TurnReport`, `seed_concerns`
-├── agent.py           ← host-side glue around `COATRuntime`
+├── agent.py           ← host-side glue around `OpenCOATRuntime`
 ├── concerns.py        ← three demo concerns (response req / verify rule / tool guard)
 └── main.py            ← CLI entry point
 ```
@@ -32,7 +32,7 @@ Or with your own prompts:
 
 ```bash
 uv run python -m examples.01_simple_chat_agent.main \
-  "Who invented COAT?" "Tell me how concerns are matched."
+  "Who invented OpenCOAT?" "Tell me how concerns are matched."
 ```
 
 ## What the demo proves
@@ -41,7 +41,7 @@ Every line of `SimpleChatAgent.handle` exercises a different M1 module:
 
 | Step | Module |
 | --- | --- |
-| Build `JoinpointEvent` | `COAT_runtime_protocol.envelopes` |
+| Build `JoinpointEvent` | `opencoat_runtime_protocol.envelopes` |
 | `runtime.on_joinpoint` | `loops.turn_loop.TurnLoop` |
 | Candidate scan | `pointcut.matcher.PointcutMatcher` + 12 strategies |
 | Rank / dedupe / budget / top-K | `coordinator.ConcernCoordinator` |
@@ -65,7 +65,7 @@ You can swap them out by passing your own list to `SimpleChatAgent(concerns=[...
 
 ## Sample output
 
-The first prompt — *“Who invented the COAT runtime?”* — matches the *be
+The first prompt — *“Who invented the OpenCOAT runtime?”* — matches the *be
 concise* keyword (`?`) and the *cite-sources* keyword (`who`). The
 `no-pii` concern stays dormant. The reply embeds both directives and the
 verifier passes the citation rule because the placeholder reply contains

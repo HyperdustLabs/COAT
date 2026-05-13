@@ -1,7 +1,7 @@
 """Smoke + behavioural tests for ``examples/03_persistent_agent_demo``.
 
 Pins M3 PR-16: sqlite ``ConcernStore`` + ``DCNStore`` on one file,
-optional :class:`~COAT_runtime_storage.jsonl.SessionJsonlRecorder`, and
+optional :class:`~opencoat_runtime_storage.jsonl.SessionJsonlRecorder`, and
 ``replay_session_file`` against the written JSONL.
 
 Loaded via ``importlib`` because the folder name starts with a digit.
@@ -14,10 +14,10 @@ import sys
 from pathlib import Path
 
 import pytest
-from COAT_runtime_storage.jsonl import replay_session_file
+from opencoat_runtime_storage.jsonl import replay_session_file
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "03_persistent_agent_demo"
-PKG_NAME = "_COAT_example_persistent_agent_demo"
+PKG_NAME = "_opencoat_example_persistent_agent_demo"
 
 
 def _load_example() -> tuple:
@@ -58,7 +58,7 @@ class TestPersistentAgent:
         db = tmp_path / "state.db"
 
         with agent_mod.PersistentAgent(db, session_jsonl=None) as a1:
-            a1.handle("Who invented the COAT runtime?")
+            a1.handle("Who invented the OpenCOAT runtime?")
             ids1 = {c.id for c in a1.runtime.concern_store.iter_all()}
         assert ids1 == {"c-concise", "c-cite", "c-no-pii"}
 
@@ -78,7 +78,7 @@ class TestPersistentAgent:
         log = tmp_path / "session.jsonl"
 
         with agent_mod.PersistentAgent(db, session_jsonl=log) as agent:
-            agent.handle("Who invented the COAT runtime?")
+            agent.handle("Who invented the OpenCOAT runtime?")
             agent.handle("Tell me how concerns get matched.")
 
         result = replay_session_file(log)
@@ -90,7 +90,7 @@ class TestPersistentAgent:
         db = tmp_path / "empty.db"
         with agent_mod.PersistentAgent(db, session_jsonl=None, concerns=[]) as agent:
             assert list(agent.runtime.concern_store.iter_all()) == []
-            report = agent.handle("Who invented the COAT runtime?")
+            report = agent.handle("Who invented the OpenCOAT runtime?")
             assert report.active_concern_ids == []
 
     def test_handle_without_context_manager_does_not_mutate_state(
@@ -114,7 +114,7 @@ class TestPersistentAgent:
             log_before = list(agent.runtime.dcn_store.activation_log())
 
             with pytest.raises(RuntimeError, match="with PersistentAgent"):
-                agent.handle("Who invented the COAT runtime?")
+                agent.handle("Who invented the OpenCOAT runtime?")
 
             cite_after = agent.runtime.concern_store.get("c-cite")
             assert cite_after is not None

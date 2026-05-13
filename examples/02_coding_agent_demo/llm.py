@@ -8,10 +8,10 @@ provider at boot:
 ==================================================  ==================
 Trigger                                              Picked provider
 ==================================================  ==================
-``COAT_DEMO_PROVIDER=stub``                          stub (forced)
-``COAT_DEMO_PROVIDER=openai``                        openai
-``COAT_DEMO_PROVIDER=anthropic``                     anthropic
-``COAT_DEMO_PROVIDER=azure``                         azure
+``OPENCOAT_DEMO_PROVIDER=stub``                          stub (forced)
+``OPENCOAT_DEMO_PROVIDER=openai``                        openai
+``OPENCOAT_DEMO_PROVIDER=anthropic``                     anthropic
+``OPENCOAT_DEMO_PROVIDER=azure``                         azure
 ``OPENAI_API_KEY`` set                               openai
 ``ANTHROPIC_API_KEY`` set                            anthropic
 ``AZURE_OPENAI_ENDPOINT`` **and** a deployment set   azure
@@ -24,12 +24,12 @@ matching ``*_API_KEY`` (or ``AZURE_OPENAI_ENDPOINT`` + deployment)
 and re-run; the agent code does not change.
 
 The Azure case requires *both* ``AZURE_OPENAI_ENDPOINT`` **and** a
-deployment name (either ``COAT_DEMO_AZURE_DEPLOYMENT`` or
+deployment name (either ``OPENCOAT_DEMO_AZURE_DEPLOYMENT`` or
 ``AZURE_OPENAI_DEPLOYMENT``) before the auto-detect ladder will
 promote to ``azure`` — otherwise a shell that only exports the
 endpoint (common in shared CI templates that fan out to many
 deployments) would crash at boot instead of falling through to
-stub. An *explicit* ``COAT_DEMO_PROVIDER=azure`` (or
+stub. An *explicit* ``OPENCOAT_DEMO_PROVIDER=azure`` (or
 ``provider="azure"`` argument) still raises loudly when the
 deployment is missing — explicit asks deserve loud failures.
 
@@ -43,8 +43,8 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping
 
-from COAT_runtime_core.llm import StubLLMClient
-from COAT_runtime_core.ports import LLMClient
+from opencoat_runtime_core.llm import StubLLMClient
+from opencoat_runtime_core.ports import LLMClient
 
 # --- model defaults --------------------------------------------------------
 #
@@ -56,7 +56,7 @@ _DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-latest"
 _DEFAULT_AZURE_API_VERSION = "2024-10-21"
 
 _STUB_DEFAULT_CHAT = (
-    "(stub) The COAT runtime is wired up correctly, but no real LLM "
+    "(stub) The OpenCOAT runtime is wired up correctly, but no real LLM "
     "is configured. Set OPENAI_API_KEY / ANTHROPIC_API_KEY / "
     "AZURE_OPENAI_ENDPOINT (and friends) and re-run to see a real "
     "answer here. Concerns / pointcuts / weaving / verification all "
@@ -82,9 +82,9 @@ def _build_openai(env: Mapping[str, str]) -> tuple[LLMClient, str]:
     # Imported lazily so the demo still loads when the openai SDK
     # isn't installed (the runtime exposes the client via a lazy
     # ``__getattr__`` on the LLM package; we mirror that here).
-    from COAT_runtime_llm import OpenAILLMClient
+    from opencoat_runtime_llm import OpenAILLMClient
 
-    model = env.get("COAT_DEMO_OPENAI_MODEL", _DEFAULT_OPENAI_MODEL)
+    model = env.get("OPENCOAT_DEMO_OPENAI_MODEL", _DEFAULT_OPENAI_MODEL)
     # Plumb the api_key explicitly so the underlying client doesn't
     # silently fall back to ``os.environ`` when the caller passed a
     # custom ``env`` dict. Passing ``None`` keeps the default
@@ -100,9 +100,9 @@ def _build_openai(env: Mapping[str, str]) -> tuple[LLMClient, str]:
 
 
 def _build_anthropic(env: Mapping[str, str]) -> tuple[LLMClient, str]:
-    from COAT_runtime_llm import AnthropicLLMClient
+    from opencoat_runtime_llm import AnthropicLLMClient
 
-    model = env.get("COAT_DEMO_ANTHROPIC_MODEL", _DEFAULT_ANTHROPIC_MODEL)
+    model = env.get("OPENCOAT_DEMO_ANTHROPIC_MODEL", _DEFAULT_ANTHROPIC_MODEL)
     api_key = env.get("ANTHROPIC_API_KEY")
     base_url = env.get("ANTHROPIC_BASE_URL")
     return (
@@ -112,16 +112,16 @@ def _build_anthropic(env: Mapping[str, str]) -> tuple[LLMClient, str]:
 
 
 def _build_azure(env: Mapping[str, str]) -> tuple[LLMClient, str]:
-    from COAT_runtime_llm import AzureOpenAILLMClient
+    from opencoat_runtime_llm import AzureOpenAILLMClient
 
-    deployment = env.get("COAT_DEMO_AZURE_DEPLOYMENT") or env.get("AZURE_OPENAI_DEPLOYMENT")
+    deployment = env.get("OPENCOAT_DEMO_AZURE_DEPLOYMENT") or env.get("AZURE_OPENAI_DEPLOYMENT")
     if not deployment:
         raise RuntimeError(
             "Azure provider selected but no deployment is configured. "
-            "Set COAT_DEMO_AZURE_DEPLOYMENT or AZURE_OPENAI_DEPLOYMENT "
+            "Set OPENCOAT_DEMO_AZURE_DEPLOYMENT or AZURE_OPENAI_DEPLOYMENT "
             "to your Azure deployment name."
         )
-    api_version = env.get("COAT_DEMO_AZURE_API_VERSION", _DEFAULT_AZURE_API_VERSION)
+    api_version = env.get("OPENCOAT_DEMO_AZURE_API_VERSION", _DEFAULT_AZURE_API_VERSION)
     endpoint = env.get("AZURE_OPENAI_ENDPOINT")
     api_key = env.get("AZURE_OPENAI_API_KEY")
     return (
@@ -151,7 +151,7 @@ def _auto_detect(env: Mapping[str, str]) -> str:
     boot in shells that export only the endpoint (Codex P2 on
     PR-12). Falling through to ``stub`` is the safe behaviour for
     auto-detection; an explicit ``provider="azure"`` (or
-    ``COAT_DEMO_PROVIDER=azure``) still raises loudly because the
+    ``OPENCOAT_DEMO_PROVIDER=azure``) still raises loudly because the
     user asked for it by name.
     """
     if env.get("OPENAI_API_KEY"):
@@ -159,7 +159,7 @@ def _auto_detect(env: Mapping[str, str]) -> str:
     if env.get("ANTHROPIC_API_KEY"):
         return "anthropic"
     if env.get("AZURE_OPENAI_ENDPOINT") and (
-        env.get("COAT_DEMO_AZURE_DEPLOYMENT") or env.get("AZURE_OPENAI_DEPLOYMENT")
+        env.get("OPENCOAT_DEMO_AZURE_DEPLOYMENT") or env.get("AZURE_OPENAI_DEPLOYMENT")
     ):
         return "azure"
     return "stub"
@@ -196,13 +196,13 @@ def select_llm(
 
     Selection ladder (when ``provider is None``):
 
-    1. ``COAT_DEMO_PROVIDER`` env var (one of ``stub``, ``openai``,
+    1. ``OPENCOAT_DEMO_PROVIDER`` env var (one of ``stub``, ``openai``,
        ``anthropic``, ``azure``).
     2. ``OPENAI_API_KEY`` set → openai.
     3. ``ANTHROPIC_API_KEY`` set → anthropic.
     4. ``AZURE_OPENAI_ENDPOINT`` **and** a deployment name set
        → azure.  (Endpoint-only does **not** auto-promote — it
-       falls through to stub.  Use an explicit ``COAT_DEMO_PROVIDER=
+       falls through to stub.  Use an explicit ``OPENCOAT_DEMO_PROVIDER=
        azure`` if you want a loud failure on missing deployment.)
     5. Otherwise → stub.
     """
@@ -210,7 +210,7 @@ def select_llm(
 
     chosen = provider
     if chosen is None:
-        chosen = e.get("COAT_DEMO_PROVIDER")
+        chosen = e.get("OPENCOAT_DEMO_PROVIDER")
     if chosen is None:
         chosen = _auto_detect(e)
 

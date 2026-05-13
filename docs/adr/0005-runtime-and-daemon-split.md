@@ -11,9 +11,9 @@ as a long-lived service shared by multiple host processes.
 
 ## Decision
 
-Split the codebase into a **core library** (`COAT-runtime-core`,
+Split the codebase into a **core library** (`opencoat-runtime-core`,
 no I/O assumptions, hexagonal ports) and a **daemon process**
-(`COAT-runtime-daemon`) that composes the core with concrete adapters
+(`opencoat-runtime-daemon`) that composes the core with concrete adapters
 and exposes:
 
 - in-proc API (no transport)

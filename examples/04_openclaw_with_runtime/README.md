@@ -1,7 +1,7 @@
-# 04 — OpenClaw + COAT Runtime
+# 04 — OpenClaw + OpenCOAT Runtime
 
 End-to-end demo: a toy **OpenClaw-shaped** event bus drives
-`COATRuntime` through `COAT_runtime_host_openclaw` — the same surface
+`OpenCOATRuntime` through `opencoat_runtime_host_openclaw` — the same surface
 M5 ships in PRs [#28](https://github.com/HyperdustLabs/COAT/pull/28)–[#31](https://github.com/HyperdustLabs/COAT/pull/31) (`OpenClawAdapter`,
 `OpenClawInjector`, `OpenClawToolGuard`, `install_hooks`, `OpenClawMemoryBridge`).
 
@@ -11,7 +11,7 @@ still exercising the real hook wiring.
 
 ## What it does
 
-1. Builds an in-process `COATRuntime` (memory stores + stub LLM).
+1. Builds an in-process `OpenCOATRuntime` (memory stores + stub LLM).
 2. Seeds two demo concerns (`examples/04_openclaw_with_runtime/concerns.py`)
    into both the concern store **and** the DCN graph (required for
    `MemoryDCNStore.log_activation`).
@@ -45,7 +45,7 @@ a digit.
 
 The DX sprint ships an opt-in set of three demo concerns that exercise
 the three most visible injection paths in one shot. They live inside
-`COAT-runtime-cli` (no new package) and are loaded into a running
+`opencoat-runtime-cli` (no new package) and are loaded into a running
 daemon with one flag:
 
 ```bash
@@ -65,7 +65,7 @@ COATr concern list
 
 | Concern id | AdviceType | Joinpoint | What fires |
 |---|---|---|---|
-| `demo-prompt-prefix` | `RESPONSE_REQUIREMENT` | `runtime_start` | inserts `[COAT demo active]` into `runtime_prompt.active_concerns` on session boot |
+| `demo-prompt-prefix` | `RESPONSE_REQUIREMENT` | `runtime_start` | inserts `[OpenCOAT demo active]` into `runtime_prompt.active_concerns` on session boot |
 | `demo-tool-block` | `TOOL_GUARD` | `before_tool_call` | BLOCK mode against `tool_call.arguments`; any call mentioning `rm -rf` is refused |
 | `demo-memory-tag` | `MEMORY_WRITE_GUARD` | `before_memory_write` | ANNOTATE on `memory_write.policy_note`; mirrored into the DCN via `OpenClawMemoryBridge` |
 
@@ -79,7 +79,7 @@ needs the host to also forward `agent.before_tool_call` so the
 `before_tool_call` joinpoint actually fires. In your bootstrap:
 
 ```python
-from coat_plugin.bootstrap_coat import install, DEFAULT_EVENT_NAMES
+from opencoat_plugin.bootstrap_opencoat import install, DEFAULT_EVENT_NAMES
 
 runtime, hooks = install(
     your_openclaw_host,

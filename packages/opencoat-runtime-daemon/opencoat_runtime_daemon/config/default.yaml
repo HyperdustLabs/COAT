@@ -1,0 +1,43 @@
+# OpenCOAT Runtime daemon — default configuration.
+# Overlays apply in order: CLI flags > env (OPENCOAT_*) > config file > this file.
+
+runtime:
+  schema_version: "0.2"
+  loops:
+    heartbeat_interval_seconds: 30
+  budgets:
+    max_active_concerns: 12
+    max_injection_tokens: 800
+    max_advice_per_concern: 2
+
+storage:
+  concern_store:
+    kind: memory
+  dcn_store:
+    kind: memory
+
+llm:
+  provider: stub
+  timeout_seconds: 20
+
+ipc:
+  inproc:
+    enabled: true
+  unix_socket:
+    enabled: false
+    path: /run/COATr.sock
+  http:
+    enabled: false
+    host: 127.0.0.1
+    port: 7878
+  grpc:
+    enabled: false
+
+observability:
+  log_level: INFO
+  otel_endpoint: null
+
+plugins:
+  hosts: []
+  matchers: []
+  advisors: []

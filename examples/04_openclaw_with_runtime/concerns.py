@@ -2,7 +2,8 @@
 
 Two narrow rules:
 
-* **User path** — ``on_user_input`` when the user text mentions ``COAT``.
+* **User path** — ``on_user_input`` when the user text mentions ``OpenCOAT``
+  (or the older spelling ``COAT``).
 * **Memory path** — ``before_memory_write`` on every memory write so the
   turn loop produces visible injections when the host fires
   ``agent.memory_write``.
@@ -10,7 +11,7 @@ Two narrow rules:
 
 from __future__ import annotations
 
-from COAT_runtime_protocol import (
+from opencoat_runtime_protocol import (
     Advice,
     AdviceType,
     Concern,
@@ -19,21 +20,21 @@ from COAT_runtime_protocol import (
     WeavingOperation,
     WeavingPolicy,
 )
-from COAT_runtime_protocol.envelopes import PointcutMatch
+from opencoat_runtime_protocol.envelopes import PointcutMatch
 
 
-def _user_coat_guidance() -> Concern:
+def _user_opencoat_guidance() -> Concern:
     return Concern(
         id="c-openclaw-user",
-        name="OpenClaw demo — COAT mention",
-        description="When the user asks about COAT, add a short runtime hint.",
+        name="OpenClaw demo — OpenCOAT mention",
+        description="When the user asks about OpenCOAT (or COAT), add a short runtime hint.",
         pointcut=Pointcut(
             joinpoints=["on_user_input"],
-            match=PointcutMatch(any_keywords=["COAT", "coat"]),
+            match=PointcutMatch(any_keywords=["OpenCOAT", "opencoat", "COAT", "coat"]),
         ),
         advice=Advice(
             type=AdviceType.RESPONSE_REQUIREMENT,
-            content="Acknowledge the COAT runtime in one sentence before answering.",
+            content="Acknowledge the OpenCOAT runtime in one sentence before answering.",
         ),
         weaving_policy=WeavingPolicy(
             mode=WeavingOperation.INSERT,
@@ -65,7 +66,7 @@ def _memory_write_note() -> Concern:
 
 def seed_concerns() -> list[Concern]:
     """Return demo concerns in stable declaration order."""
-    return [_user_coat_guidance(), _memory_write_note()]
+    return [_user_opencoat_guidance(), _memory_write_note()]
 
 
 __all__ = ["seed_concerns"]

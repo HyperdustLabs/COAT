@@ -1,0 +1,14 @@
+apiVersion: v2
+name: opencoat-runtime
+description: OpenCOAT — Open Concern-Oriented Agent Thinking Runtime
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+home: https://github.com/HyperdustLabs/COAT
+sources:
+  - https://github.com/HyperdustLabs/COAT
+keywords:
+  - llm
+  - agents
+  - aop
+  - concerns

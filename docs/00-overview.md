@@ -1,11 +1,11 @@
-# COAT Runtime — overview
+# OpenCOAT Runtime — overview
 
 > See [`design/v0.1-complete-design.md`](design/v0.1-complete-design.md) for
 > the conceptual definition and [`design/v0.2-system-design.md`](design/v0.2-system-design.md)
 > for the engineering layout.
 
 ```text
-COAT Runtime
+OpenCOAT Runtime
 = SoC for Agent Thinking
 + Concern-first Runtime
 + AOP-style Weaving Mechanism

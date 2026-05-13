@@ -1,4 +1,4 @@
-"""SimpleChatAgent — minimal host that drives :class:`COATRuntime`.
+"""SimpleChatAgent — minimal host that drives :class:`OpenCOATRuntime`.
 
 The agent is intentionally <100 lines of business logic. It owns:
 
@@ -15,7 +15,7 @@ Pipeline per ``handle(user_text)``:
 
     user_text
         → JoinpointEvent("before_response", payload={"raw_text": user_text})
-        → COATRuntime.on_joinpoint   (match · coordinate · advise · weave)
+        → OpenCOATRuntime.on_joinpoint   (match · coordinate · advise · weave)
         → host LLM call (stub)
         → ConcernVerifier.verify_turn
         → TurnReport
@@ -27,16 +27,16 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from COAT_runtime_core import COATRuntime, RuntimeConfig
-from COAT_runtime_core.concern.verifier import ConcernVerifier, VerificationResult
-from COAT_runtime_core.llm import StubLLMClient
-from COAT_runtime_protocol import (
+from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
+from opencoat_runtime_core.concern.verifier import ConcernVerifier, VerificationResult
+from opencoat_runtime_core.llm import StubLLMClient
+from opencoat_runtime_protocol import (
     Concern,
     ConcernInjection,
     ConcernVector,
     JoinpointEvent,
 )
-from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
 from .concerns import seed_concerns
 
@@ -65,7 +65,7 @@ class TurnReport:
 
 
 class SimpleChatAgent:
-    """Tiny host wired against an in-process :class:`COATRuntime`.
+    """Tiny host wired against an in-process :class:`OpenCOATRuntime`.
 
     Every collaborator is swappable. The default constructor mirrors the
     most opinionated shape (memory stores + stub LLM + bundled defaults)
@@ -76,7 +76,7 @@ class SimpleChatAgent:
     def __init__(
         self,
         *,
-        runtime: COATRuntime | None = None,
+        runtime: OpenCOATRuntime | None = None,
         concerns: list[Concern] | None = None,
         # The verifier intentionally shares the runtime's LLM so any
         # future swap (real provider in M2) lights up both sides at
@@ -100,7 +100,7 @@ class SimpleChatAgent:
             self._runtime.concern_store.upsert(concern)
 
     @property
-    def runtime(self) -> COATRuntime:
+    def runtime(self) -> OpenCOATRuntime:
         return self._runtime
 
     @property
@@ -173,8 +173,8 @@ class SimpleChatAgent:
         return f"You asked: {user_text}\nFollowing guidance:\n{directives}\nAnswer: see [1]."
 
 
-def _default_runtime() -> COATRuntime:
-    return COATRuntime(
+def _default_runtime() -> OpenCOATRuntime:
+    return OpenCOATRuntime(
         RuntimeConfig(),
         concern_store=MemoryConcernStore(),
         dcn_store=MemoryDCNStore(),

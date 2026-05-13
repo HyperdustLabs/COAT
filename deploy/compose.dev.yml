@@ -4,10 +4,10 @@ version: "3.9"
 # without rebuilding the image.
 
 services:
-  COAT-runtime:
+  opencoat-runtime:
     extends:
       file: docker-compose.yml
-      service: COAT-runtime
+      service: opencoat-runtime
     volumes:
       - ../packages:/app/packages:ro
-    command: ["--config", "/etc/COAT-runtime/config.yaml"]
+    command: ["--config", "/etc/opencoat/config.yaml"]

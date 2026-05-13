@@ -12,7 +12,7 @@ Or with explicit prompts::
 
 Pick a provider explicitly::
 
-    COAT_DEMO_PROVIDER=openai \\
+    OPENCOAT_DEMO_PROVIDER=openai \\
         uv run python -m examples.02_coding_agent_demo.main
 
 The default selection ladder lives in :mod:`.llm`. CI runs without

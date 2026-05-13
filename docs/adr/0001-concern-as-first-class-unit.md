@@ -16,7 +16,7 @@ inspected, can carry policy, and can compose with other units.
 
 ## Decision
 
-The COAT Runtime treats **Concern** as the only first-class data
+The OpenCOAT Runtime treats **Concern** as the only first-class data
 structure. A Concern is what the agent is currently paying attention to
 — it can be a long-lived value (`"don't fabricate facts"`), a short-lived
 goal (`"summarize this paper"`), or a meta concern about the runtime

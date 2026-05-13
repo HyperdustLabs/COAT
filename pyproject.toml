@@ -1,5 +1,5 @@
 [project]
-name = "COAT-runtime-workspace"
+name = "opencoat-runtime-workspace"
 version = "0.0.0"
 description = "Concern-Oriented Agent Thinking Runtime — workspace root"
 readme = "README.md"
@@ -9,14 +9,14 @@ authors = [{ name = "HyperdustLabs" }]
 # The workspace root is not a publishable package.
 # It only depends on its workspace members so `uv sync` installs them all in editable mode.
 dependencies = [
-  "COAT-runtime-protocol",
-  "COAT-runtime-core",
-  "COAT-runtime-storage",
-  "COAT-runtime-llm",
-  "COAT-runtime-host-sdk",
-  "COAT-runtime-daemon",
-  "COAT-runtime-cli",
-  "COAT-runtime-host-plugins",
+  "opencoat-runtime-protocol",
+  "opencoat-runtime-core",
+  "opencoat-runtime-storage",
+  "opencoat-runtime-llm",
+  "opencoat-runtime-host-sdk",
+  "opencoat-runtime-daemon",
+  "opencoat-runtime-cli",
+  "opencoat-runtime-host-plugins",
 ]
 
 [dependency-groups]
@@ -30,7 +30,7 @@ dev = [
   # Real LLM provider SDKs are dev-only at the workspace level so CI
   # exercises the adapters under mocks. End users still install the
   # provider they want via the package-level optional extras
-  # (e.g. ``pip install COAT-runtime-llm[openai]``).
+  # (e.g. ``pip install opencoat-runtime-llm[openai]``).
   "openai>=1.40",
   "anthropic>=0.30",
 ]
@@ -39,14 +39,14 @@ dev = [
 members = ["packages/*"]
 
 [tool.uv.sources]
-COAT-runtime-protocol     = { workspace = true }
-COAT-runtime-core         = { workspace = true }
-COAT-runtime-storage      = { workspace = true }
-COAT-runtime-llm          = { workspace = true }
-COAT-runtime-host-sdk     = { workspace = true }
-COAT-runtime-daemon       = { workspace = true }
-COAT-runtime-cli          = { workspace = true }
-COAT-runtime-host-plugins = { workspace = true }
+opencoat-runtime-protocol     = { workspace = true }
+opencoat-runtime-core         = { workspace = true }
+opencoat-runtime-storage      = { workspace = true }
+opencoat-runtime-llm          = { workspace = true }
+opencoat-runtime-host-sdk     = { workspace = true }
+opencoat-runtime-daemon       = { workspace = true }
+opencoat-runtime-cli          = { workspace = true }
+opencoat-runtime-host-plugins = { workspace = true }
 
 [tool.ruff]
 line-length = 100

@@ -1,4 +1,4 @@
-"""Tiny end-to-end example agent driven by an in-process COATRuntime.
+"""Tiny end-to-end example agent driven by an in-process OpenCOATRuntime.
 
 Importable so the smoke test under ``tests/integration/`` can run a turn
 without subprocessing. The CLI lives in :mod:`.main`.

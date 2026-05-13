@@ -1,17 +1,17 @@
 """End-to-end M4 daemon demo (PR-23).
 
-Boots a real :class:`~COAT_runtime_daemon.Daemon` over HTTP JSON-RPC and
-drives it from the very same :class:`~COAT_runtime_cli.transport.HttpRpcClient`
+Boots a real :class:`~opencoat_runtime_daemon.Daemon` over HTTP JSON-RPC and
+drives it from the very same :class:`~opencoat_runtime_cli.transport.HttpRpcClient`
 that ``COATr concern`` / ``COATr dcn`` use on the wire. That makes this
 script the integration story for the M4 stack:
 
 * PR-17 — ``build_runtime`` wires sqlite (or memory) stores + the LLM
-  selector and hands back a fully composed ``COATRuntime``.
-* PR-18 — :class:`~COAT_runtime_daemon.ipc.jsonrpc_dispatch.JsonRpcHandler`
+  selector and hands back a fully composed ``OpenCOATRuntime``.
+* PR-18 — :class:`~opencoat_runtime_daemon.ipc.jsonrpc_dispatch.JsonRpcHandler`
   exposes that runtime as method dispatch.
-* PR-19 — :class:`~COAT_runtime_daemon.ipc.http_server.HttpServer`
+* PR-19 — :class:`~opencoat_runtime_daemon.ipc.http_server.HttpServer`
   mounts the handler at ``ipc.http.{host, port, path}``.
-* PR-20 — :class:`~COAT_runtime_daemon.daemon.Daemon` owns the
+* PR-20 — :class:`~opencoat_runtime_daemon.daemon.Daemon` owns the
   start / drain / PID lifecycle around all of the above.
 * PR-21 / PR-22 — the same calls this script issues from
   ``HttpRpcClient`` are what the user-facing CLI subcommands send.
@@ -21,7 +21,7 @@ Run with::
     uv run python -m examples.06_long_running_daemon.main
 
 By default the demo writes a sqlite database under
-``./.coat-daemon-demo/state.db``, binds the daemon's HTTP listener on
+``./.opencoat-daemon-demo/state.db``, binds the daemon's HTTP listener on
 a free loopback port, walks the seed-and-drive flow once, then drains.
 
 Useful flags:
@@ -31,7 +31,7 @@ Useful flags:
 
       uv run python -m examples.06_long_running_daemon.main --keep-running &
       # in another shell:
-      COATr runtime status --pid-file ./.coat-daemon-demo/coat.pid \\
+      COATr runtime status --pid-file ./.opencoat-daemon-demo/opencoat.pid \\
                            --port <printed port>
       COATr concern list --port <printed port>
       COATr dcn export   --port <printed port>
@@ -57,15 +57,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from COAT_runtime_cli.transport import HttpRpcClient, HttpRpcError
-from COAT_runtime_cli.visualize.dcn_dot import dcn_to_dot
-from COAT_runtime_daemon import Daemon
-from COAT_runtime_daemon.config import load_config
-from COAT_runtime_daemon.config.loader import IPCEndpoint, StorageBackend
+from opencoat_runtime_cli.transport import HttpRpcClient, HttpRpcError
+from opencoat_runtime_cli.visualize.dcn_dot import dcn_to_dot
+from opencoat_runtime_daemon import Daemon
+from opencoat_runtime_daemon.config import load_config
+from opencoat_runtime_daemon.config.loader import IPCEndpoint, StorageBackend
 
 from .concerns import seed_concerns
 
-_DEFAULT_DIR = Path(".coat-daemon-demo")
+_DEFAULT_DIR = Path(".opencoat-daemon-demo")
 
 
 # ----------------------------------------------------------------------
@@ -163,7 +163,7 @@ def _demo_joinpoint(
 def _drive_joinpoints(client: HttpRpcClient, *, session_id: str) -> int:
     """Submit a small flight of joinpoints, return how many produced an injection."""
     events = [
-        ("on_user_input", 1, "Who invented the COAT runtime?"),
+        ("on_user_input", 1, "Who invented the OpenCOAT runtime?"),
         ("before_response", 1, "Tell me how concerns get matched."),
         ("before_response", 1, "Please share your email so I can reply privately."),
     ]
@@ -306,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--pid-file",
         type=Path,
-        default=_DEFAULT_DIR / "coat.pid",
+        default=_DEFAULT_DIR / "opencoat.pid",
         help="PID file written by the Daemon while it is running.",
     )
     parser.add_argument(
@@ -348,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
     port = args.port if args.port else _pick_free_port()
     config = _build_demo_config(port=port, state_db=state_db)
 
-    print("COAT daemon long-running demo (M4 PR-23)")
+    print("OpenCOAT daemon long-running demo (M4 PR-23)")
     print(f"  storage:     {'sqlite ' + str(state_db) if state_db else 'memory'}")
     print(f"  endpoint:    http://127.0.0.1:{port}/rpc")
     print(f"  pid-file:    {args.pid_file}")
