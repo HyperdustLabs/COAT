@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a defect in the COAT Runtime
+about: Report a defect in the OpenCOAT Runtime
 title: "[bug] "
 labels: bug
 ---
@@ -11,14 +11,14 @@ What you saw vs. what you expected.
 
 **Reproduction**
 
-Minimal `pytest` test, code snippet, or `COATr` invocation.
+Minimal `pytest` test, code snippet, or `opencoat` invocation.
 
 **Versions**
 
-- COAT-runtime-core: …
+- opencoat-runtime-core: …
 - Python: …
 - OS: …
 
 **Logs / traces**
 
-Attach JSONL replay or relevant `COATr` output if available.
+Attach JSONL replay or relevant `opencoat` output if available.

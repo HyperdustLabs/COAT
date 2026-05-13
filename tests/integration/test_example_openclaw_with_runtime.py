@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "04_openclaw_with_runtime"
-PKG_NAME = "_COAT_example_openclaw_with_runtime"
+PKG_NAME = "_opencoat_example_openclaw_with_runtime"
 
 
 def _load_example_main():

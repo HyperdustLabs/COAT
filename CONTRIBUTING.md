@@ -1,6 +1,6 @@
-# Contributing to COAT Runtime
+# Contributing to OpenCOAT Runtime
 
-Thank you for working on COAT. This document captures **how we change the
+Thank you for working on OpenCOAT. This document captures **how we change the
 codebase** so the milestones in
 [`docs/design/v0.2-system-design.md`](docs/design/v0.2-system-design.md) §12
 land cleanly and reviewably.
@@ -93,12 +93,12 @@ PR-16 gh/#20  feat/m3-persistence-example  → examples/03_persistent_agent_demo
 ### Suggested split for M4 (✅ landed)
 
 ```text
-PR-17 gh/#21  feat/m4-runtime-builder    → DaemonConfig → COATRuntime factory (storage + LLM selector) ✅ landed
+PR-17 gh/#21  feat/m4-runtime-builder    → DaemonConfig → OpenCOATRuntime factory (storage + LLM selector) ✅ landed
 PR-18 gh/#22  feat/m4-jsonrpc-handler    → in-proc JSON-RPC method dispatch (pure)               ✅ landed
 PR-19 gh/#23  feat/m4-http-server        → stdlib HTTP server mounting the JSON-RPC handler      ✅ landed
 PR-20 gh/#24  feat/m4-daemon-lifecycle   → Daemon.start/stop/reload + SIGTERM drain + PID file   ✅ landed
-PR-21 gh/#25  feat/m4-cli-runtime        → COATr runtime up|down|status (HTTP client)            ✅ landed
-PR-22 gh/#26  feat/m4-cli-concern-dcn    → COATr concern + dcn + inspect (HTTP client)           ✅ landed
+PR-21 gh/#25  feat/m4-cli-runtime        → opencoat runtime up|down|status (HTTP client)            ✅ landed
+PR-22 gh/#26  feat/m4-cli-concern-dcn    → opencoat concern + dcn + inspect (HTTP client)           ✅ landed
 PR-23 gh/#27  feat/m4-example-daemon     → examples/06_long_running_daemon end-to-end            ✅ landed
 ```
 
@@ -147,13 +147,13 @@ your reviewer's time is more valuable than yours.
 
 These changes always need an explicit reviewer sign-off:
 
-- Anything under `packages/COAT-runtime-protocol/COAT_runtime_protocol/schemas/`
+- Anything under `packages/opencoat-runtime-protocol/opencoat_runtime_protocol/schemas/`
   — schemas are wire format. Bump `schema_version` if you change semantics
   and call out migration in the PR description.
-- `packages/COAT-runtime-core/COAT_runtime_core/runtime.py`
-  — the `COATRuntime` facade. Every host adapter and the daemon depend on
+- `packages/opencoat-runtime-core/opencoat_runtime_core/runtime.py`
+  — the `OpenCOATRuntime` facade. Every host adapter and the daemon depend on
   these signatures.
-- `packages/COAT-runtime-core/COAT_runtime_core/ports/*.py`
+- `packages/opencoat-runtime-core/opencoat_runtime_core/ports/*.py`
   — hexagonal ports. Adapter implementations across `storage`, `llm`, and
   `host-plugins` will follow.
 - Any change to or addition of an ADR under [`docs/adr/`](docs/adr/).
@@ -181,7 +181,7 @@ Examples seen in this repo:
 
 ```text
 M0: monorepo skeleton, schemas, core, packages, CI
-docs(readme): shorten hero title to COAT
+docs(readme): shorten hero title to OpenCOAT
 chore(github): add pull request template
 ```
 
@@ -212,7 +212,7 @@ M2+) but please keep the types accurate so the future tightening is cheap.
 - `pytest --import-mode=importlib` is in effect — name your test files
   `test_<scope>.py` to keep them globally unique.
 - For protocol changes, add round-trip tests under
-  `packages/COAT-runtime-protocol/tests/`.
+  `packages/opencoat-runtime-protocol/tests/`.
 - Cross-package integration tests go under `tests/integration/`.
 
 ---

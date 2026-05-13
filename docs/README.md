@@ -1,4 +1,4 @@
-# COAT Runtime documentation
+# OpenCOAT Runtime documentation
 
 Documentation is structured per the design (`docs/design/v0.2-system-design.md` §11).
 

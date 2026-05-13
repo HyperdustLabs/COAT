@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperdustlab.github.io/OpenCOAT/schemas/pointcut.schema.json",
+  "title": "Pointcut",
+  "description": "Concern activation rule. Multiple match strategies can be combined; semantics is AND across blocks, OR within '*_keywords' lists.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "joinpoints": {
+      "description": "Either string names from the catalog or full selectors.",
+      "oneOf": [
+        { "type": "array", "items": { "type": "string" } },
+        { "type": "array", "items": { "$ref": "joinpoint.schema.json#/$defs/JoinpointSelector" } }
+      ],
+      "default": []
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "any_keywords":     { "type": "array", "items": { "type": "string" } },
+        "all_keywords":     { "type": "array", "items": { "type": "string" } },
+        "regex":            { "type": "string" },
+        "semantic_intent":  { "type": "string" },
+        "structure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field", "operator"],
+          "properties": {
+            "field":     { "type": "string" },
+            "operator":  { "type": "string", "enum": ["==", "!=", ">", ">=", "<", "<=", "in", "not_in", "contains"] },
+            "value":     {},
+            "value_ref": { "type": "string", "description": "lookup key into runtime context, e.g. 'risk_budget.max_amount'" }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "threshold"],
+          "properties": {
+            "op":        { "type": "string", "enum": ["<", "<=", ">", ">="] },
+            "threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "risk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "level"],
+          "properties": {
+            "op":    { "type": "string", "enum": ["==", ">=", "<="] },
+            "level": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+          }
+        },
+        "history": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "freeform predicate over activation_history (concrete schema TBD in M2)"
+        },
+        "claim": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "claim_type": { "type": "string" },
+            "evidence_required": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "context_predicates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "op"],
+        "properties": {
+          "key":       { "type": "string" },
+          "op":        { "type": "string", "enum": ["==", "!=", ">", ">=", "<", "<=", "in", "not_in"] },
+          "value":     {},
+          "value_ref": { "type": "string" }
+        }
+      },
+      "default": []
+    }
+  }
+}

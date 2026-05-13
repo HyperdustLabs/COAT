@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperdustlab.github.io/OpenCOAT/schemas/concern_injection.schema.json",
+  "title": "ConcernInjection",
+  "description": "Output of weaving — the host-consumable advice payload for a single turn (v0.1 §19).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["turn_id", "injections"],
+  "properties": {
+    "turn_id":          { "type": "string" },
+    "agent_session_id": { "type": "string" },
+    "ts":               { "type": "string", "format": "date-time" },
+    "schema_version":   { "type": "string", "default": "0.1.0" },
+    "injections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Injection" }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokens":          { "type": "integer", "minimum": 0 },
+        "concern_count":   { "type": "integer", "minimum": 0 },
+        "advice_count":    { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+
+  "$defs": {
+    "Injection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concern_id", "target", "mode", "content"],
+      "properties": {
+        "concern_id": { "type": "string" },
+        "advice_type": {
+          "type": "string",
+          "enum": [
+            "reasoning_guidance", "planning_guidance", "decision_guidance",
+            "tool_guard", "response_requirement", "verification_rule",
+            "memory_write_guard", "reflection_prompt", "rewrite_guidance",
+            "suppress_instruction", "escalation_notice"
+          ]
+        },
+        "target":   { "type": "string", "description": "e.g. 'runtime_prompt.reasoning_guidance'" },
+        "mode":     { "$ref": "weaving.schema.json#/$defs/WeavingOperation" },
+        "level":    { "$ref": "weaving.schema.json#/$defs/WeavingLevel" },
+        "content":  { "type": "string" },
+        "priority": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

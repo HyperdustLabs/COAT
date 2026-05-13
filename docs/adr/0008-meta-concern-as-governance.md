@@ -28,7 +28,7 @@ set of 8 runtime governance capabilities:
 8. evolution_control
 
 The runtime exposes one module per capability under
-`COAT_runtime_core/meta/`. Meta Concerns drive those modules — they
+`opencoat_runtime_core/meta/`. Meta Concerns drive those modules — they
 don't bypass them.
 
 ## Consequences

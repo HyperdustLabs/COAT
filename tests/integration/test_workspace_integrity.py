@@ -11,19 +11,19 @@ import importlib
 import pytest
 
 WORKSPACE_PACKAGES = [
-    "COAT_runtime_protocol",
-    "COAT_runtime_core",
-    "COAT_runtime_storage",
-    "COAT_runtime_llm",
-    "COAT_runtime_host_sdk",
-    "COAT_runtime_daemon",
-    "COAT_runtime_cli",
-    "COAT_runtime_host_openclaw",
-    "COAT_runtime_host_hermes",
-    "COAT_runtime_host_langgraph",
-    "COAT_runtime_host_autogen",
-    "COAT_runtime_host_crewai",
-    "COAT_runtime_host_custom",
+    "opencoat_runtime_protocol",
+    "opencoat_runtime_core",
+    "opencoat_runtime_storage",
+    "opencoat_runtime_llm",
+    "opencoat_runtime_host_sdk",
+    "opencoat_runtime_daemon",
+    "opencoat_runtime_cli",
+    "opencoat_runtime_host_openclaw",
+    "opencoat_runtime_host_hermes",
+    "opencoat_runtime_host_langgraph",
+    "opencoat_runtime_host_autogen",
+    "opencoat_runtime_host_crewai",
+    "opencoat_runtime_host_custom",
 ]
 
 
@@ -34,7 +34,7 @@ def test_workspace_package_imports(modname: str) -> None:
 
 def test_facade_only_depends_on_protocol_and_ports() -> None:
     """The facade construction must not require any storage / llm code."""
-    from COAT_runtime_core import COATRuntime, RuntimeConfig
+    from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
 
     class _S:
         def upsert(self, c):
@@ -96,5 +96,5 @@ def test_facade_only_depends_on_protocol_and_ports() -> None:
         def score(self, *a, **k):
             return 0.0
 
-    rt = COATRuntime(RuntimeConfig(), concern_store=_S(), dcn_store=_D(), llm=_L())
+    rt = OpenCOATRuntime(RuntimeConfig(), concern_store=_S(), dcn_store=_D(), llm=_L())
     assert rt.config.budgets.max_active_concerns == 12

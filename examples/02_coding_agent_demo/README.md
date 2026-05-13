@@ -24,7 +24,7 @@ flip into real-provider mode without touching agent code.
 examples/02_coding_agent_demo/
 ├── README.md          ← you are here
 ├── __init__.py        ← exports `CodingAgent`, `TurnReport`, `seed_concerns`, `select_llm`
-├── agent.py           ← host glue around `COATRuntime` + LLM chat + lifecycle
+├── agent.py           ← host glue around `OpenCOATRuntime` + LLM chat + lifecycle
 ├── concerns.py        ← five hand-authored concerns + `GOVERNANCE_DOC`
 ├── llm.py             ← env-driven provider selection with stub fallback
 └── main.py            ← CLI entry point
@@ -49,19 +49,19 @@ uv run python -m examples.02_coding_agent_demo.main \
 Force a provider (the default ladder is in `llm.py`):
 
 ```bash
-COAT_DEMO_PROVIDER=stub      uv run python -m examples.02_coding_agent_demo.main
-COAT_DEMO_PROVIDER=openai    uv run python -m examples.02_coding_agent_demo.main
-COAT_DEMO_PROVIDER=anthropic uv run python -m examples.02_coding_agent_demo.main
-COAT_DEMO_PROVIDER=azure     uv run python -m examples.02_coding_agent_demo.main
+OPENCOAT_DEMO_PROVIDER=stub      uv run python -m examples.02_coding_agent_demo.main
+OPENCOAT_DEMO_PROVIDER=openai    uv run python -m examples.02_coding_agent_demo.main
+OPENCOAT_DEMO_PROVIDER=anthropic uv run python -m examples.02_coding_agent_demo.main
+OPENCOAT_DEMO_PROVIDER=azure     uv run python -m examples.02_coding_agent_demo.main
 ```
 
 Override the model / deployment (the defaults are conservative and
 cheap):
 
 ```bash
-COAT_DEMO_OPENAI_MODEL=gpt-4o-mini      \
-COAT_DEMO_ANTHROPIC_MODEL=claude-3-5-haiku-latest \
-COAT_DEMO_AZURE_DEPLOYMENT=my-deployment \
+OPENCOAT_DEMO_OPENAI_MODEL=gpt-4o-mini      \
+OPENCOAT_DEMO_ANTHROPIC_MODEL=claude-3-5-haiku-latest \
+OPENCOAT_DEMO_AZURE_DEPLOYMENT=my-deployment \
   uv run python -m examples.02_coding_agent_demo.main
 ```
 
@@ -70,7 +70,7 @@ COAT_DEMO_AZURE_DEPLOYMENT=my-deployment \
 | Step | Module | M2 PR |
 | --- | --- | --- |
 | Provider selection | `examples.02_coding_agent_demo.llm.select_llm` | PR-7..PR-9 |
-| Build `JoinpointEvent` | `COAT_runtime_protocol.envelopes` | PR-1 |
+| Build `JoinpointEvent` | `opencoat_runtime_protocol.envelopes` | PR-1 |
 | `runtime.on_joinpoint` | `loops.turn_loop.TurnLoop` | PR-5 |
 | Match · coordinate · weave | the M1 stack | PR-2..PR-6 |
 | LLM call | `OpenAILLMClient` / `AnthropicLLMClient` / `AzureOpenAILLMClient` | PR-7..PR-9 |
@@ -85,7 +85,7 @@ produces a roughly-equivalent set to `seed_concerns()`. Running it
 yourself takes one snippet:
 
 ```python
-from COAT_runtime_core.concern.extractor import ConcernExtractor
+from opencoat_runtime_core.concern.extractor import ConcernExtractor
 from examples.02_coding_agent_demo import GOVERNANCE_DOC, select_llm
 
 llm, _ = select_llm()  # needs a real provider; stub returns empty {}
@@ -124,7 +124,7 @@ injections:
   • [response_requirement] target=response.code_style mode=insert level=output
       Every Python function in the answer must include parameter ...
 response:
-  (stub) The COAT runtime is wired up correctly, ... See https://docs.python.org/3/ for the language reference [1].
+  (stub) The OpenCOAT runtime is wired up correctly, ... See https://docs.python.org/3/ for the language reference [1].
 verifications:
   ✓ c-cite-docs: score=1.00 notes=...
 reinforced: c-cite-docs, c-prefer-stdlib, c-type-hints

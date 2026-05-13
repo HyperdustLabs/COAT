@@ -22,7 +22,7 @@ against; the governance doc is the developer-facing demo path.
 
 from __future__ import annotations
 
-from COAT_runtime_protocol import (
+from opencoat_runtime_protocol import (
     Advice,
     AdviceType,
     Concern,
@@ -31,7 +31,7 @@ from COAT_runtime_protocol import (
     WeavingOperation,
     WeavingPolicy,
 )
-from COAT_runtime_protocol.envelopes import PointcutMatch
+from opencoat_runtime_protocol.envelopes import PointcutMatch
 
 # ---------------------------------------------------------------------------
 # Hand-authored Concerns

@@ -7,7 +7,7 @@ learning new domain vocabulary.
 
 from __future__ import annotations
 
-from COAT_runtime_protocol import (
+from opencoat_runtime_protocol import (
     Advice,
     AdviceType,
     Concern,
@@ -16,7 +16,7 @@ from COAT_runtime_protocol import (
     WeavingOperation,
     WeavingPolicy,
 )
-from COAT_runtime_protocol.envelopes import PointcutMatch
+from opencoat_runtime_protocol.envelopes import PointcutMatch
 
 
 def _be_concise() -> Concern:

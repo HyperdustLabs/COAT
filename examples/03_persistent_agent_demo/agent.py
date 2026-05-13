@@ -1,15 +1,15 @@
 """PersistentAgent — sqlite stores + optional JSONL session log (M3 PR-16).
 
 Wires the same turn shape as :class:`examples.01_simple_chat_agent.SimpleChatAgent`
-but swaps :class:`~COAT_runtime_storage.memory.MemoryConcernStore` /
-:class:`~COAT_runtime_storage.memory.MemoryDCNStore` for
-:class:`~COAT_runtime_storage.sqlite.SqliteConcernStore` /
-:class:`~COAT_runtime_storage.sqlite.SqliteDCNStore` pointing at a **single**
+but swaps :class:`~opencoat_runtime_storage.memory.MemoryConcernStore` /
+:class:`~opencoat_runtime_storage.memory.MemoryDCNStore` for
+:class:`~opencoat_runtime_storage.sqlite.SqliteConcernStore` /
+:class:`~opencoat_runtime_storage.sqlite.SqliteDCNStore` pointing at a **single**
 SQLite file (see storage README).
 
 Optionally appends an ADR-0007 JSONL session via
-:class:`~COAT_runtime_storage.jsonl.SessionJsonlRecorder` so
-``COATr replay session.jsonl`` can diff injections offline.
+:class:`~opencoat_runtime_storage.jsonl.SessionJsonlRecorder` so
+``opencoat replay session.jsonl`` can diff injections offline.
 
 **Seeding:** ``concerns=None`` upserts :func:`seed_concerns` only when the
 on-disk store is empty — a second process (or a second in-process agent)
@@ -24,18 +24,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from COAT_runtime_core import COATRuntime, RuntimeConfig
-from COAT_runtime_core.concern.lifecycle import ConcernLifecycleManager
-from COAT_runtime_core.concern.verifier import ConcernVerifier, VerificationResult
-from COAT_runtime_core.llm import StubLLMClient
-from COAT_runtime_protocol import (
+from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
+from opencoat_runtime_core.concern.lifecycle import ConcernLifecycleManager
+from opencoat_runtime_core.concern.verifier import ConcernVerifier, VerificationResult
+from opencoat_runtime_core.llm import StubLLMClient
+from opencoat_runtime_protocol import (
     Concern,
     ConcernInjection,
     ConcernVector,
     JoinpointEvent,
 )
-from COAT_runtime_storage.jsonl import SessionJsonlRecorder
-from COAT_runtime_storage.sqlite import SqliteConcernStore, SqliteDCNStore
+from opencoat_runtime_storage.jsonl import SessionJsonlRecorder
+from opencoat_runtime_storage.sqlite import SqliteConcernStore, SqliteDCNStore
 
 from .concerns import seed_concerns
 
@@ -84,7 +84,7 @@ class PersistentAgent:
 
         self._concern_store = SqliteConcernStore(self._state_db)
         self._dcn_store = SqliteDCNStore(self._state_db)
-        self._runtime = COATRuntime(
+        self._runtime = OpenCOATRuntime(
             RuntimeConfig(),
             concern_store=self._concern_store,
             dcn_store=self._dcn_store,
@@ -128,7 +128,7 @@ class PersistentAgent:
         self._dcn_store.close()
 
     @property
-    def runtime(self) -> COATRuntime:
+    def runtime(self) -> OpenCOATRuntime:
         return self._runtime
 
     @property

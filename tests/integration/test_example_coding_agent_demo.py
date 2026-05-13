@@ -9,7 +9,7 @@ turn loop as the M1 example, plus
 * :class:`ConcernLifecycleManager.reinforce` on every activation.
 
 All tests run against the deterministic stub LLM by way of a
-forced ``COAT_DEMO_PROVIDER=stub`` env. CI never sets any provider
+forced ``OPENCOAT_DEMO_PROVIDER=stub`` env. CI never sets any provider
 keys, but pinning the override here means a developer's local
 ``OPENAI_API_KEY`` doesn't accidentally turn the smoke test into a
 network test.
@@ -26,12 +26,12 @@ import sys
 from pathlib import Path
 
 import pytest
-from COAT_runtime_core.concern.lifecycle import ConcernLifecycleManager
-from COAT_runtime_core.llm import StubLLMClient
-from COAT_runtime_protocol import AdviceType
+from opencoat_runtime_core.concern.lifecycle import ConcernLifecycleManager
+from opencoat_runtime_core.llm import StubLLMClient
+from opencoat_runtime_protocol import AdviceType
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "02_coding_agent_demo"
-PKG_NAME = "_COAT_example_coding_agent_demo"
+PKG_NAME = "_opencoat_example_coding_agent_demo"
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ def _force_stub_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     privacy / cost foot-gun. CI doesn't set the var so it's a no-op
     there.
     """
-    monkeypatch.setenv("COAT_DEMO_PROVIDER", "stub")
+    monkeypatch.setenv("OPENCOAT_DEMO_PROVIDER", "stub")
     # Also blank out any inherited keys so the auto-detect ladder
     # has nothing to grab onto if a future refactor stops honouring
     # the explicit override first.
@@ -131,18 +131,18 @@ class TestSelectLLM:
         _, _, llm_mod, _ = example_modules
         client, label = llm_mod.select_llm(
             "stub",
-            env={"COAT_DEMO_PROVIDER": "openai", "OPENAI_API_KEY": "sk-fake"},
+            env={"OPENCOAT_DEMO_PROVIDER": "openai", "OPENAI_API_KEY": "sk-fake"},
         )
         assert isinstance(client, StubLLMClient)
         assert label == "stub"
 
     def test_env_var_drives_choice(self, example_modules) -> None:
-        # ``COAT_DEMO_PROVIDER=stub`` resolves to the stub even when
+        # ``OPENCOAT_DEMO_PROVIDER=stub`` resolves to the stub even when
         # an OpenAI key is also set — the explicit env var wins
         # over the auto-detect ladder.
         _, _, llm_mod, _ = example_modules
         client, _label = llm_mod.select_llm(
-            env={"COAT_DEMO_PROVIDER": "stub", "OPENAI_API_KEY": "sk-fake"}
+            env={"OPENCOAT_DEMO_PROVIDER": "stub", "OPENAI_API_KEY": "sk-fake"}
         )
         assert isinstance(client, StubLLMClient)
 
@@ -180,13 +180,13 @@ class TestSelectLLM:
     def test_azure_endpoint_plus_deployment_promotes_to_azure(self, example_modules) -> None:
         # The complement of the prev test: with both endpoint AND a
         # deployment present the ladder DOES promote, regardless of
-        # whether the deployment came from ``COAT_DEMO_AZURE_DEPLOYMENT``
+        # whether the deployment came from ``OPENCOAT_DEMO_AZURE_DEPLOYMENT``
         # or the more standard ``AZURE_OPENAI_DEPLOYMENT``.  We don't
         # actually construct the client here because that needs the
         # ``openai`` SDK and live creds; we just assert the chosen
         # branch by reading the private ``_auto_detect``.
         _, _, llm_mod, _ = example_modules
-        for deployment_var in ("COAT_DEMO_AZURE_DEPLOYMENT", "AZURE_OPENAI_DEPLOYMENT"):
+        for deployment_var in ("OPENCOAT_DEMO_AZURE_DEPLOYMENT", "AZURE_OPENAI_DEPLOYMENT"):
             chosen = llm_mod._auto_detect(
                 {
                     "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
@@ -275,7 +275,7 @@ class TestSelectLLM:
             "AZURE_OPENAI_ENDPOINT",
             "AZURE_OPENAI_API_KEY",
             "AZURE_OPENAI_DEPLOYMENT",
-            "COAT_DEMO_AZURE_DEPLOYMENT",
+            "OPENCOAT_DEMO_AZURE_DEPLOYMENT",
         ):
             monkeypatch.delenv(var, raising=False)
 
@@ -284,7 +284,7 @@ class TestSelectLLM:
             env={
                 "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com/",
                 "AZURE_OPENAI_API_KEY": "azkey-fake-injected",
-                "COAT_DEMO_AZURE_DEPLOYMENT": "my-deployment",
+                "OPENCOAT_DEMO_AZURE_DEPLOYMENT": "my-deployment",
             },
         )
         assert not isinstance(client, StubLLMClient)
@@ -438,12 +438,12 @@ class TestLifecycleIntegration:
         # be able to inject their own manager. Sanity-check the DI
         # seam.
         agent_mod, _, _, _ = example_modules
-        from COAT_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
+        from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
         cs, ds = MemoryConcernStore(), MemoryDCNStore()
-        from COAT_runtime_core import COATRuntime, RuntimeConfig
+        from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
 
-        runtime = COATRuntime(
+        runtime = OpenCOATRuntime(
             RuntimeConfig(),
             concern_store=cs,
             dcn_store=ds,

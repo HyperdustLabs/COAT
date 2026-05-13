@@ -35,7 +35,7 @@ Which roadmap slice does this belong to? (See [`docs/design/v0.2-system-design.m
 
 Skip if this PR does not touch schemas or public wire types.
 
-- [ ] No changes under `packages/COAT-runtime-protocol/COAT_runtime_protocol/schemas/`
+- [ ] No changes under `packages/opencoat-runtime-protocol/opencoat_runtime_protocol/schemas/`
 - [ ] **OR** I updated JSON Schemas and bumped `schema_version` where required
 - [ ] **OR** I only adjusted comments / examples / OpenAPI without changing validation behaviour
 
@@ -71,14 +71,14 @@ uv run pytest
 
 Check any that apply:
 
-- [ ] `COAT-runtime-protocol`
-- [ ] `COAT-runtime-core`
-- [ ] `COAT-runtime-storage`
-- [ ] `COAT-runtime-llm`
-- [ ] `COAT-runtime-host-sdk`
-- [ ] `COAT-runtime-daemon`
-- [ ] `COAT-runtime-cli`
-- [ ] `COAT-runtime-host-plugins`
+- [ ] `opencoat-runtime-protocol`
+- [ ] `opencoat-runtime-core`
+- [ ] `opencoat-runtime-storage`
+- [ ] `opencoat-runtime-llm`
+- [ ] `opencoat-runtime-host-sdk`
+- [ ] `opencoat-runtime-daemon`
+- [ ] `opencoat-runtime-cli`
+- [ ] `opencoat-runtime-host-plugins`
 - [ ] Root workspace / CI / deploy / docs only
 
 ---

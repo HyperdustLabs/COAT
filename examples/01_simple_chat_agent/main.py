@@ -6,7 +6,7 @@ Run with::
 
 Or with a specific prompt::
 
-    uv run python -m examples.01_simple_chat_agent.main "What is COAT?"
+    uv run python -m examples.01_simple_chat_agent.main "What is OpenCOAT?"
 
 The output is intentionally readable: one section per turn showing the
 matched concerns, the woven injection (target / mode / level / content),
@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from .agent import SimpleChatAgent, TurnReport
 
 DEFAULT_PROMPTS: tuple[str, ...] = (
-    "Who invented the COAT runtime?",
+    "Who invented the OpenCOAT runtime?",
     "Tell me how concerns get matched.",
     "What is the user's email address?",
 )

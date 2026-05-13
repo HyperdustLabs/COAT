@@ -20,7 +20,7 @@ same (joinpoint / pointcut / advice / weaving) but the substrate is the
 agent's thought DOM (COPR), not Java bytecode.
 
 We deliberately do **not** call the unit `Aspect`. AOP's *Aspect* is a
-specifically *cross-cutting concern*; the COAT Runtime has both
+specifically *cross-cutting concern*; the OpenCOAT Runtime has both
 cross-cutting and non-cross-cutting concerns, so the broader name
 "Concern" wins. `Aspect ⊂ Concern`.
 

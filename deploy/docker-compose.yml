@@ -1,20 +1,20 @@
 version: "3.9"
 
 services:
-  COAT-runtime:
+  opencoat-runtime:
     build:
       context: ..
-      dockerfile: packages/COAT-runtime-daemon/docker/Dockerfile
-    image: COAT-runtime:dev
-    container_name: COAT-runtime
+      dockerfile: packages/opencoat-runtime-daemon/docker/Dockerfile
+    image: opencoat-runtime:dev
+    container_name: opencoat-runtime
     environment:
-      COATR_LOG_LEVEL: INFO
+      OPENCOAT_LOG_LEVEL: INFO
     ports:
       - "127.0.0.1:7878:7878"
     volumes:
-      - ./compose.dev.config.yaml:/etc/COAT-runtime/config.yaml:ro
-      - COAT-data:/var/lib/COAT-runtime
+      - ./compose.dev.config.yaml:/etc/opencoat/config.yaml:ro
+      - opencoat-data:/var/lib/opencoat
     restart: unless-stopped
 
 volumes:
-  COAT-data: {}
+  opencoat-data: {}

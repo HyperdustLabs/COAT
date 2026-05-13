@@ -13,9 +13,9 @@ want each one to be a plugin, not a hard dependency.
 ## Decision
 
 Adopt ports & adapters (hexagonal architecture). Each port lives in
-`COAT_runtime_core/ports/` as a `typing.Protocol` (runtime_checkable).
+`opencoat_runtime_core/ports/` as a `typing.Protocol` (runtime_checkable).
 Concrete adapters live in their own packages
-(`COAT-runtime-storage`, `COAT-runtime-llm`, `COAT-runtime-host-plugins/*`).
+(`opencoat-runtime-storage`, `opencoat-runtime-llm`, `opencoat-runtime-host-plugins/*`).
 
 Current ports:
 

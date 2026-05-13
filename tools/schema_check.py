@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import sys
 
-from COAT_runtime_protocol import SCHEMA_FILES, load_schema
 from jsonschema import Draft202012Validator
+from opencoat_runtime_protocol import SCHEMA_FILES, load_schema
 from referencing import Registry, Resource
 
 

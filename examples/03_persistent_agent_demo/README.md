@@ -2,7 +2,7 @@
 
 Single-process **sqlite** persistence for `ConcernStore` + `DCNStore`
 (one shared database file) plus an optional **append-only JSONL**
-session log compatible with `COATr replay`.
+session log compatible with `opencoat replay`.
 
 This example mirrors the turn shape of [`01_simple_chat_agent`](../01_simple_chat_agent/README.md)
 (stub LLM, verifier, hand-authored concerns) so you can focus on the
@@ -27,13 +27,13 @@ From the repo root:
 uv run python -m examples.03_persistent_agent_demo.main
 ```
 
-Defaults write under `./.coat-persistent-demo/` (`state.db` +
+Defaults write under `./.opencoat-persistent-demo/` (`state.db` +
 `session.jsonl`). Override paths or disable JSONL:
 
 ```bash
 uv run python -m examples.03_persistent_agent_demo.main \
-  --state-db /tmp/coat/state.db \
-  --session-log /tmp/coat/session.jsonl \
+  --state-db /tmp/opencoat/state.db \
+  --session-log /tmp/opencoat/session.jsonl \
   "What is concern weaving?"
 
 uv run python -m examples.03_persistent_agent_demo.main --no-jsonl
@@ -44,14 +44,14 @@ uv run python -m examples.03_persistent_agent_demo.main --no-jsonl
 After a run with JSONL enabled:
 
 ```bash
-COATr replay ./.coat-persistent-demo/session.jsonl
+opencoat replay ./.opencoat-persistent-demo/session.jsonl
 ```
 
 Or via this package’s CLI (no daemon):
 
 ```bash
 uv run python -m examples.03_persistent_agent_demo.main \
-  --replay ./.coat-persistent-demo/session.jsonl
+  --replay ./.opencoat-persistent-demo/session.jsonl
 ```
 
 ## Seeding semantics
@@ -65,6 +65,6 @@ main thing this demo is meant to prove.
 
 | Piece | Location |
 | --- | --- |
-| Sqlite stores | `COAT_runtime_storage.sqlite` |
-| JSONL recorder + replay | `COAT_runtime_storage.jsonl` |
+| Sqlite stores | `opencoat_runtime_storage.sqlite` |
+| JSONL recorder + replay | `opencoat_runtime_storage.jsonl` |
 | ADR | [`docs/adr/0007-jsonl-replay-as-debug-source.md`](../../docs/adr/0007-jsonl-replay-as-debug-source.md) |

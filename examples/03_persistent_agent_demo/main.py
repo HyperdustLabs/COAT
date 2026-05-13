@@ -4,15 +4,15 @@ Run with::
 
     uv run python -m examples.03_persistent_agent_demo.main
 
-Paths default to ``./.coat-persistent-demo/state.db`` and
-``./.coat-persistent-demo/session.jsonl`` (parent dir is created
+Paths default to ``./.opencoat-persistent-demo/state.db`` and
+``./.opencoat-persistent-demo/session.jsonl`` (parent dir is created
 automatically). Override with ``--state-db`` / ``--session-log``, or pass
 ``--no-jsonl`` to skip the append-only session file.
 
-Replay a recorded session (same semantics as ``COATr replay``)::
+Replay a recorded session (same semantics as ``opencoat replay``)::
 
     uv run python -m examples.03_persistent_agent_demo.main \\
-        --replay ./.coat-persistent-demo/session.jsonl
+        --replay ./.opencoat-persistent-demo/session.jsonl
 
 Exit status for ``--replay``: ``0`` clean, ``1`` mismatches, ``2`` I/O
 or parse errors.
@@ -29,7 +29,7 @@ from pathlib import Path
 from .agent import PersistentAgent, TurnReport
 
 DEFAULT_PROMPTS: tuple[str, ...] = (
-    "Who invented the COAT runtime?",
+    "Who invented the OpenCOAT runtime?",
     "Tell me how concerns get matched.",
 )
 
@@ -80,7 +80,7 @@ def run(
 
 
 def _cmd_replay(path: Path, *, verbose: bool) -> int:
-    from COAT_runtime_storage.jsonl import replay_session_file
+    from opencoat_runtime_storage.jsonl import replay_session_file
 
     try:
         result = replay_session_file(path)
@@ -104,7 +104,7 @@ def _cmd_replay(path: Path, *, verbose: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    default_dir = Path(".coat-persistent-demo")
+    default_dir = Path(".opencoat-persistent-demo")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "prompts",
@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{sum(len(r.reinforced_concern_ids) for r in reports)} reinforcements."
     )
     if log_path is not None:
-        print(f"\nReplay: COATr replay {log_path}")
+        print(f"\nReplay: opencoat replay {log_path}")
     return 0
 
 

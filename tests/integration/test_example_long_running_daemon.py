@@ -1,9 +1,9 @@
 """Smoke + behavioural tests for ``examples/06_long_running_daemon``.
 
-Pins M4 PR-23: a real :class:`COAT_runtime_daemon.Daemon` is started
+Pins M4 PR-23: a real :class:`opencoat_runtime_daemon.Daemon` is started
 on a free loopback port, then driven from the same
-:class:`COAT_runtime_cli.transport.HttpRpcClient` that ``COATr concern``
-/ ``COATr dcn`` ship. If anything in PR-17→PR-22 regresses on the wire
+:class:`opencoat_runtime_cli.transport.HttpRpcClient` that ``opencoat concern``
+/ ``opencoat dcn`` ship. If anything in PR-17→PR-22 regresses on the wire
 this test trips, with the example folder doubling as both the docs
 artefact and the integration fixture.
 
@@ -17,11 +17,11 @@ import sys
 from pathlib import Path
 
 import pytest
-from COAT_runtime_cli.transport import HttpRpcClient
-from COAT_runtime_daemon import Daemon
+from opencoat_runtime_cli.transport import HttpRpcClient
+from opencoat_runtime_daemon import Daemon
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "06_long_running_daemon"
-PKG_NAME = "_COAT_example_long_running_daemon"
+PKG_NAME = "_opencoat_example_long_running_daemon"
 
 
 def _load_example() -> tuple:
@@ -60,7 +60,7 @@ def running_daemon(example_modules, tmp_path: Path):
     main_mod, _ = example_modules
     port = main_mod._pick_free_port()
     config = main_mod._build_demo_config(port=port, state_db=None)
-    daemon = Daemon(config, env={}, pid_file=tmp_path / "coat.pid")
+    daemon = Daemon(config, env={}, pid_file=tmp_path / "opencoat.pid")
     daemon.start()
     try:
         client = HttpRpcClient(host="127.0.0.1", port=port, path="/rpc", timeout=5.0)
@@ -125,7 +125,7 @@ class TestCliEntry:
             argv=[
                 "--in-memory",
                 "--pid-file",
-                str(tmp_path / "coat.pid"),
+                str(tmp_path / "opencoat.pid"),
             ]
         )
         out = capsys.readouterr().out
@@ -139,7 +139,7 @@ class TestCliEntry:
     ) -> None:
         main_mod, _ = example_modules
         db = tmp_path / "state.db"
-        pid = tmp_path / "coat.pid"
+        pid = tmp_path / "opencoat.pid"
 
         rc1 = main_mod.main(argv=["--state-db", str(db), "--pid-file", str(pid)])
         out1 = capsys.readouterr().out
@@ -160,7 +160,7 @@ class TestCliEntry:
             argv=[
                 "--in-memory",
                 "--pid-file",
-                str(tmp_path / "coat.pid"),
+                str(tmp_path / "opencoat.pid"),
                 "--dot-out",
                 str(out_dot),
             ]
@@ -193,7 +193,7 @@ class TestCliEntry:
                 "--port",
                 "0",
                 "--pid-file",
-                str(tmp_path / "coat.pid"),
+                str(tmp_path / "opencoat.pid"),
             ]
         )
         out = capsys.readouterr().out
@@ -220,7 +220,7 @@ class TestCliEntry:
                     "--port",
                     bad_port,
                     "--pid-file",
-                    str(tmp_path / "coat.pid"),
+                    str(tmp_path / "opencoat.pid"),
                 ]
             )
         assert excinfo.value.code == 2

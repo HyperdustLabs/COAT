@@ -1,1 +1,1 @@
-"""M5 example — drive :class:`COATRuntime` from an OpenClaw-shaped event bus."""
+"""M5 example — drive :class:`OpenCOATRuntime` from an OpenClaw-shaped event bus."""
