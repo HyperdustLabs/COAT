@@ -84,6 +84,93 @@ def test_yaml_merge_preserves_other_top_level_keys(tmp_path: Path) -> None:
     assert data["llm"]["provider"] == "stub"
 
 
+def test_rerun_env_file_after_inline_drops_inline_secrets(tmp_path: Path) -> None:
+    """Switching ``--mode inline`` → ``--mode env-file`` must scrub stale secrets.
+
+    Regression for Codex P1 on PR-51: the previous merge was an
+    unconditional ``{**old, **new}`` so an ``api_key`` written in
+    inline mode survived a follow-up env-file run, defeating the
+    "YAML has no secrets" promise the wizard prints.
+    """
+    y = tmp_path / "daemon.yaml"
+    e = tmp_path / "opencoat.env"
+
+    # 1. seed inline mode → api_key + base_url land in yaml
+    inline_args = _ns(
+        yaml=y,
+        env=e,
+        mode="inline",
+        openai_api_key="sk-inline-old",
+        openai_base_url="https://gw.example.com/v1",
+    )
+    assert configure_cmd._configure_llm(inline_args) == 0
+    inline_data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert inline_data["llm"]["api_key"] == "sk-inline-old"
+
+    # 2. re-run in env-file mode with a different key
+    env_args = _ns(
+        yaml=y,
+        env=e,
+        mode="env-file",
+        provider="openai",
+        openai_api_key="sk-fresh-env",
+    )
+    assert configure_cmd._configure_llm(env_args) == 0
+
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    # Inline secrets are gone from disk…
+    assert "api_key" not in data["llm"]
+    assert "endpoint" not in data["llm"]
+    assert "deployment" not in data["llm"]
+    # …and the raw YAML text doesn't contain the stale credential either.
+    assert "sk-inline-old" not in y.read_text(encoding="utf-8")
+    # The new key lives in the env file (env-file mode).
+    assert "OPENAI_API_KEY=sk-fresh-env" in e.read_text(encoding="utf-8")
+    # Non-secret llm fields (provider/model/timeout) still merge normally.
+    assert data["llm"]["provider"] == "openai"
+    assert data["llm"]["model"] == "gpt-4o-mini"
+
+
+def test_rerun_inline_azure_after_inline_openai_replaces_endpoint(tmp_path: Path) -> None:
+    """Inline-to-inline across providers replaces endpoint/deployment, not append."""
+    y = tmp_path / "daemon.yaml"
+    e = tmp_path / "opencoat.env"
+
+    first = _ns(
+        yaml=y,
+        env=e,
+        mode="inline",
+        openai_api_key="sk-openai-1",
+    )
+    assert configure_cmd._configure_llm(first) == 0
+
+    second = Namespace(
+        yaml=y,
+        env=e,
+        mode="inline",
+        non_interactive=True,
+        provider="azure",
+        timeout_seconds=30.0,
+        model=None,
+        openai_api_key=None,
+        openai_model_env=None,
+        anthropic_api_key=None,
+        anthropic_model_env=None,
+        azure_api_key="az-key",
+        azure_endpoint="https://az.example.com",
+        azure_deployment="dep-1",
+        openai_base_url=None,
+        anthropic_base_url=None,
+    )
+    assert configure_cmd._configure_llm(second) == 0
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["llm"]["api_key"] == "az-key"
+    assert data["llm"]["endpoint"] == "https://az.example.com"
+    assert data["llm"]["deployment"] == "dep-1"
+    # Stale provider key from the first run is gone.
+    assert "sk-openai-1" not in y.read_text(encoding="utf-8")
+
+
 def test_non_interactive_inline_auto_rejected(tmp_path: Path) -> None:
     from argparse import Namespace
 

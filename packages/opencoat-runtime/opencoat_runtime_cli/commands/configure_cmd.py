@@ -88,6 +88,15 @@ def _load_yaml_dict(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+# Slots ``--mode inline`` writes secrets into. Treated as
+# "owned" by each ``_write_yaml_llm`` call: if the new payload
+# doesn't include them, they're dropped — otherwise switching from
+# ``inline`` back to ``env-file`` would silently leave the old
+# ``llm.api_key`` (and friends) sitting on disk despite the wizard
+# advertising env-file as "YAML has no secrets" (Codex P1 on PR-51).
+_INLINE_SECRET_KEYS: tuple[str, ...] = ("api_key", "endpoint", "deployment")
+
+
 def _write_yaml_llm(
     path: Path,
     *,
@@ -97,10 +106,11 @@ def _write_yaml_llm(
     merged = _load_yaml_dict(path)
     old_llm = merged.get("llm")
     old_llm_dict = old_llm if isinstance(old_llm, dict) else {}
-    merged["llm"] = {**old_llm_dict, **llm}
+    cleaned_old = {k: v for k, v in old_llm_dict.items() if k not in _INLINE_SECRET_KEYS}
+    merged["llm"] = {**cleaned_old, **llm}
     text = yaml.safe_dump(merged, default_flow_style=False, allow_unicode=True, sort_keys=False)
     path.write_text(text, encoding="utf-8")
-    if any(k in llm for k in ("api_key",)):
+    if any(k in llm for k in _INLINE_SECRET_KEYS):
         _chmod_secret(path)
 
 
