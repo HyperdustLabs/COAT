@@ -139,15 +139,34 @@ def _concern_show(args: argparse.Namespace) -> int:
 
 
 def _concern_import(args: argparse.Namespace) -> int:
-    if not args.target:
-        print("concern import: <path> is required", file=sys.stderr)
+    use_demo = bool(getattr(args, "demo", False))
+    if use_demo and args.target:
+        print(
+            "concern import: --demo is mutually exclusive with <path>",
+            file=sys.stderr,
+        )
         return 2
-    path = Path(args.target)
-    try:
-        concerns = _load_concerns_file(path)
-    except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
-        print(f"concern import: {exc}", file=sys.stderr)
+    if not use_demo and not args.target:
+        print("concern import: <path> is required (or pass --demo)", file=sys.stderr)
         return 2
+
+    if use_demo:
+        # In-tree demo set: produce JSON-mode dicts so the daemon's
+        # ``concern.upsert`` parser handles them identically to a file
+        # import. ``model_dump(mode="json")`` collapses enums to their
+        # string values and datetimes to ISO strings.
+        from ..demo_concerns import demo_concerns
+
+        concerns = [c.model_dump(mode="json", exclude_none=True) for c in demo_concerns()]
+        source_label = "--demo set"
+    else:
+        path = Path(args.target)
+        try:
+            concerns = _load_concerns_file(path)
+        except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
+            print(f"concern import: {exc}", file=sys.stderr)
+            return 2
+        source_label = str(path)
 
     client = make_client(args)
     imported: list[str] = []
@@ -159,7 +178,7 @@ def _concern_import(args: argparse.Namespace) -> int:
         if isinstance(out, dict):
             cid = out.get("id") or raw.get("id") or "?"
             imported.append(str(cid))
-    print(f"concern import: upserted {len(imported)} concern(s)")
+    print(f"concern import: upserted {len(imported)} concern(s) from {source_label}")
     for cid in imported:
         print(f"  {cid}")
     return 0
@@ -292,6 +311,15 @@ def register(sub: argparse._SubParsersAction) -> None:
         "--output",
         default=None,
         help="`export`: write to this file instead of stdout.",
+    )
+    p.add_argument(
+        "--demo",
+        action="store_true",
+        help=(
+            "`import`: load the in-tree demo set "
+            "(demo-prompt-prefix / demo-tool-block / demo-memory-tag) "
+            "instead of reading a file."
+        ),
     )
     p.set_defaults(func=_handle)
 

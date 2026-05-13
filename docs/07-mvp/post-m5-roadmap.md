@@ -131,10 +131,15 @@ Numbers will be assigned as PRs open, per the M5+ convention in
 ### 5B. DX sprint split (3 PRs)
 
 ```text
-gh/#?  feat/dx-cli-banner          → OpenCOAT banner + status subtitle + --no-banner
-gh/#?  feat/dx-plugin-install      → COATr plugin install <openclaw|custom>
-gh/#?  feat/dx-demo-concerns       → 3 dramatic concerns + COATr concerns load --demo
+gh/#36  feat/dx-cli-banner         → OpenCOAT banner + status subtitle + --no-banner   ✅ landed
+gh/#37  feat/dx-plugin-install     → COATr plugin install <openclaw|custom>            ✅ landed
+gh/#?   feat/dx-demo-concerns      → 3 dramatic concerns + COATr concern import --demo (in flight)
 ```
+
+> The concrete CLI verb shipped as ``COATr concern import --demo``
+> (mutually exclusive with ``<path>``) — chosen over a separate
+> ``concerns load`` action so the demo set rides on the same
+> ``concern.upsert`` RPC path that file imports already use.
 
 ### 5C. Skill repo (separate repo, not in this PR-stream)
 
