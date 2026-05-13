@@ -1,8 +1,8 @@
 # Post-M5 roadmap
 
 > **Status**: active sequencing plan, opened after M5 closed (PRs
-> [#28](https://github.com/HyperdustLabs/COAT/pull/28)–[#32](https://github.com/HyperdustLabs/COAT/pull/32)
-> merged; close-out [#33](https://github.com/HyperdustLabs/COAT/pull/33)).
+> [#28](https://github.com/HyperdustLabs/OpenCOAT/pull/28)–[#32](https://github.com/HyperdustLabs/OpenCOAT/pull/32)
+> merged; close-out [#33](https://github.com/HyperdustLabs/OpenCOAT/pull/33)).
 >
 > **Scope**: locks the order of every PR between M5 and the end of M6.
 > Three threads were on the table — the chosen sequence and the

@@ -2,7 +2,7 @@
 
 End-to-end demo: a toy **OpenClaw-shaped** event bus drives
 `OpenCOATRuntime` through `opencoat_runtime_host_openclaw` — the same surface
-M5 ships in PRs [#28](https://github.com/HyperdustLabs/COAT/pull/28)–[#31](https://github.com/HyperdustLabs/COAT/pull/31) (`OpenClawAdapter`,
+M5 ships in PRs [#28](https://github.com/HyperdustLabs/OpenCOAT/pull/28)–[#31](https://github.com/HyperdustLabs/OpenCOAT/pull/31) (`OpenClawAdapter`,
 `OpenClawInjector`, `OpenClawToolGuard`, `install_hooks`, `OpenClawMemoryBridge`).
 
 There is **no** upstream OpenClaw SDK in this repo. The example uses a
@@ -91,4 +91,4 @@ After that, firing a destructive `agent.before_tool_call` against your
 host short-circuits with a `ToolGuardOutcome(blocked=True)` carrying
 the concern's `content` as `block_reason` — the same path the M5
 `tool_guard` interpreter ships (PR
-[#30](https://github.com/HyperdustLabs/COAT/pull/30)).
+[#30](https://github.com/HyperdustLabs/OpenCOAT/pull/30)).

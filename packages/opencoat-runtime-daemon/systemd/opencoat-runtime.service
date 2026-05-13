@@ -1,6 +1,6 @@
 [Unit]
 Description=OpenCOAT Runtime daemon
-Documentation=https://github.com/HyperdustLabs/COAT
+Documentation=https://github.com/HyperdustLabs/OpenCOAT
 After=network.target
 
 [Service]

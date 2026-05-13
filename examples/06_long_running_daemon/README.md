@@ -94,9 +94,9 @@ code than from any amount of prose.
 
 | Piece | Location |
 | --- | --- |
-| `Daemon` lifecycle | `opencoat_runtime_daemon.daemon` ([PR-20 / #24](https://github.com/HyperdustLabs/COAT/pull/24)) |
-| HTTP server | `opencoat_runtime_daemon.ipc.http_server` ([PR-19 / #23](https://github.com/HyperdustLabs/COAT/pull/23)) |
-| JSON-RPC dispatcher | `opencoat_runtime_daemon.ipc.jsonrpc_dispatch` ([PR-18 / #22](https://github.com/HyperdustLabs/COAT/pull/22)) |
-| `build_runtime` | `opencoat_runtime_daemon.runtime_builder` ([PR-17 / #21](https://github.com/HyperdustLabs/COAT/pull/21)) |
-| HTTP client + `opencoat runtime` | `opencoat_runtime_cli.transport`, `commands/runtime_cmd.py` ([PR-21 / #25](https://github.com/HyperdustLabs/COAT/pull/25)) |
-| `opencoat concern / dcn / inspect` | `opencoat_runtime_cli.commands.{concern,dcn,inspect}_cmd` ([PR-22 / #26](https://github.com/HyperdustLabs/COAT/pull/26)) |
+| `Daemon` lifecycle | `opencoat_runtime_daemon.daemon` ([PR-20 / #24](https://github.com/HyperdustLabs/OpenCOAT/pull/24)) |
+| HTTP server | `opencoat_runtime_daemon.ipc.http_server` ([PR-19 / #23](https://github.com/HyperdustLabs/OpenCOAT/pull/23)) |
+| JSON-RPC dispatcher | `opencoat_runtime_daemon.ipc.jsonrpc_dispatch` ([PR-18 / #22](https://github.com/HyperdustLabs/OpenCOAT/pull/22)) |
+| `build_runtime` | `opencoat_runtime_daemon.runtime_builder` ([PR-17 / #21](https://github.com/HyperdustLabs/OpenCOAT/pull/21)) |
+| HTTP client + `opencoat runtime` | `opencoat_runtime_cli.transport`, `commands/runtime_cmd.py` ([PR-21 / #25](https://github.com/HyperdustLabs/OpenCOAT/pull/25)) |
+| `opencoat concern / dcn / inspect` | `opencoat_runtime_cli.commands.{concern,dcn,inspect}_cmd` ([PR-22 / #26](https://github.com/HyperdustLabs/OpenCOAT/pull/26)) |

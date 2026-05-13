@@ -4,9 +4,9 @@ description: OpenCOAT — Open Concern-Oriented Agent Thinking Runtime
 type: application
 version: 0.0.1
 appVersion: "0.0.1"
-home: https://github.com/HyperdustLabs/COAT
+home: https://github.com/HyperdustLabs/OpenCOAT
 sources:
-  - https://github.com/HyperdustLabs/COAT
+  - https://github.com/HyperdustLabs/OpenCOAT
 keywords:
   - llm
   - agents
