@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import socket
-from http.client import HTTPConnection, HTTPException
+from http.client import HTTPConnection, HTTPException, HTTPSConnection
 from typing import Any
 from urllib.parse import urlparse
 
@@ -90,6 +90,18 @@ class HttpTransport:
     def endpoint(self) -> str:
         return f"{self._scheme}://{self._host}:{self._port}{self._rpc_path}"
 
+    def _new_connection(self) -> HTTPConnection:
+        """Return a fresh ``http.client`` connection for ``self._scheme``.
+
+        ``https://`` URIs need :class:`HTTPSConnection` (which sets up TLS
+        with the stdlib default context). Plain ``http://`` keeps
+        :class:`HTTPConnection`. Factored out so the wire test can pin
+        the right class without running a TLS handshake.
+        """
+        if self._scheme == "https":
+            return HTTPSConnection(self._host, self._port, timeout=self._timeout)
+        return HTTPConnection(self._host, self._port, timeout=self._timeout)
+
     def emit(
         self,
         joinpoint: JoinpointEvent,
@@ -118,7 +130,7 @@ class HttpTransport:
         body = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
         payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
 
-        conn = HTTPConnection(self._host, self._port, timeout=self._timeout)
+        conn = self._new_connection()
         try:
             try:
                 conn.request(

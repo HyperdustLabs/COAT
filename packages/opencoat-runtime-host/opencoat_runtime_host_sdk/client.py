@@ -21,7 +21,6 @@ from opencoat_runtime_protocol import ConcernInjection, JoinpointEvent
 
 from .transport.http import HttpTransport
 from .transport.inproc import InProcTransport
-from .transport.socket import SocketTransport
 
 
 class Client:
@@ -57,8 +56,10 @@ class Client:
         Raises:
             ValueError: when the URI scheme is unknown or when
                 ``inproc://`` is requested without ``runtime=``.
-            NotImplementedError: when a transport is recognised but not
-                yet wired (currently: ``unix://``).
+            NotImplementedError: when a scheme is reserved but not yet
+                wired — currently ``unix://``. Raised at connect time
+                (not at first ``.emit()``) so the failure mode is
+                obvious from the call site.
         """
         if not isinstance(uri, str) or not uri:
             raise ValueError("Client.connect uri must be a non-empty string")
@@ -78,10 +79,15 @@ class Client:
             return cls(HttpTransport(base_url=uri, timeout_seconds=timeout_seconds))
 
         if scheme == "unix":
-            # Reserve the API shape; wiring lands with PR-X2 if/when we
-            # actually need socket transport. HTTP covers daemon usage.
-            path = parsed.path or uri[len("unix://") :]
-            return cls(SocketTransport(path=path))
+            # The wire surface is reserved (see SocketTransport) but the
+            # daemon doesn't expose a UDS listener yet and there's no
+            # client-side parser for it. Fail loudly at connect time so
+            # callers don't get a confusing ``TypeError`` from a stub
+            # ``emit`` later. HTTP covers every daemon topology today.
+            raise NotImplementedError(
+                "unix:// transport is reserved but not wired in 0.1.0; "
+                "use http://host:port against the daemon's HTTP listener."
+            )
 
         raise ValueError(
             f"unsupported transport scheme {scheme!r} in {uri!r}; "

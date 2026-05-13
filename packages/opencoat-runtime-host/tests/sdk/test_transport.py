@@ -22,6 +22,7 @@ import threading
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from http.client import HTTPConnection, HTTPSConnection
 
 import pytest
 from opencoat_runtime_core import OpenCOATRuntime
@@ -36,6 +37,7 @@ from opencoat_runtime_host_sdk.transport.http import (
     HttpTransport,
 )
 from opencoat_runtime_host_sdk.transport.inproc import InProcTransport
+from opencoat_runtime_host_sdk.transport.socket import SocketTransport
 from opencoat_runtime_protocol import ConcernInjection, JoinpointEvent
 
 # ---------------------------------------------------------------------------
@@ -193,6 +195,86 @@ def test_http_transport_honours_explicit_url_path(http_server: HttpServer) -> No
     base_url = f"http://{http_server.host}:{http_server.port}/rpc"
     transport = HttpTransport(base_url=base_url, path="/this-should-not-win")
     assert transport.endpoint.endswith("/rpc")
+
+
+# ---------------------------------------------------------------------------
+# TLS — Codex P1 on PR #44: https:// URIs must use a real TLS connection
+# ---------------------------------------------------------------------------
+
+
+def test_http_scheme_uses_plain_http_connection() -> None:
+    """``http://`` must NOT silently upgrade to TLS."""
+    transport = HttpTransport(base_url="http://example.test")
+    conn = transport._new_connection()
+    try:
+        assert isinstance(conn, HTTPConnection)
+        assert not isinstance(conn, HTTPSConnection)
+        assert transport._port == 80
+    finally:
+        conn.close()
+
+
+def test_https_scheme_uses_https_connection() -> None:
+    """``https://`` must build an :class:`HTTPSConnection`, not plain HTTP.
+
+    Codex P1 on #44: the previous implementation accepted the ``https``
+    scheme but always opened :class:`HTTPConnection`, so requests were
+    sent in cleartext against any real TLS endpoint. Pin the class
+    selection so the regression cannot silently come back.
+    """
+    transport = HttpTransport(base_url="https://example.test")
+    conn = transport._new_connection()
+    try:
+        assert isinstance(conn, HTTPSConnection)
+        assert transport._port == 443
+    finally:
+        conn.close()
+
+
+def test_https_scheme_honours_explicit_port() -> None:
+    transport = HttpTransport(base_url="https://example.test:8443/rpc")
+    assert transport._port == 8443
+    assert transport.endpoint == "https://example.test:8443/rpc"
+
+
+def test_client_connect_https_returns_https_aware_transport() -> None:
+    client = Client.connect("https://example.test:9443")
+    assert isinstance(client.transport, HttpTransport)
+    assert client.transport.endpoint.startswith("https://")
+
+
+# ---------------------------------------------------------------------------
+# Unix transport — Codex P2 on PR #44: reserved scheme must fail loud at
+# connect time, not silently TypeError at emit()
+# ---------------------------------------------------------------------------
+
+
+def test_unix_scheme_raises_not_implemented_at_connect() -> None:
+    """``unix://`` is reserved but not wired in 0.1.0.
+
+    The previous implementation returned a :class:`SocketTransport`
+    instance, then :meth:`Client.emit` would pass ``context=`` /
+    ``return_none_when_empty=`` kwargs to its stub ``emit`` and trigger
+    a confusing :class:`TypeError`. The contract under test is that
+    callers selecting ``unix://`` find out at the call site, with a
+    message that points them at HTTP.
+    """
+    with pytest.raises(NotImplementedError, match="unix://"):
+        Client.connect("unix:///run/opencoat.sock")
+
+
+def test_socket_transport_direct_emit_raises_not_implemented() -> None:
+    """Defence in depth — direct construction stays consistent with the
+    connect-time error. Even if a caller bypasses ``Client.connect`` and
+    builds a :class:`SocketTransport` directly, ``emit`` raises a clean
+    :class:`NotImplementedError` (not a signature ``TypeError``)
+    regardless of the kwargs they pass.
+    """
+    transport = SocketTransport(path="/tmp/opencoat.sock")
+    with pytest.raises(NotImplementedError):
+        transport.emit(_build_joinpoint())
+    with pytest.raises(NotImplementedError):
+        transport.emit(_build_joinpoint(), context={}, return_none_when_empty=True)
 
 
 # ---------------------------------------------------------------------------
