@@ -3,7 +3,7 @@
 from .adapter import OpenClawAdapter
 from .config import OpenClawAdapterConfig
 from .events import OpenClawEvent, OpenClawEventName
-from .hooks import InstalledHooks, OpenClawHost, install_hooks
+from .hooks import InstalledHooks, OpenClawHost, RuntimeLike, install_hooks
 from .injector import OpenClawInjector
 from .joinpoint_map import OPENCLAW_EVENT_MAP, lookup_joinpoint
 from .memory_bridge import OpenClawMemoryBridge, OpenClawMemoryEvent
@@ -23,6 +23,7 @@ __all__ = [
     "OpenClawMemoryEvent",
     "OpenClawSpanExtractor",
     "OpenClawToolGuard",
+    "RuntimeLike",
     "ToolGuardOutcome",
     "install_hooks",
     "lookup_joinpoint",
