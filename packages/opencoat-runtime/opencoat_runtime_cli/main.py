@@ -14,7 +14,15 @@ from collections.abc import Callable
 from types import SimpleNamespace
 
 from . import __version__
-from .commands import concern_cmd, dcn_cmd, inspect_cmd, plugin_cmd, replay_cmd, runtime_cmd
+from .commands import (
+    concern_cmd,
+    dcn_cmd,
+    demo_cmd,
+    inspect_cmd,
+    plugin_cmd,
+    replay_cmd,
+    runtime_cmd,
+)
 
 # Rendered once with ``pyfiglet -f big OpenCOAT`` (author-time only — no
 # runtime dependency on pyfiglet).
@@ -39,6 +47,7 @@ COMMANDS: tuple[CommandRegistrar, ...] = (
     replay_cmd.register,
     inspect_cmd.register,
     plugin_cmd.register,
+    demo_cmd.register,
 )
 
 
