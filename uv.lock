@@ -1115,21 +1115,17 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-http = [
-    { name = "httpx" },
-]
 langgraph = [
     { name = "langgraph" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "httpx", marker = "extra == 'http'", specifier = ">=0.27" },
     { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=0.2" },
     { name = "opencoat-runtime", editable = "packages/opencoat-runtime" },
     { name = "opencoat-runtime-protocol", editable = "packages/opencoat-runtime-protocol" },
 ]
-provides-extras = ["http", "openclaw", "hermes", "langgraph", "autogen", "crewai"]
+provides-extras = ["openclaw", "hermes", "langgraph", "autogen", "crewai"]
 
 [[package]]
 name = "opencoat-runtime-protocol"

@@ -26,8 +26,13 @@ ipc:
   unix_socket:
     enabled: false
     path: /run/opencoat.sock
+  # HTTP JSON-RPC is the default transport for `opencoat runtime up`,
+  # `opencoat concern …`, `opencoat dcn …`, and any first-party host SDK
+  # using `Client.connect("http://…")`. Disable explicitly for embedded
+  # single-process usage (see ADR 0005); the in-proc dispatcher remains
+  # available regardless.
   http:
-    enabled: false
+    enabled: true
     host: 127.0.0.1
     port: 7878
   grpc:

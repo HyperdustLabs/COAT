@@ -41,8 +41,6 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# Host-SDK transports
-http      = ["httpx>=0.27"]
 # Framework adapters — pull in the framework only if you actually use it
 openclaw  = []
 hermes    = []
