@@ -176,6 +176,19 @@ M4 daemon: http://127.0.0.1:7878/rpc  (status: healthy, llm: stub-fallback (degr
 The fastest path from "just installed" to "real provider":
 
 ```bash
+# Guided (writes ~/.opencoat/daemon.yaml + ~/.opencoat/opencoat.env, then prints next steps)
+opencoat configure llm
+# In the same shell before `runtime up`, load the env file the wizard created:
+#   set -a && source ~/.opencoat/opencoat.env && set +a
+
+# Or non-interactive / CI:
+opencoat configure llm --non-interactive --provider openai --openai-api-key "$OPENAI_API_KEY"
+set -a && source ~/.opencoat/opencoat.env && set +a
+```
+
+Manual path (same end state if you prefer not to use the wizard):
+
+```bash
 # 1. export your provider key
 export OPENAI_API_KEY=sk-...
 
