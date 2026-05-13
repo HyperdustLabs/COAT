@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from opencoat_runtime_core import OpenCOATRuntime
 from opencoat_runtime_core.llm import StubLLMClient
-from opencoat_runtime_daemon import build_runtime
+from opencoat_runtime_daemon import LLMInfo, build_runtime
 from opencoat_runtime_daemon.config import load_config
 from opencoat_runtime_daemon.ipc.jsonrpc_dispatch import JsonRpcHandler
 from opencoat_runtime_protocol import (
@@ -57,7 +57,7 @@ def _jp() -> JoinpointEvent:
 @pytest.fixture
 def handler() -> JsonRpcHandler:
     with build_runtime(load_config(), env={}) as built:
-        yield JsonRpcHandler(built.runtime)
+        yield JsonRpcHandler(built.runtime, llm_info=built.llm_info)
 
 
 def _req(method: str, params: object | None = None, *, req_id: object = 1) -> dict:
@@ -461,3 +461,84 @@ class TestConcernExtractLLMFailures:
         reason = out["result"]["rejected"][0]["reason"]
         assert "RuntimeError" in reason
         assert "provider unreachable" in reason
+
+
+# ---------------------------------------------------------------------------
+# runtime.llm_info  (release-readiness — surface real-vs-stub to callers)
+# ---------------------------------------------------------------------------
+
+
+class TestRuntimeLlmInfo:
+    """``runtime.llm_info`` — the wire surface CLI / banner use to warn
+    operators when the daemon ended up on stub-fallback.
+
+    Pinned contracts:
+
+    1. Shape is ``{label, kind, real, requested, hint}`` — every key
+       always present so dashboards and the CLI don't need to guard
+       against missing fields.
+    2. With the default config + empty env we get ``stub-fallback``
+       and a non-empty hint pointing at the env vars to set.
+    3. With an explicit ``provider: stub`` we get plain ``stub`` and
+       no hint (deliberate choice, no nag).
+    4. Handlers built without an ``llm_info=`` kwarg fall back to the
+       ``unknown`` sentinel rather than crashing — this is the path
+       embedded tests / older callers take.
+    """
+
+    def test_shape_with_default_config_and_no_env(self, handler: JsonRpcHandler) -> None:
+        out = handler.handle(_req("runtime.llm_info"))
+        assert "error" not in out
+        info = out["result"]
+        assert set(info) == {"label", "kind", "real", "requested", "hint"}
+        # Default config = ``provider: auto``; empty env → stub-fallback.
+        assert info["label"] == "stub-fallback"
+        assert info["kind"] == "stub"
+        assert info["real"] is False
+        assert info["requested"] == "auto"
+        assert "OPENAI_API_KEY" in info["hint"]
+
+    def test_explicit_stub_provider_no_hint(self) -> None:
+        from opencoat_runtime_daemon.config.loader import LLMSettings
+
+        cfg = load_config()
+        cfg = cfg.model_copy(update={"llm": LLMSettings(provider="stub")})
+        with build_runtime(cfg, env={}) as built:
+            h = JsonRpcHandler(built.runtime, llm_info=built.llm_info)
+            info = h.handle(_req("runtime.llm_info"))["result"]
+        assert info["label"] == "stub"
+        assert info["kind"] == "stub"
+        assert info["real"] is False
+        assert info["requested"] == "stub"
+        # Deliberate stub choice → no nag.
+        assert info["hint"] == ""
+
+    def test_handler_without_llm_info_returns_unknown_sentinel(self) -> None:
+        with build_runtime(load_config(), env={}) as built:
+            h = JsonRpcHandler(built.runtime)  # no llm_info kwarg
+        info = h.handle(_req("runtime.llm_info"))["result"]
+        assert info["kind"] == "unknown"
+        assert info["real"] is False
+        assert "JsonRpcHandler" in info["hint"]
+
+    def test_passes_real_provider_info_through(self) -> None:
+        # The dispatcher must not lose info between build → handler.
+        # We build with a synthetic real-provider LLMInfo and check
+        # the wire surfaces it verbatim.
+        with build_runtime(load_config(), env={}) as built:
+            real = LLMInfo(
+                label="openai/gpt-4o-mini",
+                kind="openai",
+                real=True,
+                requested="auto",
+                hint="",
+            )
+            h = JsonRpcHandler(built.runtime, llm_info=real)
+        info = h.handle(_req("runtime.llm_info"))["result"]
+        assert info == {
+            "label": "openai/gpt-4o-mini",
+            "kind": "openai",
+            "real": True,
+            "requested": "auto",
+            "hint": "",
+        }

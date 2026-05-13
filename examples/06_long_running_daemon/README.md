@@ -80,6 +80,25 @@ opencoat dcn activation-log --port 17890
 opencoat dcn export   --format dot --port 17890 -o /tmp/dcn.dot
 ```
 
+## Use a real LLM
+
+This example uses the bundled `default.yaml`, which now ships with
+`llm.provider: auto` — set `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`, or
+`AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_DEPLOYMENT`) before starting and
+the daemon picks up a real provider automatically; the banner shows it:
+
+```bash
+export OPENAI_API_KEY=sk-...
+uv run python -m examples.06_long_running_daemon.main --keep-running --port 17890
+# elsewhere:
+opencoat inspect joinpoints --port 17890 | head -1
+# → M4 daemon: http://127.0.0.1:17890/rpc  (status: healthy, llm: openai/gpt-4o-mini)
+```
+
+For a fully annotated daemon config sample (sqlite storage, telemetry,
+per-provider knobs), see
+[`docs/config/daemon.yaml.example`](../../docs/config/daemon.yaml.example).
+
 ## Why is this in `examples/` and not `tests/`?
 
 It is *both*. `tests/integration/test_example_long_running_daemon.py`

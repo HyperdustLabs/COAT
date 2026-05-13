@@ -50,7 +50,11 @@ def test_default_config_loads() -> None:
     cfg = load_config()
     assert cfg.runtime.schema_version == "0.2"
     assert cfg.storage.concern_store.kind == "memory"
-    assert cfg.llm.provider == "stub"
+    # Default flipped from "stub" to "auto" so a fresh install picks
+    # whichever real provider's creds are present (falling back to
+    # stub with a loud warning if none). See ADR 0010 (LLM auto-
+    # detection) and docs/config/daemon.yaml.example.
+    assert cfg.llm.provider == "auto"
     assert cfg.ipc.inproc.enabled is True
 
 

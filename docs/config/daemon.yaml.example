@@ -1,0 +1,143 @@
+# =============================================================================
+# OpenCOAT Runtime — daemon configuration (annotated production sample)
+# =============================================================================
+#
+# Save this file anywhere (commonly ~/.opencoat/daemon.yaml) and start the
+# daemon with:
+#
+#     opencoat runtime up --config ~/.opencoat/daemon.yaml
+#
+# The bundled default (packages/opencoat-runtime/opencoat_runtime_daemon/
+# config/default.yaml) is the canonical reference for every setting; this
+# file shows the values most operators want to override and explains what
+# each one means in plain English.
+#
+# Precedence (high → low):
+#
+#     CLI flags  >  OPENCOAT_* env vars  >  this file  >  bundled default
+#
+# So any field you omit here just falls through to the bundled default.
+
+# -----------------------------------------------------------------------------
+# 1. Runtime — turn-loop budgets and the heartbeat cadence
+# -----------------------------------------------------------------------------
+runtime:
+  schema_version: "0.2"
+  loops:
+    # How often the heartbeat worker runs DCN maintenance (lifecycle
+    # transitions, decay, archiving). 30s is plenty for human-scale
+    # agents; tighten to 5–10s for high-traffic deployments.
+    heartbeat_interval_seconds: 30
+  budgets:
+    # How many concerns can be active in one Concern Vector. Above
+    # this the coordinator drops the lowest-priority ones.
+    max_active_concerns: 12
+    # Token budget the weaver gets when projecting advice into the
+    # host prompt. Stay under ~10% of the host's prompt window.
+    max_injection_tokens: 800
+    # Per-concern advice cap — keeps any one concern from monopolising
+    # the injection.
+    max_advice_per_concern: 2
+
+# -----------------------------------------------------------------------------
+# 2. Storage — where concerns and DCN history live
+# -----------------------------------------------------------------------------
+#
+# Default is ``memory`` for both stores (great for the M1 demo, useless for
+# production). Flip them to ``sqlite`` and persistence + replay just work
+# (M3 milestone).
+storage:
+  concern_store:
+    kind: sqlite
+    # Tilde and $HOME expansion both work. Use an absolute path in
+    # production deployments so the daemon doesn't accidentally
+    # write to $CWD.
+    path: ~/.opencoat/concerns.sqlite
+  dcn_store:
+    kind: sqlite
+    path: ~/.opencoat/dcn.sqlite
+
+# -----------------------------------------------------------------------------
+# 3. LLM — the brain behind ConcernExtractor + AdviceGenerator
+# -----------------------------------------------------------------------------
+#
+# ``auto`` (the default since the v0.1 release) probes the environment for
+# the first available real provider, in this order:
+#
+#     1. OPENAI_API_KEY                                 → openai
+#     2. ANTHROPIC_API_KEY                              → anthropic
+#     3. AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT → azure
+#
+# If none of those env vars are present the daemon falls back to a stub LLM
+# and logs a WARNING — every LLM-driven path (concern extract, advice
+# generation) then returns empty results. The CLI banner shows ``llm:
+# stub-fallback (degraded — …)`` so you can't miss it.
+#
+# Operators who want the daemon to *refuse* to start without credentials
+# should pin the provider explicitly here (``provider: openai`` etc.); the
+# fallback only fires for ``provider: auto``.
+llm:
+  provider: auto
+  # Per-request timeout for every provider call (extraction, advice,
+  # verification). Raise for slow corporate proxies / Azure deployments.
+  timeout_seconds: 30
+
+  # ---- Per-provider knobs (only the matched provider's keys are read) ----
+  #
+  # Any of these can also be sourced from the environment — see the
+  # comments next to each.
+
+  # OpenAI ---------------------------------------------------------------
+  # model:    gpt-4o-mini             # or OPENAI_MODEL
+  # api_key:  null                    # prefer OPENAI_API_KEY in env
+  # base_url: null                    # OPENAI_BASE_URL — for vLLM /
+  #                                   # OpenRouter / TogetherAI / etc.
+
+  # Anthropic ------------------------------------------------------------
+  # model:    claude-3-5-haiku-latest # or ANTHROPIC_MODEL
+  # api_key:  null                    # prefer ANTHROPIC_API_KEY
+  # base_url: null                    # ANTHROPIC_BASE_URL
+
+  # Azure OpenAI ---------------------------------------------------------
+  # deployment:  null                 # or AZURE_OPENAI_DEPLOYMENT
+  # endpoint:    null                 # or AZURE_OPENAI_ENDPOINT
+  # api_key:     null                 # or AZURE_OPENAI_API_KEY
+  # api_version: "2024-10-21"         # or AZURE_OPENAI_API_VERSION /
+  #                                   # OPENAI_API_VERSION
+
+# -----------------------------------------------------------------------------
+# 4. IPC — how hosts talk to the daemon
+# -----------------------------------------------------------------------------
+ipc:
+  inproc:
+    enabled: true
+  unix_socket:
+    enabled: false
+    path: /run/opencoat.sock
+  # HTTP JSON-RPC is the default transport for everything the host SDK
+  # and CLI talk to. Disable explicitly only for pure-embedded use
+  # (see ADR 0005).
+  http:
+    enabled: true
+    host: 127.0.0.1   # use 0.0.0.0 only with auth in front (reverse proxy)
+    port: 7878
+    path: /rpc
+  grpc:
+    enabled: false
+
+# -----------------------------------------------------------------------------
+# 5. Observability
+# -----------------------------------------------------------------------------
+observability:
+  log_level: INFO
+  # OpenTelemetry OTLP endpoint — wires runtime spans/metrics into your
+  # collector. Leave null to keep logging local.
+  otel_endpoint: null
+
+# -----------------------------------------------------------------------------
+# 6. Plugins — out-of-tree hosts / matchers / advisors
+# -----------------------------------------------------------------------------
+plugins:
+  hosts: []      # e.g. ["openclaw", "langgraph"]
+  matchers: []
+  advisors: []

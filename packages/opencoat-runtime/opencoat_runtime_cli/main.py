@@ -12,6 +12,7 @@ import os
 import sys
 from collections.abc import Callable
 from types import SimpleNamespace
+from typing import Any
 
 from . import __version__
 from .commands import (
@@ -79,7 +80,14 @@ def _should_render_banner(stream, *, no_banner: bool) -> bool:
 
 
 def _daemon_status_line() -> str:
-    """One-line summary: default HTTP endpoint + ``health.ping`` outcome."""
+    """One-line summary: default HTTP endpoint + ``health.ping`` outcome + LLM kind.
+
+    When the daemon is up we also probe ``runtime.llm_info`` so a stub-
+    fallback shows up in the very first banner the operator sees,
+    instead of being a mystery several commands later. The probe is
+    best-effort: an older daemon predating that RPC (or a transient
+    error) just elides the ``llm: …`` suffix.
+    """
     from opencoat_runtime_cli._http import resolve_endpoint
     from opencoat_runtime_cli.transport import (
         HttpRpcCallError,
@@ -91,6 +99,7 @@ def _daemon_status_line() -> str:
     ns = SimpleNamespace(host=None, port=None, path=None, config=None)
     host, port, path = resolve_endpoint(ns)
     client = HttpRpcClient(host=host, port=port, path=path, timeout=0.4)
+    llm_suffix = ""
     try:
         result = client.call("health.ping")
     except HttpRpcConnectionError:
@@ -102,9 +111,38 @@ def _daemon_status_line() -> str:
     else:
         if isinstance(result, dict) and result.get("ok") is True:
             status = "healthy"
+            llm_suffix = _daemon_llm_suffix(client)
         else:
             status = "unknown_response"
-    return f"M4 daemon: {client.endpoint}  (status: {status})"
+    return f"M4 daemon: {client.endpoint}  (status: {status}{llm_suffix})"
+
+
+def _daemon_llm_suffix(client: Any) -> str:
+    """Build the ``, llm: …`` suffix from a probe of ``runtime.llm_info``.
+
+    Always returns a string starting with ``", "`` (or empty when the
+    probe fails). Centralised here so the banner can stay one-line.
+
+    ``client`` is typed as :class:`~typing.Any` because the banner
+    code uses a real :class:`HttpRpcClient` in production but the
+    banner test injects a small duck-typed double so the suite
+    doesn't need a live HTTP server just to exercise the
+    "old daemon, no ``runtime.llm_info``" path.
+    """
+    from opencoat_runtime_cli.transport import HttpRpcError
+
+    try:
+        info = client.call("runtime.llm_info", {})
+    except HttpRpcError:
+        return ""
+    if not isinstance(info, dict):
+        return ""
+    label = str(info.get("label") or "?")
+    if info.get("real") is False:
+        # Surface stub / stub-fallback with a visual warn so the
+        # operator can't miss it even under banner clutter.
+        return f", llm: {label} (degraded — no real provider wired)"
+    return f", llm: {label}"
 
 
 def _profile_and_host_plugins_line() -> str:

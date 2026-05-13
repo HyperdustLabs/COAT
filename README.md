@@ -151,6 +151,57 @@ OpenRouter, TogetherAI, …) by setting `base_url=`. See
 [`packages/opencoat-runtime/README.md`](packages/opencoat-runtime/README.md)
 for the full surface.
 
+### Run the daemon for real
+
+For anything beyond hermetic demos you'll want a persistent daemon talking
+to a real LLM. The daemon ships with `llm.provider: auto` by default — at
+startup it picks the first provider whose credentials are present in the
+environment:
+
+| Env var(s)                                                | Picked      |
+| --------------------------------------------------------- | ----------- |
+| `OPENAI_API_KEY`                                          | `openai`    |
+| `ANTHROPIC_API_KEY`                                       | `anthropic` |
+| `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_DEPLOYMENT`        | `azure`     |
+| _(none of the above)_                                     | `stub-fallback` (logs a WARNING — concern extraction returns 0 candidates) |
+
+The CLI banner surfaces the chosen provider on every command so you can't
+miss a degraded daemon:
+
+```text
+M4 daemon: http://127.0.0.1:7878/rpc  (status: healthy, llm: openai/gpt-4o-mini)
+M4 daemon: http://127.0.0.1:7878/rpc  (status: healthy, llm: stub-fallback (degraded — no real provider wired))
+```
+
+The fastest path from "just installed" to "real provider":
+
+```bash
+# 1. export your provider key
+export OPENAI_API_KEY=sk-...
+
+# 2. (optional) drop a config file — only needed for non-default settings
+mkdir -p ~/.opencoat
+cp docs/config/daemon.yaml.example ~/.opencoat/daemon.yaml
+$EDITOR ~/.opencoat/daemon.yaml      # flip storage to sqlite, set log level, …
+
+# 3. start the daemon — picks up the key automatically
+opencoat runtime up --config ~/.opencoat/daemon.yaml
+
+# 4. confirm the right LLM was wired
+opencoat inspect joinpoints | head -1
+# → M4 daemon: http://127.0.0.1:7878/rpc  (status: healthy, llm: openai/gpt-4o-mini)
+```
+
+[`docs/config/daemon.yaml.example`](docs/config/daemon.yaml.example) is a
+fully annotated production sample. The complete provider knob list lives in
+that file and in [`packages/opencoat-runtime/README.md`](packages/opencoat-runtime/README.md).
+
+To force a specific provider (so the daemon refuses to start without a
+key), set `llm.provider: openai` (or `anthropic` / `azure`) instead of
+`auto` in the config. To deliberately run on the stub (hermetic CI,
+examples) set `llm.provider: stub` — the WARNING and the banner badge
+both go quiet for that explicit choice.
+
 ---
 
 ## Contributing
