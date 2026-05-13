@@ -635,6 +635,80 @@ class TestApplyTo:
         out = installed.apply_to(ctx)
         assert out == ctx
 
+    def test_apply_to_deep_copies_context_on_noop_path(self) -> None:
+        """Codex P2 regression — when ``apply_to`` has no applicable
+        rows (empty buffer, ``joinpoint=`` filtered out everything,
+        or only tool-guard rows present) it still must hand back a
+        dict the caller can mutate without leaking changes back to
+        ``context``.
+
+        A shallow ``dict(context)`` would only clone the top level,
+        so nested dicts (a real-world prompt context always nests
+        ``runtime_prompt.*`` under one node) stay aliased between
+        ``context`` and the return value — later mutation of the
+        return value silently corrupts the caller's original.
+        """
+        host = FakeHost()
+        installed = install_hooks(host, runtime=_FakeRuntime())
+
+        original: dict[str, Any] = {
+            "runtime_prompt": {"active_concerns": "kept", "system": "be brief"},
+            "memory_write": {"policy_note": ""},
+        }
+        out = installed.apply_to(original)
+
+        # Mutate every nested slot in ``out``. None of these must
+        # show up in ``original``.
+        out["runtime_prompt"]["active_concerns"] = "MUTATED"
+        out["runtime_prompt"]["system"] = "MUTATED"
+        out["memory_write"]["policy_note"] = "MUTATED"
+        out["new_top_level"] = {"x": 1}
+
+        assert original == {
+            "runtime_prompt": {"active_concerns": "kept", "system": "be brief"},
+            "memory_write": {"policy_note": ""},
+        }
+
+    def test_apply_to_deep_copies_when_joinpoint_filter_excludes_all(
+        self,
+    ) -> None:
+        """Same contract holds when there IS a buffered injection but
+        ``joinpoint=`` filters it out — the no-op deep-copy branch
+        must still fire.
+        """
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "n")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+        assert len(installed.pending) == 1
+
+        original: dict[str, Any] = {"runtime_prompt": {"active_concerns": "kept"}}
+        out = installed.apply_to(original, joinpoint="runtime_start")
+
+        out["runtime_prompt"]["active_concerns"] = "MUTATED"
+        assert original["runtime_prompt"]["active_concerns"] == "kept"
+
+    def test_apply_to_deep_copies_when_only_tool_guard_rows_buffered(
+        self,
+    ) -> None:
+        """Same contract when the buffer is non-empty but every entry
+        is a ``before_tool_call`` row (skipped by ``apply_to`` since
+        ``guard_tool_call`` is the canonical surface for those).
+        """
+        host = FakeHost()
+        runtime = _FakeRuntime({"before_tool_call": _tool_guard_injection()})
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
+        assert len(installed.pending) == 1
+
+        original: dict[str, Any] = {"runtime_prompt": {"active_concerns": "kept"}}
+        out = installed.apply_to(original)
+
+        out["runtime_prompt"]["active_concerns"] = "MUTATED"
+        assert original["runtime_prompt"]["active_concerns"] == "kept"
+
 
 class TestGuardToolCall:
     def test_returns_outcome_for_buffered_tool_guard_injection(self) -> None:

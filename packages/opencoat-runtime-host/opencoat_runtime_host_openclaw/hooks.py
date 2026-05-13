@@ -73,6 +73,7 @@ long-running daemons that re-bind hosts on reload.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
@@ -253,12 +254,24 @@ class InstalledHooks:
 
         Returns
         -------
-        A new context dict — :meth:`OpenClawAdapter.apply_injection`
-        deep-copies ``context`` before mutating, so the caller's
-        original is never touched.
+        A new context dict that the caller can freely mutate without
+        leaking changes back to ``context``. Two code paths uphold
+        this contract:
+
+        * **At least one applicable row** — the returned dict comes
+          from :meth:`OpenClawAdapter.apply_injection`, which already
+          deep-copies its input. We pass the caller's dict through
+          unchanged and rely on that.
+        * **No applicable rows** (buffer empty, every entry filtered
+          out by ``joinpoint=``, or only tool-guard rows present) —
+          ``apply_injection`` is never called, so we run an explicit
+          :func:`copy.deepcopy` here. Without it, ``dict(context)``
+          would only clone the top level and the caller's nested
+          slots (e.g. ``context["runtime_prompt"]``) would remain
+          aliased through the return value (Codex P2 on PR #47).
         """
-        out: dict[str, Any] = dict(context) if context else {}
         kept: list[PendingInjection] = []
+        applicable: list[PendingInjection] = []
         for entry in self._pending:
             if joinpoint is not None and entry.joinpoint.name != joinpoint:
                 kept.append(entry)
@@ -270,7 +283,18 @@ class InstalledHooks:
             if entry.joinpoint.name in _TOOL_GUARD_JOINPOINTS:
                 kept.append(entry)
                 continue
-            out = self.adapter.apply_injection(entry.injection, out)
+            applicable.append(entry)
+
+        if applicable:
+            # ``adapter.apply_injection`` deep-copies internally — no
+            # need to clone here, which would just produce a doubly-
+            # copied intermediate dict.
+            out: dict[str, Any] = dict(context) if context else {}
+            for entry in applicable:
+                out = self.adapter.apply_injection(entry.injection, out)
+        else:
+            out = copy.deepcopy(context) if context else {}
+
         if drain:
             self._pending[:] = kept
         return out
