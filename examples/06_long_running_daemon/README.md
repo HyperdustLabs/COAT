@@ -1,9 +1,9 @@
 # 06 — Long-running daemon (M4 PR-23)
 
 End-to-end demo of the M4 stack: a real
-[`opencoat_runtime_daemon.Daemon`](../../packages/opencoat-runtime-daemon/opencoat_runtime_daemon/daemon.py)
+[`opencoat_runtime_daemon.Daemon`](../../packages/opencoat-runtime/opencoat_runtime_daemon/daemon.py)
 serving JSON-RPC over HTTP, driven from the same
-[`HttpRpcClient`](../../packages/opencoat-runtime-cli/opencoat_runtime_cli/transport.py)
+[`HttpRpcClient`](../../packages/opencoat-runtime/opencoat_runtime_cli/transport.py)
 that backs `opencoat concern` / `opencoat dcn` / `opencoat runtime status`. If
 this example runs green, PR-17 through PR-22 compose correctly.
 
@@ -37,7 +37,7 @@ examples/06_long_running_daemon/
    * `runtime.snapshot` — the same shape `opencoat runtime status`
      surfaces under the hood
 5. Optionally renders the activation snapshot via
-   [`dcn_to_dot`](../../packages/opencoat-runtime-cli/opencoat_runtime_cli/visualize/dcn_dot.py)
+   [`dcn_to_dot`](../../packages/opencoat-runtime/opencoat_runtime_cli/visualize/dcn_dot.py)
    to a `.dot` file (`--dot-out`).
 6. `Daemon.stop()` drains HTTP, closes sqlite, and releases the PID
    file.

@@ -9,7 +9,7 @@ from .injection_consumer import InjectionConsumer
 from .joinpoint_emitter import JoinpointEmitter
 
 try:
-    __version__ = _version("opencoat-runtime-host-sdk")
+    __version__ = _version("opencoat-runtime-host")
 except PackageNotFoundError:
     __version__ = "0.0.0"
 

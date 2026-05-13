@@ -19,7 +19,7 @@ from .errors import (
 from .runtime import OpenCOATRuntime
 
 try:
-    __version__ = _version("opencoat-runtime-core")
+    __version__ = _version("opencoat-runtime")
 except PackageNotFoundError:
     __version__ = "0.0.0"
 

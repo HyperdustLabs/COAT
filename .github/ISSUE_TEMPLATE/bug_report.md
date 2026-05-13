@@ -15,7 +15,8 @@ Minimal `pytest` test, code snippet, or `opencoat` invocation.
 
 **Versions**
 
-- opencoat-runtime-core: …
+- opencoat-runtime: … (output of `opencoat --version`)
+- opencoat-runtime-host: … (if the bug is host-side)
 - Python: …
 - OS: …
 

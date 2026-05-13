@@ -1,15 +1,13 @@
 [project]
-name = "opencoat-runtime-host-plugins"
+name = "opencoat-runtime-host"
 version = "0.1.0"
-description = "First-party host adapters for the OpenCOAT Runtime: openclaw, hermes, langgraph, autogen, crewai, custom."
+description = "Host-side integration for OpenCOAT Runtime — joinpoint emitter, injection consumer, and first-party framework adapters (openclaw, hermes, langgraph, autogen, crewai, custom)."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{ name = "HyperdustLabs" }]
 dependencies = [
     "opencoat-runtime-protocol>=0.1.0,<0.2.0",
-    "opencoat-runtime-core>=0.1.0,<0.2.0",
-    "opencoat-runtime-host-sdk>=0.1.0,<0.2.0",
 ]
 keywords = [
     "opencoat",
@@ -20,6 +18,7 @@ keywords = [
     "pointcut",
     "weaving",
     "dcn",
+    "host-adapter",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -34,6 +33,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+# Host-SDK transports
+http      = ["httpx>=0.27"]
+# Framework adapters — pull in the framework only if you actually use it
 openclaw  = []
 hermes    = []
 langgraph = ["langgraph>=0.2"]
@@ -41,23 +43,23 @@ autogen   = []
 crewai    = []
 
 [project.urls]
-Homepage = "https://github.com/HyperdustLabs/OpenCOAT"
-Repository = "https://github.com/HyperdustLabs/OpenCOAT"
-Issues = "https://github.com/HyperdustLabs/OpenCOAT/issues"
+Homepage      = "https://github.com/HyperdustLabs/OpenCOAT"
+Repository    = "https://github.com/HyperdustLabs/OpenCOAT"
+Issues        = "https://github.com/HyperdustLabs/OpenCOAT/issues"
 Documentation = "https://github.com/HyperdustLabs/OpenCOAT/tree/main/docs"
-Changelog = "https://github.com/HyperdustLabs/OpenCOAT/releases"
+Changelog     = "https://github.com/HyperdustLabs/OpenCOAT/releases"
+
 [build-system]
-requires = [
-    "hatchling>=1.27",
-]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = [
-  "opencoat_runtime_host_openclaw",
-  "opencoat_runtime_host_hermes",
-  "opencoat_runtime_host_langgraph",
-  "opencoat_runtime_host_autogen",
-  "opencoat_runtime_host_crewai",
-  "opencoat_runtime_host_custom",
+    "opencoat_runtime_host_sdk",
+    "opencoat_runtime_host_openclaw",
+    "opencoat_runtime_host_hermes",
+    "opencoat_runtime_host_langgraph",
+    "opencoat_runtime_host_autogen",
+    "opencoat_runtime_host_crewai",
+    "opencoat_runtime_host_custom",
 ]

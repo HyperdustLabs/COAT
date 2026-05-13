@@ -45,7 +45,7 @@ a digit.
 
 The DX sprint ships an opt-in set of three demo concerns that exercise
 the three most visible injection paths in one shot. They live inside
-`opencoat-runtime-cli` (no new package) and are loaded into a running
+`opencoat_runtime_cli` (no new package) and are loaded into a running
 daemon with one flag:
 
 ```bash

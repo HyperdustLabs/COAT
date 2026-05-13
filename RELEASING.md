@@ -1,150 +1,89 @@
 # Releasing OpenCOAT
 
-How to cut a new version of all 8 `opencoat-runtime-*` packages.
+How to cut a new version of the 3 OpenCOAT packages.
 
-CI does the heavy lifting (`.github/workflows/release.yml`); the human
-work is concentrated in the **first-time PyPI setup** below. After
-that, every release is `git tag vX.Y.Z && git push --tags`.
+| Package                       | Role                                       |
+| ----------------------------- | ------------------------------------------ |
+| `opencoat-runtime-protocol`   | JSON Schemas + pydantic envelopes (contract) |
+| `opencoat-runtime`            | runtime stack: core + storage + llm + daemon + CLI |
+| `opencoat-runtime-host`       | host SDK + first-party framework adapters  |
 
----
-
-## 0. First-time PyPI setup (one-shot, before v0.1.0)
-
-These steps need to happen exactly once, by an account with admin
-rights on `HyperdustLabs/OpenCOAT` and a working PyPI account. After
-this is done, every future release is hands-off.
-
-### 0.1. Create a PyPI account
-
-1. Register at <https://pypi.org/account/register/>
-   (use a HyperdustLabs-owned email so the account can be transferred
-   to the org later).
-2. **Enable 2FA** — required for any new account since 2024-01-01.
-3. Repeat for TestPyPI: <https://test.pypi.org/account/register/>
-   (separate account; same email is fine).
-
-### 0.2. Pre-register 8 Pending Publishers (Trusted Publishing, OIDC)
-
-For each of the 8 package names, in **both** PyPI and TestPyPI:
-
-1. Go to <https://pypi.org/manage/account/publishing/>
-   (and <https://test.pypi.org/manage/account/publishing/>).
-2. "Add a new pending publisher".
-3. Fill the form:
-
-   | Field | Value |
-   | --- | --- |
-   | PyPI Project Name | one of the 8 names below (one row per project) |
-   | Owner | `HyperdustLabs` |
-   | Repository name | `OpenCOAT` |
-   | Workflow filename | `release.yml` |
-   | Environment name | `pypi` (on PyPI) / `testpypi` (on TestPyPI) |
-
-The 8 project names:
-
-```text
-opencoat-runtime-protocol
-opencoat-runtime-core
-opencoat-runtime-storage
-opencoat-runtime-llm
-opencoat-runtime-host-sdk
-opencoat-runtime-host-plugins
-opencoat-runtime-daemon
-opencoat-runtime-cli
-```
-
-That's **16 forms total** (8 projects × 2 indexes). Each takes ~30
-seconds. They become real publishers the first time the workflow
-publishes a wheel for that name.
-
-### 0.3. Create the two GitHub Environments
-
-In `HyperdustLabs/OpenCOAT` → Settings → Environments:
-
-1. **`testpypi`** — no protection rules. Used by `workflow_dispatch`.
-2. **`pypi`** — strongly recommended: add yourself as a required
-   reviewer so prod publishes always need a manual approval click.
-   Optional: restrict to `refs/tags/v*` deployment branches.
-
-The workflow references both environments by name; if they don't
-exist the publish job fails fast with a clear "environment not
-configured" error.
-
-### 0.4. Reserve the names with a TestPyPI smoke test
-
-```text
-GitHub → Actions → Release → Run workflow → target: testpypi
-```
-
-This builds all 8 wheels, runs `twine check`, and publishes them
-to TestPyPI. The Pending Publishers from step 0.2 turn into real
-publishers on this push, and the names are reserved.
-
-Verify in a clean venv:
-
-```bash
-python -m venv /tmp/oc-test-install
-/tmp/oc-test-install/bin/pip install \
-  --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
-  opencoat-runtime-cli
-/tmp/oc-test-install/bin/opencoat --version
-```
-
-(`--extra-index-url` falls back to real PyPI for transitive deps
-like `pydantic`, which TestPyPI doesn't necessarily mirror.)
-
-If anything goes wrong here, **stop and fix before tagging** — the
-prod PyPI step can't undo a bad upload.
+All three are versioned in lockstep: a release bumps every `pyproject.toml`
+to the same `X.Y.Z` and tags `vX.Y.Z`.
 
 ---
 
-## 1. Cutting a release (every time)
+## 0. One-time PyPI setup (~5 min)
 
-Once 0.1–0.4 are done, every release is:
+1. **Create a PyPI account** at <https://pypi.org/account/register/> with a
+   HyperdustLabs-owned email. Enable 2FA (required since 2024-01-01).
+
+2. **Generate an API token** at
+   <https://pypi.org/manage/account/token/>:
+   * Token name: `OpenCOAT release CI`
+   * Scope: **Entire account** (the 3 projects don't exist yet — narrow this
+     down to project-scoped after the first publish lands).
+
+3. **Add the token to GitHub Actions** at
+   <https://github.com/HyperdustLabs/OpenCOAT/settings/secrets/actions>:
+   * Name: `PYPI_API_TOKEN`
+   * Value: the `pypi-…` string from step 2.
+
+That's it. No Trusted Publishing, no TestPyPI smoke test, no GitHub
+Environments. Those are reasonable upgrades for v0.3+ once the
+release cadence stabilises — see §Future.
+
+---
+
+## 1. Cutting a release (~5 min)
 
 ```bash
-# pre-flight on a clean checkout of main
+# 0. clean checkout of main, fully synced
+git checkout main && git pull
 bash scripts/verify.sh
 
-# decide the version. SemVer:
-#   0.1.0 → 0.1.1   patch (bugfix, no API change)
-#   0.1.0 → 0.2.0   minor (additive API, breaking only inside same major)
-#   0.1.0 → 1.0.0   major (breaking)
+# 1. bump every pyproject in lockstep (3 files)
+#    pick X.Y.Z per SemVer:
+#      0.1.0 → 0.1.1    patch (bugfix, no API change)
+#      0.1.0 → 0.2.0    minor (additive API)
+#      0.1.0 → 1.0.0    major (breaking)
+$EDITOR packages/opencoat-runtime-protocol/pyproject.toml \
+        packages/opencoat-runtime/pyproject.toml \
+        packages/opencoat-runtime-host/pyproject.toml
 
-# bump every pyproject.toml in lockstep — see scripts/_bump_to_010.py
-# for the pattern (a parameterised version of that lands in M6+ when
-# we automate this; today it's a focused find/replace).
+# 2. regenerate the lockfile
+uv lock
 
-# tag + push
-git tag v0.1.0
-git push origin v0.1.0
+# 3. commit + tag + push
+git commit -am "chore(release): v0.1.1"
+git tag v0.1.1
+git push origin main --tags
 ```
 
-The `release.yml` workflow then:
+CI (`.github/workflows/release.yml`) then:
 
-1. Builds all 8 wheels + sdists with `uv build`.
+1. Builds 3 wheels + 3 sdists with `uv build`.
 2. Runs `twine check` (PEP 639 metadata sanity).
-3. Uploads them to PyPI via OIDC (Trusted Publishing).
+3. `uv publish` uploads all 6 artefacts to PyPI in one call.
 
-Tag → PyPI is typically ~3–5 minutes end-to-end.
+Tag → PyPI is ~3 minutes.
 
 ---
 
-## 2. After the release lands
+## 2. Post-release verification
 
-1. Sanity check in a clean venv:
+```bash
+# fresh venv install — exercises the runtime + protocol install path
+pipx install --force "opencoat-runtime==X.Y.Z"
+opencoat --version
 
-   ```bash
-   pipx install --force "opencoat-runtime-cli==X.Y.Z"
-   opencoat --version
-   ```
+# host integrators
+pip install "opencoat-runtime-host==X.Y.Z[openclaw]"
+python -c "from opencoat_runtime_host_sdk import Client; print(Client)"
+```
 
-2. Cut a GitHub release with the auto-generated changelog at
-   <https://github.com/HyperdustLabs/OpenCOAT/releases/new?tag=vX.Y.Z>.
-
-3. If the major bumped, also bump the `compatible_with` minimum in
-   <https://github.com/HyperdustLabs/opencoat-skill/blob/main/skill.json>.
+Then cut a GitHub release with the auto-generated changelog at
+<https://github.com/HyperdustLabs/OpenCOAT/releases/new?tag=vX.Y.Z>.
 
 ---
 
@@ -152,25 +91,42 @@ Tag → PyPI is typically ~3–5 minutes end-to-end.
 
 | symptom | fix |
 | --- | --- |
-| Trusted Publishing fails with "no token" | the `id-token: write` permission or the environment name is missing — double-check `release.yml` |
+| `uv publish` fails with `400 Bad Request: File already exists` | someone already pushed this version. PyPI never lets you overwrite. Bump to the next patch. |
 | `twine check` complains about `License-Expression` | bump to `hatchling>=1.27` (PEP 639 native support) |
-| One package builds an empty wheel | `[tool.hatch.build.targets.wheel] packages = ["..."]` is missing or wrong; run `uv build` locally and `unzip -l dist/*.whl` to confirm |
-| Pin mismatch (cli wants core 0.1.x, only 0.2.0 on PyPI) | bump every `opencoat-runtime-*` pyproject in the same release; never publish a partial set |
-| TestPyPI 403 "no permission" | the Pending Publisher form had a typo (project name, env name, or filename) — re-check **all 16 forms** |
+| Wheel is empty | `[tool.hatch.build.targets.wheel] packages = [...]` is wrong; `uv build` locally + `unzip -l dist/*.whl` to confirm |
+| Version mismatch (one package on 0.2.0, others on 0.1.0) | always bump all 3 `pyproject.toml` files in the same commit |
+| `pipx install opencoat-runtime` pulls old version | run `pipx upgrade opencoat-runtime` or `pipx install --force` |
 
 ---
 
-## 4. PyPI org transfer (later, when HyperdustLabs becomes a PyPI org)
+## 4. Dry-run a release without tagging
 
-PyPI started rolling out Organizations in 2023. Today the safest path
-is "individual account → maintainer of org → projects transferred".
-When HyperdustLabs is registered as a PyPI org:
+```text
+GitHub → Actions → Release → Run workflow → dry_run: true
+```
 
-1. Add the org as a maintainer on each of the 8 projects.
-2. Transfer ownership project-by-project from the individual
-   account to the org.
-3. Update the Pending Publisher form for any new projects (the 8
-   existing ones keep working — Trusted Publishing is per-project,
-   not per-owner).
+Builds + `twine check` in CI, uploads artefacts to the run, **does not**
+push to PyPI. Useful for verifying a release candidate end-to-end.
 
-No code change needed; the workflow already publishes by project name.
+---
+
+## 5. Future: when to upgrade the pipeline
+
+These are non-blocking; the simple token flow above is fine through v0.2.
+
+* **Trusted Publishing (OIDC)** — eliminates the long-lived token.
+  Add a "Pending Publisher" for each of the 3 projects on PyPI pointing
+  at `release.yml`, set `permissions: id-token: write` on the job, drop
+  the `UV_PUBLISH_TOKEN` env. ~5 min of forms.
+
+* **GitHub Environments + required reviewers** — add a `pypi` environment
+  to require a manual approval click on every prod publish. Useful when
+  the team grows beyond a single maintainer.
+
+* **TestPyPI smoke step** — add a parallel job that publishes to
+  `test.pypi.org` on `workflow_dispatch`. Useful if a publish ever
+  breaks; today the dry-run path covers 95% of that need.
+
+* **PyPI Organisation transfer** — once HyperdustLabs is registered as a
+  PyPI org, transfer the 3 projects from the individual account to the
+  org. No code change; Trusted Publishing keeps working per-project.

@@ -150,10 +150,10 @@ These changes always need an explicit reviewer sign-off:
 - Anything under `packages/opencoat-runtime-protocol/opencoat_runtime_protocol/schemas/`
   — schemas are wire format. Bump `schema_version` if you change semantics
   and call out migration in the PR description.
-- `packages/opencoat-runtime-core/opencoat_runtime_core/runtime.py`
+- `packages/opencoat-runtime/opencoat_runtime_core/runtime.py`
   — the `OpenCOATRuntime` facade. Every host adapter and the daemon depend on
   these signatures.
-- `packages/opencoat-runtime-core/opencoat_runtime_core/ports/*.py`
+- `packages/opencoat-runtime/opencoat_runtime_core/ports/*.py`
   — hexagonal ports. Adapter implementations across `storage`, `llm`, and
   `host-plugins` will follow.
 - Any change to or addition of an ADR under [`docs/adr/`](docs/adr/).
