@@ -1,7 +1,7 @@
 """Top-level opencoat dispatcher.
 
 Subcommand modules under :mod:`.commands` register themselves here. M0 wires
-``runtime``, ``concern``, ``dcn``, ``replay``, ``inspect``, ``plugin`` as
+``runtime``, ``configure``, ``concern``, ``dcn``, ``replay``, ``inspect``, ``plugin`` as
 no-op stubs so ``opencoat <cmd> --help`` works end-to-end.
 """
 
@@ -17,6 +17,7 @@ from typing import Any
 from . import __version__
 from .commands import (
     concern_cmd,
+    configure_cmd,
     dcn_cmd,
     demo_cmd,
     inspect_cmd,
@@ -43,6 +44,7 @@ _SUBTITLE = "Open Concern-Oriented Agent Thinking · opencoat v{ver}"
 CommandRegistrar = Callable[[argparse._SubParsersAction], None]
 COMMANDS: tuple[CommandRegistrar, ...] = (
     runtime_cmd.register,
+    configure_cmd.register,
     concern_cmd.register,
     dcn_cmd.register,
     replay_cmd.register,
