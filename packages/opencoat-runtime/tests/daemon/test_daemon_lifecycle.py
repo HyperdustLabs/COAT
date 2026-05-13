@@ -19,7 +19,8 @@ from opencoat_runtime_daemon.config import load_config
 
 def _http_cfg(tmp_path: Path | None = None):  # type: ignore[no-untyped-def]
     cfg = load_config()
-    # Enable HTTP on an ephemeral port via the extra-allow IPCEndpoint.
+    # Bundled default already enables HTTP on 7878. Switch to OS-assigned
+    # port so this test (and any parallel one) doesn't collide.
     cfg.ipc.http.enabled = True
     object.__setattr__(cfg.ipc.http, "host", "127.0.0.1")
     object.__setattr__(cfg.ipc.http, "port", 0)
@@ -27,14 +28,32 @@ def _http_cfg(tmp_path: Path | None = None):  # type: ignore[no-untyped-def]
     return cfg
 
 
-def test_start_stop_no_http(tmp_path: Path) -> None:
+def _no_http_cfg():  # type: ignore[no-untyped-def]
+    """Load the bundled default config but turn HTTP off.
+
+    Most lifecycle tests exercise pid-file / signal / reload behaviour
+    and do not care about the IPC listener; explicitly disabling HTTP
+    keeps them from binding the default 7878 (and TIME_WAITing it for
+    follow-up tests).
+    """
     cfg = load_config()
+    cfg.ipc.http.enabled = False
+    return cfg
+
+
+def test_start_stop_no_http(tmp_path: Path) -> None:
+    # Bundled default ships ``ipc.http.enabled: true`` so a zero-config
+    # ``opencoat runtime up`` is reachable from the CLI and the host SDK
+    # (see ADR 0005). Embedded users who want a pure in-proc daemon
+    # disable it explicitly — which is what ``_no_http_cfg`` does.
+    cfg = _no_http_cfg()
     pid = tmp_path / "opencoat.pid"
     d = Daemon(cfg, env={}, pid_file=pid)
     d.start()
     try:
         assert pid.exists()
         assert pid.read_text().strip() == str(os.getpid())
+        assert d.http_server is None
         # No HTTP — handler still wired in-proc.
         out = d.runtime_handler.handle({"jsonrpc": "2.0", "id": 1, "method": "health.ping"})
         assert out == {"jsonrpc": "2.0", "result": {"ok": True}, "id": 1}
@@ -44,7 +63,7 @@ def test_start_stop_no_http(tmp_path: Path) -> None:
 
 
 def test_stop_is_idempotent(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     d = Daemon(cfg, env={}, pid_file=tmp_path / "opencoat.pid")
     d.start()
     d.stop()
@@ -52,7 +71,7 @@ def test_stop_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_start_twice_raises(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     d = Daemon(cfg, env={}, pid_file=tmp_path / "opencoat.pid")
     d.start()
     try:
@@ -63,7 +82,7 @@ def test_start_twice_raises(tmp_path: Path) -> None:
 
 
 def test_pid_file_collision_blocks_start(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     pid = tmp_path / "opencoat.pid"
     # Reserve the path with PID 1 (always alive on POSIX).
     pid.write_text("1\n")
@@ -132,14 +151,14 @@ def test_reload_swaps_runtime_without_restarting_socket(tmp_path: Path) -> None:
 
 
 def test_reload_before_start_raises(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     d = Daemon(cfg, env={}, pid_file=tmp_path / "opencoat.pid")
     with pytest.raises(RuntimeError):
         d.reload()
 
 
 def test_run_until_signal_drains_on_sigterm(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     pid = tmp_path / "opencoat.pid"
     d = Daemon(cfg, env={}, pid_file=pid)
 
@@ -169,7 +188,7 @@ def test_run_until_signal_drains_on_sigterm(tmp_path: Path) -> None:
 
 
 def test_context_manager_round_trip(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     pid = tmp_path / "opencoat.pid"
     with Daemon(cfg, env={}, pid_file=pid):
         assert pid.exists()
@@ -177,7 +196,7 @@ def test_context_manager_round_trip(tmp_path: Path) -> None:
 
 
 def test_runtime_handler_property_raises_before_start(tmp_path: Path) -> None:
-    cfg = load_config()
+    cfg = _no_http_cfg()
     d = Daemon(cfg, env={}, pid_file=tmp_path / "opencoat.pid")
     with pytest.raises(RuntimeError):
         _ = d.runtime_handler
@@ -188,7 +207,7 @@ def test_restart_after_stop_resets_stop_event(tmp_path: Path) -> None:
     must clear it so the next ``wait()`` blocks instead of returning
     immediately.
     """
-    cfg = load_config()
+    cfg = _no_http_cfg()
     d = Daemon(cfg, env={}, pid_file=tmp_path / "opencoat.pid")
 
     d.start()
@@ -214,7 +233,7 @@ def test_concurrent_daemon_instances_share_pid_file_rejection(tmp_path: Path) ->
     """Two ``Daemon`` instances on the same PID path within one process
     must not both start.
     """
-    cfg = load_config()
+    cfg = _no_http_cfg()
     pid = tmp_path / "opencoat.pid"
     first = Daemon(cfg, env={}, pid_file=pid)
     second = Daemon(cfg, env={}, pid_file=pid)
