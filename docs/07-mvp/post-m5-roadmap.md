@@ -92,18 +92,27 @@ chain_ref schema ── (independent — protocol surface only)
 
 ## 4. Chosen sequence — A (DX-first)
 
-1. **`feat/protocol-concern-chain-ref`** — optional `chain_ref` field on
-   `Concern` (schema + pydantic model + tests). Schema-only placeholder,
-   no business logic, no runtime consumers. Cheapest possible PR; gets
-   the protocol surface stable so MOSSAI / external callers can fill it
-   later without schema churn. (See §6.)
-2. **`feat/dx-cli-banner`** — banner + status subtitle + `--no-banner`.
-3. **`feat/dx-plugin-install`** — `opencoat plugin install <openclaw|custom>`.
-4. **`feat/dx-demo-concerns`** — three dramatic demo concerns +
-   `opencoat concerns load --demo`.
-5. **`HyperdustLabs/opencoat-skill`** — bootstrap commit batch in a
+1. ✅ **`feat/protocol-concern-chain-ref`** ([#35](https://github.com/HyperdustLabs/OpenCOAT/pull/35)) — optional `chain_ref`
+   field on `Concern` (schema + pydantic model + tests). Schema-only
+   placeholder, no business logic, no runtime consumers. Cheapest
+   possible PR; got the protocol surface stable so MOSSAI / external
+   callers can fill it later without schema churn. (See §6.)
+2. ✅ **`feat/dx-cli-banner`** ([#36](https://github.com/HyperdustLabs/OpenCOAT/pull/36)) — banner + status subtitle + `--no-banner`.
+3. ✅ **`feat/dx-plugin-install`** ([#37](https://github.com/HyperdustLabs/OpenCOAT/pull/37)) — `opencoat plugin install <openclaw|custom>`.
+4. ✅ **`feat/dx-demo-concerns`** ([#38](https://github.com/HyperdustLabs/OpenCOAT/pull/38)) — three dramatic demo concerns
+   + `opencoat concern import --demo`.
+5. ✅ **[`HyperdustLabs/opencoat-skill`](https://github.com/HyperdustLabs/opencoat-skill)** — bootstrap commit batch in a
    *separate* repo (out-of-tree; not in this PR stream).
-6. **M6 mainline** — 4 PRs per the §5 split below.
+6. **M6 mainline** — 4 PRs per the §5 split below. ← **next up**
+
+> Bonus mid-sprint: PRs [#39](https://github.com/HyperdustLabs/OpenCOAT/pull/39) +
+> [#40](https://github.com/HyperdustLabs/OpenCOAT/pull/40) renamed the
+> project COAT → OpenCOAT (packages, imports, binaries, env vars,
+> deploy assets, schemas, telemetry, GitHub URLs, logo asset).
+> Brand consistency is now 100% modulo two intentional fallbacks:
+> the L21 acronym definition in `v0.1-complete-design.md`, and the
+> demo concern matcher keywords that still recognise the legacy
+> "COAT" spelling.
 
 ### Why A over alternatives
 
@@ -131,9 +140,9 @@ Numbers will be assigned as PRs open, per the M5+ convention in
 ### 5B. DX sprint split (3 PRs)
 
 ```text
-gh/#36  feat/dx-cli-banner         → OpenCOAT banner + status subtitle + --no-banner   ✅ landed
-gh/#37  feat/dx-plugin-install     → opencoat plugin install <openclaw|custom>            ✅ landed
-gh/#?   feat/dx-demo-concerns      → 3 dramatic concerns + opencoat concern import --demo (in flight)
+gh/#36  feat/dx-cli-banner         → OpenCOAT banner + status subtitle + --no-banner             ✅ landed
+gh/#37  feat/dx-plugin-install     → opencoat plugin install <openclaw|custom>                   ✅ landed
+gh/#38  feat/dx-demo-concerns      → 3 dramatic concerns + opencoat concern import --demo        ✅ landed
 ```
 
 > The concrete CLI verb shipped as ``opencoat concern import --demo``
@@ -143,9 +152,16 @@ gh/#?   feat/dx-demo-concerns      → 3 dramatic concerns + opencoat concern im
 
 ### 5C. Skill repo (separate repo, not in this PR-stream)
 
-- Bootstrap commit creating `HyperdustLabs/opencoat-skill` with the file
-  set listed in §2C.
-- Versioned to track `opencoat-runtime` major.
+- ✅ landed — [`HyperdustLabs/opencoat-skill`](https://github.com/HyperdustLabs/opencoat-skill)
+  bootstrapped with the file set listed in §2C
+  (`SKILL.md` + `skill.json` + `inspection.md` + `concerns.md` +
+  `rules.md` + `LICENSE` + `.github/workflows/verify.yml`).
+- Versioned to track `opencoat-runtime` major. The live `skill.json`
+  still has `tracks: opencoat-runtime-cli@major` from before ADR 0009
+  consolidated the CLI into the `opencoat-runtime` package; a
+  trivial follow-up PR on the skill repo retargets it.
+- CI green on first push; verifies `skill.json` shape, SKILL.md
+  frontmatter + line count, and walks every internal link.
 
 ## 6. `Concern.chain_ref` — schema-only placeholder (active queue)
 
