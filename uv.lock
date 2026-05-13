@@ -1036,7 +1036,7 @@ wheels = [
 
 [[package]]
 name = "opencoat-runtime-cli"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-cli" }
 dependencies = [
     { name = "opencoat-runtime-core" },
@@ -1057,7 +1057,7 @@ requires-dist = [
 
 [[package]]
 name = "opencoat-runtime-core"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-core" }
 dependencies = [
     { name = "opencoat-runtime-protocol" },
@@ -1072,7 +1072,7 @@ requires-dist = [
 
 [[package]]
 name = "opencoat-runtime-daemon"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-daemon" }
 dependencies = [
     { name = "opencoat-runtime-core" },
@@ -1108,7 +1108,7 @@ provides-extras = ["http", "grpc"]
 
 [[package]]
 name = "opencoat-runtime-host-plugins"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-host-plugins" }
 dependencies = [
     { name = "opencoat-runtime-core" },
@@ -1132,7 +1132,7 @@ provides-extras = ["openclaw", "hermes", "langgraph", "autogen", "crewai"]
 
 [[package]]
 name = "opencoat-runtime-host-sdk"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-host-sdk" }
 dependencies = [
     { name = "opencoat-runtime-protocol" },
@@ -1152,7 +1152,7 @@ provides-extras = ["http"]
 
 [[package]]
 name = "opencoat-runtime-llm"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-llm" }
 dependencies = [
     { name = "opencoat-runtime-core" },
@@ -1186,7 +1186,7 @@ provides-extras = ["openai", "anthropic", "azure", "ollama"]
 
 [[package]]
 name = "opencoat-runtime-protocol"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-protocol" }
 dependencies = [
     { name = "jsonschema" },
@@ -1201,7 +1201,7 @@ requires-dist = [
 
 [[package]]
 name = "opencoat-runtime-storage"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "packages/opencoat-runtime-storage" }
 dependencies = [
     { name = "opencoat-runtime-core" },
