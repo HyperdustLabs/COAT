@@ -24,14 +24,23 @@ Two install paths are exposed; pick the one that matches your topology:
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 from opencoat_runtime_core import OpenCOATRuntime, RuntimeConfig
 from opencoat_runtime_core.llm import StubLLMClient
-from opencoat_runtime_host_sdk import Client
 from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 
 from .concerns import seed_concerns
 from .host_adapter import CustomHostAdapter
+
+if TYPE_CHECKING:
+    # Deferred: ``opencoat-runtime-host`` is *not* a hard dependency of
+    # ``opencoat-runtime`` (where this template lives). A runtime-only
+    # install (e.g. ``pipx install opencoat-runtime``) must still be
+    # able to ``import bootstrap_opencoat`` and use the in-process path
+    # below; only callers that hit :func:`daemon_client` need the host
+    # SDK on the path. See ``test_custom_scaffold_imports_without_host_sdk``.
+    from opencoat_runtime_host_sdk import Client
 
 # Where :func:`daemon_client` looks for a running daemon.
 DEFAULT_DAEMON_URL = "http://127.0.0.1:7878"
@@ -60,7 +69,17 @@ def daemon_client(url: str | None = None) -> Client:
             injection = client.emit(jp)
             if injection is not None:
                 adapter.apply_injection(injection, my_agent.context)
+
+    Raises:
+        ModuleNotFoundError: if ``opencoat-runtime-host`` is not
+            installed. Install it with ``pip install opencoat-runtime-host``
+            (or use the in-process path :func:`build_runtime_with_adapter`).
     """
+    # Lazy import so a runtime-only install can still import this
+    # module and use :func:`build_runtime_with_adapter`; only the
+    # daemon-backed path actually requires the host SDK.
+    from opencoat_runtime_host_sdk import Client
+
     resolved = url or os.environ.get("OPENCOAT_DAEMON_URL") or DEFAULT_DAEMON_URL
     return Client.connect(resolved)
 

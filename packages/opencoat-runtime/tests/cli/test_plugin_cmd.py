@@ -226,6 +226,44 @@ class TestScaffoldExposesDaemonBackedSurface:
         client = bootstrap_opencoat.daemon_client("http://explicit:2")
         assert client.transport.endpoint == "http://explicit:2/rpc"
 
+    def test_custom_scaffold_imports_without_host_sdk(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The custom scaffold must be importable in a runtime-only
+        install (no ``opencoat-runtime-host`` on path).
+
+        ``opencoat-runtime`` does not declare ``opencoat-runtime-host``
+        as a dependency, so users on a ``pipx install opencoat-runtime``
+        topology must still be able to ``import bootstrap_opencoat``
+        and use :func:`build_runtime_with_adapter` for the in-process
+        path. Only :func:`daemon_client` actually needs the host SDK,
+        and pays the import cost lazily.
+        """
+        # Pretend the host SDK is uninstalled.
+        monkeypatch.setitem(sys.modules, "opencoat_runtime_host_sdk", None)
+        # Force a re-import so the top-of-file import block re-runs
+        # under the simulated missing-package state.
+        sys.modules.pop(
+            "opencoat_runtime_cli.plugin_templates.custom.bootstrap_opencoat",
+            None,
+        )
+
+        from opencoat_runtime_cli.plugin_templates.custom import bootstrap_opencoat
+
+        # In-process path still works — that's the whole point of the
+        # lazy import. We don't actually call build_runtime_with_adapter
+        # here because the runtime + LLM stub paths are exercised
+        # elsewhere; we just want to prove the module loaded.
+        assert callable(bootstrap_opencoat.build_runtime_with_adapter)
+        assert callable(bootstrap_opencoat.build_runtime)
+
+        # daemon_client is still exposed (for type discovery / docs),
+        # but calling it without the host SDK fails *at call time*,
+        # not at import time, with the same error the user would get
+        # from ``from opencoat_runtime_host_sdk import Client``.
+        with pytest.raises((ModuleNotFoundError, ImportError)):
+            bootstrap_opencoat.daemon_client()
+
     def test_openclaw_daemon_runtime_proxy_forwards_to_client(self) -> None:
         """The :class:`_DaemonRuntime` proxy must satisfy ``RuntimeLike``
         and forward every :meth:`on_joinpoint` call to ``client.emit``.
