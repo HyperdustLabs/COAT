@@ -318,3 +318,273 @@ class TestPluginInstallNextOutput:
         assert "opencoat runtime up" in out
         assert "daemon_client" in out
         assert "client.emit" in out
+        # The scaffold now ships a working CustomHostAdapter, so the
+        # Next: output advertises that rather than "fill in the stubs".
+        assert "EVENT_TO_JOINPOINT" in out
+        assert "stub" not in out.lower()
+
+
+class TestCustomScaffoldHostAdapterFilled:
+    """The custom scaffold's ``host_adapter.py`` ships with both halves
+    of the :class:`HostAdapter` contract pre-implemented, so a user can
+    ``opencoat plugin install custom`` → build runtime → emit event →
+    see the injection fold into their host context **without editing
+    the scaffold first**.
+
+    This block pins:
+
+    * the default event-name → joinpoint table is non-empty and points
+      only at joinpoints that actually exist in ``JOINPOINT_CATALOG``;
+    * ``map_host_event`` recognises every default event-name key
+      (``type`` / ``name`` / ``event`` / ``event_name``) and drops
+      events whose name isn't in the map (the runtime treats that
+      as "ignore");
+    * ``apply_injection`` deep-copies the host context, walks dotted
+      target paths, creates missing intermediate dicts, and dispatches
+      to the right weaving mode (append vs overwrite);
+    * the seeded concern fires end-to-end against an in-proc runtime —
+      i.e. the scaffold is genuinely "import + run".
+    """
+
+    def test_event_to_joinpoint_map_is_non_empty_and_catalog_clean(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            EVENT_TO_JOINPOINT,
+        )
+        from opencoat_runtime_core.joinpoint import JOINPOINT_CATALOG
+
+        assert EVENT_TO_JOINPOINT, "default event map must not be empty"
+        for host_event, jp_name in EVENT_TO_JOINPOINT.items():
+            assert isinstance(host_event, str) and host_event
+            assert JOINPOINT_CATALOG.get(jp_name) is not None, (
+                f"{host_event!r} maps to {jp_name!r} which is not in JOINPOINT_CATALOG"
+            )
+
+    @pytest.mark.parametrize("key", ["type", "name", "event", "event_name"])
+    def test_map_host_event_recognises_all_default_name_keys(self, key: str) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        adapter = CustomHostAdapter()
+        jp = adapter.map_host_event({key: "agent.user_message", "text": "hi"})
+        assert jp is not None
+        assert jp.name == "on_user_input"
+        assert jp.host == "custom"
+        # Non-envelope fields are mirrored into payload so pointcut
+        # strategies see the host's full event shape.
+        assert jp.payload == {"text": "hi"}
+
+    def test_map_host_event_returns_none_for_unknown_event_name(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        adapter = CustomHostAdapter()
+        assert adapter.map_host_event({"type": "agent.bogus_event"}) is None
+        # No recognised name key at all → also None, not crash.
+        assert adapter.map_host_event({"payload": {"k": "v"}}) is None
+
+    def test_map_host_event_honours_explicit_payload_field(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        adapter = CustomHostAdapter()
+        jp = adapter.map_host_event(
+            {
+                "type": "before_tool_call",
+                "agent_session_id": "sess-1",
+                "turn_id": "turn-2",
+                "payload": {"content": "shell.exec rm -rf /tmp/x"},
+            }
+        )
+        assert jp is not None
+        assert jp.name == "before_tool_call"
+        assert jp.agent_session_id == "sess-1"
+        assert jp.turn_id == "turn-2"
+        assert jp.payload == {"content": "shell.exec rm -rf /tmp/x"}
+
+    def test_map_host_event_rejects_non_dict_events(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        adapter = CustomHostAdapter()
+        with pytest.raises(ValueError, match="dict"):
+            adapter.map_host_event(["not", "a", "dict"])  # type: ignore[arg-type]
+
+    def test_map_host_events_drops_none_and_yields_rest(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        adapter = CustomHostAdapter()
+        events = [
+            {"type": "agent.user_message", "text": "hi"},
+            {"type": "agent.totally_unknown"},
+            {"type": "agent.memory_write", "key": "k", "value": "v"},
+        ]
+        names = [jp.name for jp in adapter.map_host_events(events)]
+        assert names == ["on_user_input", "before_memory_write"]
+
+    def test_apply_injection_appends_on_insert_creating_path(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+        from opencoat_runtime_protocol import (
+            ConcernInjection,
+            Injection,
+            WeavingOperation,
+        )
+
+        adapter = CustomHostAdapter()
+        inj = ConcernInjection(
+            turn_id="t-1",
+            injections=[
+                Injection(
+                    concern_id="c-demo",
+                    target="runtime_prompt.active_concerns",
+                    content="be precise",
+                    mode=WeavingOperation.INSERT,
+                )
+            ],
+        )
+        # Empty starting context — the adapter creates the nested path.
+        out = adapter.apply_injection(inj, {})
+        assert out == {"runtime_prompt": {"active_concerns": "be precise"}}
+
+    def test_apply_injection_appends_with_newline_on_non_empty_string(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+        from opencoat_runtime_protocol import (
+            ConcernInjection,
+            Injection,
+            WeavingOperation,
+        )
+
+        adapter = CustomHostAdapter()
+        inj = ConcernInjection(
+            turn_id="t-2",
+            injections=[
+                Injection(
+                    concern_id="c-demo",
+                    target="response.body.prefix",
+                    content="[OpenCOAT]",
+                    mode=WeavingOperation.INSERT,
+                )
+            ],
+        )
+        ctx = {"response": {"body": {"prefix": "hello"}}}
+        out = adapter.apply_injection(inj, ctx)
+        assert out == {"response": {"body": {"prefix": "hello\n[OpenCOAT]"}}}
+        # Source context untouched.
+        assert ctx == {"response": {"body": {"prefix": "hello"}}}
+
+    def test_apply_injection_overwrites_on_block_modes(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+        from opencoat_runtime_protocol import (
+            ConcernInjection,
+            Injection,
+            WeavingOperation,
+        )
+
+        adapter = CustomHostAdapter()
+        inj = ConcernInjection(
+            turn_id="t-3",
+            injections=[
+                Injection(
+                    concern_id="c-guard",
+                    target="tool_call.arguments",
+                    content="refused: rm -rf",
+                    mode=WeavingOperation.BLOCK,
+                )
+            ],
+        )
+        ctx = {"tool_call": {"arguments": "rm -rf /"}}
+        out = adapter.apply_injection(inj, ctx)
+        assert out == {"tool_call": {"arguments": "refused: rm -rf"}}
+
+    def test_apply_injection_skips_rows_with_empty_target(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+        from opencoat_runtime_protocol import (
+            ConcernInjection,
+            Injection,
+            WeavingOperation,
+        )
+
+        adapter = CustomHostAdapter()
+        inj = ConcernInjection(
+            turn_id="t-4",
+            injections=[
+                Injection(
+                    concern_id="c-empty",
+                    target="",
+                    content="ignored",
+                    mode=WeavingOperation.INSERT,
+                ),
+                Injection(
+                    concern_id="c-real",
+                    target="prompt.note",
+                    content="kept",
+                    mode=WeavingOperation.INSERT,
+                ),
+            ],
+        )
+        out = adapter.apply_injection(inj, {})
+        assert out == {"prompt": {"note": "kept"}}
+
+    def test_event_map_can_be_overridden_per_instance(self) -> None:
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        adapter = CustomHostAdapter(
+            host_name="my-framework",
+            event_map={"chat.message_received": "on_user_input"},
+        )
+        assert adapter.host_name == "my-framework"
+        jp = adapter.map_host_event({"type": "chat.message_received", "text": "hi"})
+        assert jp is not None
+        assert jp.name == "on_user_input"
+        assert jp.host == "my-framework"
+
+        # Default mappings no longer apply because we replaced the table wholesale.
+        assert adapter.map_host_event({"type": "agent.user_message"}) is None
+
+    def test_seeded_demo_concern_fires_end_to_end_against_real_runtime(self) -> None:
+        """The cornerstone test: scaffold imports → seed a runtime →
+        ``map_host_event`` → ``runtime.on_joinpoint`` → ``apply_injection``
+        produces a context change visible from the demo concern. This
+        is the "import and run" promise the scaffold makes — no edits
+        required.
+        """
+        from opencoat_runtime_cli.plugin_templates.custom import bootstrap_opencoat
+        from opencoat_runtime_cli.plugin_templates.custom.host_adapter import (
+            CustomHostAdapter,
+        )
+
+        runtime = bootstrap_opencoat.build_runtime()
+        bootstrap_opencoat.seed_stores(runtime)
+        adapter = CustomHostAdapter()
+
+        event = {"type": "agent.user_message", "text": "hello runtime"}
+        jp = adapter.map_host_event(event)
+        assert jp is not None and jp.name == "on_user_input"
+
+        injection = runtime.on_joinpoint(jp)
+        assert injection is not None
+        assert injection.injections, "demo concern must produce ≥1 injection"
+
+        host_ctx: dict[str, Any] = {}
+        new_ctx = adapter.apply_injection(injection, host_ctx)
+        # The demo concern writes to runtime_prompt.active_concerns;
+        # the scaffold's apply_injection should have built that path.
+        assert "runtime_prompt" in new_ctx
+        assert "active_concerns" in new_ctx["runtime_prompt"]
+        active = new_ctx["runtime_prompt"]["active_concerns"]
+        assert "OpenCOAT" in active or "runtime" in active.lower()

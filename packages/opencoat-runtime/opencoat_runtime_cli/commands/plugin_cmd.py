@@ -92,10 +92,13 @@ def _copy_templates(host: str, out: Path, *, force: bool) -> int:
     else:
         print("  1. Start a daemon:           opencoat runtime up")
         print("  2. Seed some concerns:        opencoat concern import --demo")
-        print("  3. Fill in map_host_event / apply_injection in host_adapter.py.")
-        print("  4. Drive the adapter from your agent loop, using:")
+        print("  3. Drive the adapter from your agent loop, using:")
         print("       client = bootstrap_opencoat.daemon_client()")
         print("       client.emit(jp)   # forwards over HTTP to the daemon")
+        print("     CustomHostAdapter ships with map_host_event +")
+        print("     apply_injection pre-implemented for the most common")
+        print("     event-name conventions (type/name/event/event_name);")
+        print("     edit EVENT_TO_JOINPOINT in host_adapter.py to extend.")
     return 0
 
 
