@@ -1,4 +1,20 @@
-"""Tests for :func:`install_hooks` + :class:`InstalledHooks` (M5 #31)."""
+"""Tests for :func:`install_hooks` + :class:`InstalledHooks` (M5 #31).
+
+Coverage divides into two halves:
+
+* The original M5 #31 surface — subscription bookkeeping, runtime
+  dispatch, memory-bridge side-channel, uninstall idempotency. These
+  pin the wiring :func:`install_hooks` set up at land.
+* The pickup API (this PR) — the half of M5 that was missing:
+  capturing the runtime's :class:`ConcernInjection` into
+  :attr:`InstalledHooks.pending` and surfacing it via
+  :meth:`InstalledHooks.apply_to` /
+  :meth:`InstalledHooks.guard_tool_call`. The end-to-end test seeds a
+  real ``OpenCOATRuntime`` with the OpenClaw scaffold's demo concerns
+  and asserts that firing an event mutates the host context in a way
+  the user can see with the naked eye — i.e. closes the
+  event → concern → injection → host-state loop the demo flow needs.
+"""
 
 from __future__ import annotations
 
@@ -15,9 +31,21 @@ from opencoat_runtime_host_openclaw import (
     OpenClawEventName,
     OpenClawHost,
     OpenClawMemoryBridge,
+    PendingInjection,
     install_hooks,
 )
-from opencoat_runtime_protocol import Concern, Pointcut
+from opencoat_runtime_protocol import (
+    Advice,
+    AdviceType,
+    Concern,
+    ConcernInjection,
+    Injection,
+    JoinpointEvent,
+    Pointcut,
+    WeavingLevel,
+    WeavingOperation,
+    WeavingPolicy,
+)
 from opencoat_runtime_storage.memory import MemoryConcernStore, MemoryDCNStore
 from pydantic import ValidationError
 
@@ -347,3 +375,428 @@ class TestUninstall:
             {"payload": {"key": "k", "concern_id": "c-x"}},
         )
         assert list(runtime.dcn_store.activation_log(concern_id="c-x")) == []
+
+
+# ---------------------------------------------------------------------------
+# Pickup API — InstalledHooks.pending / apply_to / guard_tool_call
+# ---------------------------------------------------------------------------
+
+
+def _session_start_concern() -> Concern:
+    """The OpenClaw scaffold's ``runtime_start`` concern, inlined.
+
+    Kept in-test rather than imported from the CLI scaffold so the
+    host package doesn't grow a hard dep on ``opencoat_runtime_cli``.
+    The shape mirrors
+    ``opencoat_runtime_cli.plugin_templates.openclaw.concerns._opencoat_session_start``
+    exactly — change it there and here together.
+    """
+    return Concern(
+        id="c-session-start",
+        name="session-start hint",
+        description="Inserts an OpenCOAT-runtime hint on runtime_start.",
+        pointcut=Pointcut(joinpoints=["runtime_start"]),
+        advice=Advice(
+            type=AdviceType.RESPONSE_REQUIREMENT,
+            content="You are running under the OpenCOAT runtime. Be concise.",
+        ),
+        weaving_policy=WeavingPolicy(
+            mode=WeavingOperation.INSERT,
+            level=WeavingLevel.PROMPT_LEVEL,
+            target="runtime_prompt.active_concerns",
+            priority=0.5,
+        ),
+    )
+
+
+def _seed_runnable_concern(runtime: OpenCOATRuntime, concern: Concern) -> None:
+    """Seed a concern into both the concern store AND the DCN.
+
+    The concern store drives matching / weaving; the DCN node lets
+    ``log_activation`` succeed when the concern actually fires.
+    """
+    runtime.concern_store.upsert(concern)
+    runtime.dcn_store.add_node(concern)
+
+
+class _FakeRuntime:
+    """Minimal :class:`RuntimeLike` returning a canned injection.
+
+    Used for the unit-style pickup tests where we want to exercise the
+    callback → buffer → apply_to wiring without spinning a real
+    :class:`OpenCOATRuntime`. ``responses`` is a dict keyed by joinpoint
+    name; missing keys return ``None`` (i.e. "no concern matched").
+    """
+
+    def __init__(self, responses: dict[str, ConcernInjection | None] | None = None) -> None:
+        self._responses = responses or {}
+        self.calls: list[JoinpointEvent] = []
+
+    def on_joinpoint(
+        self,
+        jp: JoinpointEvent,
+        *,
+        context: dict[str, Any] | None = None,
+        return_none_when_empty: bool = False,
+    ) -> ConcernInjection | None:
+        self.calls.append(jp)
+        return self._responses.get(jp.name)
+
+
+def _injection_with(target: str, content: str, *, turn_id: str = "t-1") -> ConcernInjection:
+    return ConcernInjection(
+        turn_id=turn_id,
+        injections=[
+            Injection(
+                concern_id="c-test",
+                target=target,
+                content=content,
+                mode=WeavingOperation.INSERT,
+            )
+        ],
+    )
+
+
+def _tool_guard_injection(*, turn_id: str = "t-1") -> ConcernInjection:
+    return ConcernInjection(
+        turn_id=turn_id,
+        injections=[
+            Injection(
+                concern_id="c-guard",
+                target="tool_call.arguments.command",
+                content="refused by policy: rm -rf",
+                mode=WeavingOperation.BLOCK,
+            )
+        ],
+    )
+
+
+class TestPendingBufferCapture:
+    """The callbacks installed by :func:`install_hooks` must capture
+    every non-empty :class:`ConcernInjection` the runtime returns onto
+    :attr:`InstalledHooks.pending` so the host can pick it up via
+    :meth:`apply_to` / :meth:`guard_tool_call`.
+    """
+
+    def test_pending_is_empty_before_any_event(self) -> None:
+        host = FakeHost()
+        installed = install_hooks(host, runtime=_FakeRuntime())
+        assert installed.pending == ()
+
+    def test_non_empty_injection_is_buffered(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.active_concerns", "be concise")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {"text": "hi"}})
+
+        assert len(installed.pending) == 1
+        entry = installed.pending[0]
+        assert isinstance(entry, PendingInjection)
+        assert entry.joinpoint.name == "on_user_input"
+        assert entry.injection.injections[0].content == "be concise"
+
+    def test_empty_injection_is_dropped(self) -> None:
+        """Runtime returning an injection with ``injections=[]`` (no
+        concerns matched) does NOT earn a buffer slot — it would be a
+        no-op at apply_to time and would muddy ``pending`` snapshots.
+        """
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": ConcernInjection(turn_id="t-1", injections=[])}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+        assert installed.pending == ()
+
+    def test_none_response_is_dropped(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime({})  # every joinpoint → None
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+        assert installed.pending == ()
+
+    def test_pending_property_returns_tuple_not_internal_list(self) -> None:
+        """Callers must not be able to mutate the live buffer through the
+        ``pending`` property — only :meth:`apply_to`,
+        :meth:`guard_tool_call`, :meth:`clear_pending` move rows.
+        """
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.active_concerns", "x")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+        snap = installed.pending
+        assert isinstance(snap, tuple)
+        # Even if a caller tries to clear the snapshot, the live buffer
+        # stays intact.
+        snap = ()  # rebinding the local does nothing
+        assert len(installed.pending) == 1
+
+
+class TestApplyTo:
+    def test_apply_to_folds_buffered_injection_into_context(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.active_concerns", "be precise")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        out = installed.apply_to({"runtime_prompt": {"active_concerns": ""}})
+        assert out == {"runtime_prompt": {"active_concerns": "be precise"}}
+
+    def test_apply_to_drains_by_default(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "once")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+        assert len(installed.pending) == 1
+
+        first = installed.apply_to({})
+        second = installed.apply_to({})
+
+        assert first == {"runtime_prompt": {"note": "once"}}
+        # Buffer drained → second call applies nothing.
+        assert second == {}
+        assert installed.pending == ()
+
+    def test_apply_to_drain_false_peeks_without_consuming(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "twice")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        first = installed.apply_to({}, drain=False)
+        second = installed.apply_to({}, drain=False)
+
+        assert first == second == {"runtime_prompt": {"note": "twice"}}
+        assert len(installed.pending) == 1
+
+    def test_apply_to_filters_by_joinpoint_name(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {
+                "on_user_input": _injection_with("runtime_prompt.user", "u"),
+                "runtime_start": _injection_with("runtime_prompt.start", "s"),
+            }
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.started", {})
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        # Only fold runtime_start injections — on_user_input stays buffered.
+        out = installed.apply_to({}, joinpoint="runtime_start")
+        assert out == {"runtime_prompt": {"start": "s"}}
+        remaining = installed.pending
+        assert len(remaining) == 1
+        assert remaining[0].joinpoint.name == "on_user_input"
+
+    def test_apply_to_accepts_none_context(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "from-empty")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        out = installed.apply_to(None)
+        assert out == {"runtime_prompt": {"note": "from-empty"}}
+
+    def test_apply_to_skips_tool_guard_joinpoints(self) -> None:
+        """``before_tool_call`` injections have a structured outcome
+        surface (``guard_tool_call``) — folding them through the
+        generic ``apply_to`` path would corrupt the ``tool_call.*``
+        slot, so they're skipped (and stay buffered for the guard
+        surface to consume).
+        """
+        host = FakeHost()
+        runtime = _FakeRuntime({"before_tool_call": _tool_guard_injection()})
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
+
+        out = installed.apply_to({"runtime_prompt": {"active_concerns": ""}})
+        # ``tool_call.*`` row didn't leak into the prompt context.
+        assert out == {"runtime_prompt": {"active_concerns": ""}}
+        # And it stays buffered so guard_tool_call can pick it up.
+        assert len(installed.pending) == 1
+        assert installed.pending[0].joinpoint.name == "before_tool_call"
+
+    def test_apply_to_with_empty_buffer_is_identity(self) -> None:
+        host = FakeHost()
+        installed = install_hooks(host, runtime=_FakeRuntime())
+        ctx = {"runtime_prompt": {"active_concerns": "existing"}}
+        out = installed.apply_to(ctx)
+        assert out == ctx
+
+
+class TestGuardToolCall:
+    def test_returns_outcome_for_buffered_tool_guard_injection(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime({"before_tool_call": _tool_guard_injection()})
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
+
+        outcome = installed.guard_tool_call(
+            {"name": "shell.exec", "arguments": {"command": "rm -rf /"}}
+        )
+        assert outcome is not None
+        assert outcome.blocked is True
+        assert "refused" in outcome.block_reason.lower()
+
+    def test_returns_none_when_no_tool_guard_buffered(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "n")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        outcome = installed.guard_tool_call({"name": "x", "arguments": {}})
+        assert outcome is None
+        # The non-tool-guard injection should still be buffered.
+        assert len(installed.pending) == 1
+
+    def test_drains_consumed_entry_by_default(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime({"before_tool_call": _tool_guard_injection()})
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
+
+        assert installed.guard_tool_call({"name": "x", "arguments": {}}) is not None
+        # Second call sees an empty buffer.
+        assert installed.guard_tool_call({"name": "x", "arguments": {}}) is None
+        assert installed.pending == ()
+
+    def test_drain_false_lets_outcome_be_inspected_repeatedly(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime({"before_tool_call": _tool_guard_injection()})
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
+
+        first = installed.guard_tool_call(
+            {"name": "x", "arguments": {"command": "x"}}, drain=False
+        )
+        second = installed.guard_tool_call(
+            {"name": "x", "arguments": {"command": "x"}}, drain=False
+        )
+        assert first is not None and second is not None
+        assert first.blocked == second.blocked
+        assert len(installed.pending) == 1
+
+    def test_walks_newest_to_oldest(self) -> None:
+        """Multiple tool-guard injections buffered → guard_tool_call
+        applies the **newest** one and drains it. Older ones stay
+        buffered for the next call. This mirrors how a real host's
+        tool-call loop walks: each in-flight call should be evaluated
+        against the most-recently-emitted advice.
+        """
+        host = FakeHost()
+        seq = [_tool_guard_injection(turn_id=f"t-{i}") for i in range(3)]
+        runtime = _FakeRuntime({"before_tool_call": seq[0]})
+        installed = install_hooks(host, runtime=runtime)
+
+        # Three consecutive before_tool_call events. We push them via
+        # the same response slot by re-binding the runtime's mapping.
+        host.fire("agent.before_tool", {"turn_id": "t-0", "payload": {}})
+        runtime._responses["before_tool_call"] = seq[1]
+        host.fire("agent.before_tool", {"turn_id": "t-1", "payload": {}})
+        runtime._responses["before_tool_call"] = seq[2]
+        host.fire("agent.before_tool", {"turn_id": "t-2", "payload": {}})
+
+        # First guard_tool_call should consume the newest entry — turn_id t-2.
+        installed.guard_tool_call({"name": "x", "arguments": {}})
+        remaining = [e.injection.turn_id for e in installed.pending]
+        assert remaining == ["t-0", "t-1"]
+
+
+class TestClearPending:
+    def test_clear_pending_empties_buffer(self) -> None:
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "drop me")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        assert len(installed.pending) == 1
+        installed.clear_pending()
+        assert installed.pending == ()
+
+    def test_uninstall_does_not_clear_pending(self) -> None:
+        """Host may still want to inspect / apply buffered injections
+        after subscription teardown — e.g. during a clean shutdown.
+        """
+        host = FakeHost()
+        runtime = _FakeRuntime(
+            {"on_user_input": _injection_with("runtime_prompt.note", "still here")}
+        )
+        installed = install_hooks(host, runtime=runtime)
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {}})
+
+        assert len(installed.pending) == 1
+        installed.uninstall()
+        assert installed.is_installed is False
+        # Pending buffer survives teardown.
+        assert len(installed.pending) == 1
+
+
+class TestEndToEndWithRealRuntime:
+    """Full chain against an in-process ``OpenCOATRuntime`` (no daemon).
+
+    Closes the loop the M5 #31 PR left half-wired: subscribe →
+    runtime.on_joinpoint → ConcernInjection → apply_to → host context
+    visibly changed.
+
+    The daemon path is mechanically identical because
+    :class:`opencoat_runtime_host_sdk.Client` returns the same
+    :class:`ConcernInjection` shape (verified by the SDK-side wire
+    tests + ``HttpTransport``'s ``ConcernInjection.model_validate``
+    deserialisation). Re-asserting the wire here would just shadow
+    those tests; this test pins the **integration** between
+    install_hooks and the runtime/adapter pair.
+    """
+
+    def test_fire_event_apply_to_yields_visible_prompt_change(self) -> None:
+        host = FakeHost()
+        runtime = _build_runtime()
+        _seed_runnable_concern(runtime, _session_start_concern())
+        installed = install_hooks(host, runtime=runtime)
+
+        before = {"runtime_prompt": {"active_concerns": ""}}
+        host.fire("agent.started", {"turn_id": "t-1", "payload": {}})
+
+        # Buffer should now hold the session-start injection.
+        assert len(installed.pending) == 1
+        assert installed.pending[0].joinpoint.name == "runtime_start"
+
+        after = installed.apply_to(before)
+        active = after["runtime_prompt"]["active_concerns"]
+        # The injection lands as visible advice text in the prompt slot.
+        assert "OpenCOAT" in active
+        # Source context untouched — apply_injection deep-copies.
+        assert before["runtime_prompt"]["active_concerns"] == ""
+
+    def test_concern_with_no_match_yields_no_prompt_change(self) -> None:
+        """A concern that doesn't match the fired joinpoint must NOT
+        leak into the host context — pins that the pickup API doesn't
+        accidentally apply unrelated buffered injections.
+        """
+        host = FakeHost()
+        runtime = _build_runtime()
+        _seed_runnable_concern(runtime, _session_start_concern())
+        installed = install_hooks(host, runtime=runtime)
+
+        # ``agent.user_message`` maps to ``on_user_input``, not
+        # ``runtime_start`` — the session-start concern shouldn't fire.
+        host.fire("agent.user_message", {"turn_id": "t-1", "payload": {"text": "hello"}})
+
+        out = installed.apply_to({"runtime_prompt": {"active_concerns": "base"}})
+        assert out == {"runtime_prompt": {"active_concerns": "base"}}
+        assert installed.pending == ()

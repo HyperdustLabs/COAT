@@ -25,6 +25,46 @@ shutdown (typically inside a ``try / finally``).
 The bridge between OpenClaw events and the runtime is the same in
 both modes — only the joinpoint sink changes (daemon over HTTP vs
 local ``OpenCOATRuntime`` in-proc).
+
+**The closed loop — events go in, advice comes out.**
+
+``install_hooks`` subscribes to OpenClaw events and feeds each one
+to the runtime. The runtime answers with a
+:class:`opencoat_runtime_protocol.ConcernInjection` describing what
+concerns matched and what advice rows to weave; that injection is
+buffered onto :attr:`InstalledHooks.pending`. Hosts pick it up at the
+two materialisation points OpenCOAT cares about:
+
+.. code-block:: python
+
+    installed = install(openclaw_host)
+    try:
+        while turn := openclaw_host.next_turn():
+            # 1. fire events through the host as usual — install_hooks
+            #    pushes each one into the daemon and buffers the result.
+            turn.run_until_prompt()
+
+            # 2. PROMPT FOLD — merge every buffered injection into the
+            #    mutable prompt context BEFORE calling the LLM.
+            turn.prompt_ctx = installed.apply_to(turn.prompt_ctx)
+
+            # 3. TOOL DISPATCH — decode TOOL_GUARD advice for each
+            #    pending tool call. ``None`` means default-allow.
+            for call in turn.pending_tool_calls():
+                outcome = installed.guard_tool_call(call)
+                if outcome is not None and outcome.blocked:
+                    turn.refuse(call, reason=outcome.block_reason)
+                elif outcome is not None:
+                    turn.dispatch(call["name"], outcome.arguments,
+                                  notes=outcome.notes)
+                else:
+                    turn.dispatch(call["name"], call["arguments"])
+    finally:
+        installed.uninstall()
+
+For a runnable single-file demo (no real OpenClaw needed — a tiny
+:class:`OpenClawHost` fake is enough), see ``opencoat-skill``'s
+``demo_host.py`` quickstart.
 """
 
 from __future__ import annotations
