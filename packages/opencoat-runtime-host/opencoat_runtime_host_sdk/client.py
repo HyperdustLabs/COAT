@@ -14,13 +14,60 @@ Connect string formats:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
-from opencoat_runtime_protocol import ConcernInjection, JoinpointEvent
+from opencoat_runtime_protocol import Concern, ConcernInjection, JoinpointEvent
 
 from .transport.http import HttpTransport
 from .transport.inproc import InProcTransport
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionRejection:
+    """One span the extractor rejected, with a short reason.
+
+    Mirrors :class:`opencoat_runtime_core.concern.Rejection` on purpose
+    so host code only ever imports from ``opencoat-runtime-host`` —
+    the host SDK stays consumable without ``opencoat-runtime-core``
+    on the import path for pure-protocol callers.
+    """
+
+    span: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionOutcome:
+    """Typed result of :meth:`Client.extract_concerns`.
+
+    Attributes
+    ----------
+    candidates:
+        Validated :class:`Concern` envelopes the extractor produced,
+        in source order, already de-duplicated within this call.
+    rejected:
+        Per-span :class:`ExtractionRejection` entries — LLM error,
+        envelope validation error, duplicate, etc. Hosts surface
+        these as warnings; they do not abort the call.
+    upserted:
+        ``True`` when the daemon (or in-proc runtime) wrote every
+        candidate into its concern store before responding. ``False``
+        when the caller passed ``dry_run=True`` for a preview-only
+        run, in which case the candidates exist in memory only and
+        won't be visible to a subsequent ``joinpoint.submit``.
+    """
+
+    candidates: tuple[Concern, ...] = ()
+    rejected: tuple[ExtractionRejection, ...] = field(default_factory=tuple)
+    upserted: bool = True
+
+    def __bool__(self) -> bool:  # pragma: no cover — trivial
+        return bool(self.candidates)
+
+    def __len__(self) -> int:  # pragma: no cover — trivial
+        return len(self.candidates)
 
 
 class Client:
@@ -108,5 +155,70 @@ class Client:
             return_none_when_empty=return_none_when_empty,
         )
 
+    def extract_concerns(
+        self,
+        text: str,
+        *,
+        origin: str,
+        ref: str | None = None,
+        dry_run: bool = False,
+    ) -> ExtractionOutcome:
+        """Turn natural-language ``text`` into Concerns via the runtime's LLM.
 
-__all__ = ["Client"]
+        Bridges the host loop into
+        :class:`opencoat_runtime_core.concern.ConcernExtractor` (the
+        OpenCOAT runtime's M2 §20.1 extractor) over the wire surface
+        introduced in M5 PR-48 — ``concern.extract``. Works identically
+        for ``inproc://`` and ``http(s)://`` transports.
+
+        Parameters
+        ----------
+        text:
+            The natural-language input to mine (a user message,
+            a governance paragraph, a tool log, …). Must be non-empty
+            after stripping.
+        origin:
+            One of ``manual_import`` / ``user_input`` / ``tool_result``
+            / ``draft_output`` / ``feedback``. Selects the per-origin
+            LLM instruction and the default trust score the extractor
+            stamps onto the produced :class:`Concern.source`. Anything
+            else raises :class:`ValueError` (HTTP) or surfaces as
+            ``-32602 invalid params`` (RPC).
+        ref:
+            Optional provenance handle (prompt id, document ref, tool
+            name, …). Stamped verbatim onto ``Concern.source.ref``.
+        dry_run:
+            When ``True``, the daemon (or in-proc runtime) skips the
+            ``concern_store.upsert`` step so candidates are *not*
+            visible to a subsequent ``joinpoint.submit``. Useful for
+            CLI ``--dry-run`` previews; defaults to ``False`` so
+            "extract → next turn picks it up" works in one call.
+
+        Returns
+        -------
+        :class:`ExtractionOutcome` carrying the validated candidates,
+        any per-span rejections, and whether the upsert side-effect
+        actually fired.
+        """
+        params: dict[str, Any] = {"text": text, "origin": origin}
+        if ref is not None:
+            params["ref"] = ref
+        if dry_run:
+            params["dry_run"] = True
+
+        raw = self._transport.call("concern.extract", params)
+        if not isinstance(raw, dict):
+            raise RuntimeError(f"extract_concerns: malformed result from transport: {raw!r}")
+        candidates = tuple(Concern.model_validate(c) for c in raw.get("candidates", []))
+        rejected = tuple(
+            ExtractionRejection(
+                span=str(r.get("span", "")),
+                reason=str(r.get("reason", "")),
+            )
+            for r in raw.get("rejected", [])
+        )
+        upserted = bool(raw.get("upserted", not dry_run))
+        return ExtractionOutcome(candidates=candidates, rejected=rejected, upserted=upserted)
+
+
+__all__ = ["Client", "ExtractionOutcome", "ExtractionRejection"]

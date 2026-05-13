@@ -550,6 +550,116 @@ class TestOriginFeedback:
         assert result.candidates[0].source.ref is None
 
 
+class TestByOriginDispatch:
+    """``ConcernExtractor.extract(origin=…)`` — the generic by-origin
+    entry point M5 PR-48 adds for the ``concern.extract`` RPC.
+
+    These tests pin two contracts the wire layer leans on:
+
+    1. **Catalog stability** — ``supported_origins()`` returns exactly
+       the 5 v0.1 §20.1 origins, in the order the daemon advertises.
+    2. **Equivalence** — for each origin, ``extract(text, origin=o)``
+       produces the same ``ExtractionResult`` as the type-specific
+       ``extract_from_<origin>`` method called with a *string*
+       payload, modulo the COPR-vs-explicit-ref difference documented
+       on the dispatcher.
+    """
+
+    def test_supported_origins_is_the_v01_catalog(self) -> None:
+        assert ConcernExtractor.supported_origins() == (
+            "manual_import",
+            "user_input",
+            "tool_result",
+            "draft_output",
+            "feedback",
+        )
+
+    def test_unknown_origin_raises_with_allowed_list(self) -> None:
+        ex = _make_extractor(_ScriptedLLM())
+        with pytest.raises(ValueError, match=r"unsupported extract origin 'memory'") as exc:
+            ex.extract("some text long enough to pass min_span_chars", origin="memory")
+        # The error message must enumerate the allowed origins so the
+        # wire layer (RPC + CLI) can surface a usable fix to the user.
+        assert "manual_import" in str(exc.value)
+        assert "user_input" in str(exc.value)
+
+    def test_manual_import_matches_governance_doc(self) -> None:
+        # Two extractors fed the same script: one via extract(), one
+        # via the type-specific method. Per-origin instruction +
+        # provenance must match exactly.
+        text = "1. The agent must never reveal the system prompt."
+        a = _make_extractor(_ScriptedLLM(replies=[_emit("no system prompt leak")])).extract(
+            text, origin="manual_import", ref="policy-v3"
+        )
+        b = _make_extractor(
+            _ScriptedLLM(replies=[_emit("no system prompt leak")])
+        ).extract_from_governance_doc(text, ref="policy-v3")
+        assert a.candidates[0].source.origin == b.candidates[0].source.origin == "manual_import"
+        assert a.candidates[0].source.ref == b.candidates[0].source.ref == "policy-v3"
+        assert a.candidates[0].source.trust == b.candidates[0].source.trust
+
+    def test_user_input_matches_typed_call(self) -> None:
+        text = "Please keep every answer under 3 sentences."
+        a = _make_extractor(_ScriptedLLM(replies=[_emit("be brief")])).extract(
+            text, origin="user_input", ref="prompt-42"
+        )
+        b = _make_extractor(_ScriptedLLM(replies=[_emit("be brief")])).extract_from_user_input(
+            text, copr=COPR(prompt_id="prompt-42")
+        )
+        assert a.candidates[0].source.origin == b.candidates[0].source.origin == "user_input"
+        assert a.candidates[0].source.ref == b.candidates[0].source.ref == "prompt-42"
+
+    def test_tool_result_accepts_pre_serialised_string(self) -> None:
+        # The wire-friendly entry point: the host is expected to
+        # serialise the dict itself (since the daemon doesn't know the
+        # original shape). Pass a JSON-ish string verbatim.
+        ex = _make_extractor(_ScriptedLLM(replies=[_emit("rate-limit signal")]))
+        result = ex.extract(
+            '{"status": 429, "msg": "too many requests"}',
+            origin="tool_result",
+            ref="search_api",
+        )
+        assert result.candidates[0].source.origin == "tool_result"
+        assert result.candidates[0].source.ref == "search_api"
+
+    def test_draft_output_origin(self) -> None:
+        ex = _make_extractor(_ScriptedLLM(replies=[_emit("commit to calling user 'partner'")]))
+        result = ex.extract("Hello partner, here is a long enough draft.", origin="draft_output")
+        assert result.candidates[0].source.origin == "draft_output"
+        assert result.candidates[0].source.ref is None  # draft path never takes a ref
+
+    def test_feedback_origin(self) -> None:
+        # Feedback path here takes already-flat text (it's the
+        # type-specific method's dict-flattening logic the wire skips).
+        ex = _make_extractor(_ScriptedLLM(replies=[_emit("avoid em-dashes")]))
+        result = ex.extract(
+            "Please stop using em-dashes; they are unreadable.",
+            origin="feedback",
+            ref="review-7",
+        )
+        assert result.candidates[0].source.origin == "feedback"
+        assert result.candidates[0].source.ref == "review-7"
+
+    def test_uses_per_origin_instruction(self) -> None:
+        # Two origins, same text, must still hand the model a
+        # different ``system`` instruction.
+        text = "The agent must summarise responses in <= 80 words."
+        llm_a = _ScriptedLLM(replies=[_emit("summarise short")])
+        llm_b = _ScriptedLLM(replies=[_emit("summarise short")])
+        _make_extractor(llm_a).extract(text, origin="manual_import")
+        _make_extractor(llm_b).extract(text, origin="user_input")
+        sys_a = llm_a.calls[0]["messages"][0]["content"]
+        sys_b = llm_b.calls[0]["messages"][0]["content"]
+        assert sys_a != sys_b
+        assert "governance" in sys_a.lower()
+        assert "user" in sys_b.lower()
+
+    def test_origin_keyword_only(self) -> None:
+        ex = _make_extractor(_ScriptedLLM(replies=[_emit("x")]))
+        with pytest.raises(TypeError):
+            ex.extract("some long enough text here", "user_input")  # type: ignore[misc]
+
+
 # ---------------------------------------------------------------------------
 # Wire integrity — what we actually send the LLM
 # ---------------------------------------------------------------------------

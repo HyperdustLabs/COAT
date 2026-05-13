@@ -1,14 +1,17 @@
-"""``opencoat concern list | show | import | export | diff`` (M4 PR-22).
+"""``opencoat concern list | show | import | export | diff | extract`` (M4 PR-22 + M5 PR-48).
 
 All actions reach the daemon over the HTTP JSON-RPC client introduced
-in PR-21. The wire methods are ``concern.list``, ``concern.get``, and
-``concern.upsert`` — no extra server-side work was required for this
-PR.
+in PR-21. The wire methods are ``concern.list``, ``concern.get``,
+``concern.upsert``, ``concern.delete``, and (since M5 PR-48)
+``concern.extract`` — the dynamic, LLM-driven path that turns a
+user message / governance paragraph / tool log into validated
+Concerns and (by default) upserts them in one call.
 
 Defaults are tuned for human terminals: ``list`` prints
 ``<id>  <state>  <name>`` columns; ``--json`` switches to a single
 JSON array suitable for piping into ``jq`` or another ``opencoat concern
-import``.
+import``. ``extract`` writes a short BEFORE-after summary to stdout
+and the candidates' wire form when ``--json`` is set.
 """
 
 from __future__ import annotations
@@ -244,6 +247,127 @@ def _concern_diff(args: argparse.Namespace) -> int:
 
 
 # ----------------------------------------------------------------------
+# extract  (M5 PR-48)
+# ----------------------------------------------------------------------
+
+
+# Mirrors :meth:`opencoat_runtime_core.concern.ConcernExtractor.supported_origins`.
+# Kept in sync at test time; the CLI fails loudly with the allowed
+# list when the user picks a bad origin, so a drift between the two
+# only mis-orders the help text, not behaviour.
+_EXTRACT_ORIGINS: tuple[str, ...] = (
+    "manual_import",
+    "user_input",
+    "tool_result",
+    "draft_output",
+    "feedback",
+)
+
+
+def _extract_read_text(args: argparse.Namespace) -> str | int:
+    """Resolve ``--from-text`` / ``--from-file`` / stdin into one string.
+
+    Exactly one input source must be provided; returns an ``int`` exit
+    code on misuse so the caller can short-circuit.
+    """
+    explicit_text = getattr(args, "from_text", None)
+    file_path = getattr(args, "from_file", None)
+
+    if explicit_text and file_path:
+        print(
+            "concern extract: --from-text and --from-file are mutually exclusive",
+            file=sys.stderr,
+        )
+        return 2
+
+    if explicit_text is not None:
+        if not explicit_text.strip():
+            print("concern extract: --from-text was empty", file=sys.stderr)
+            return 2
+        return explicit_text
+
+    if file_path is not None:
+        try:
+            return Path(file_path).read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"concern extract: cannot read {file_path}: {exc}", file=sys.stderr)
+            return 2
+
+    # No flag → fall back to stdin (handy for ``cat policy.md |
+    # opencoat concern extract``). A tty stdin with no flag is a
+    # mistake — the user almost certainly forgot to pass text.
+    if sys.stdin.isatty():
+        print(
+            "concern extract: pass --from-text 'TEXT', --from-file PATH, or pipe content on stdin",
+            file=sys.stderr,
+        )
+        return 2
+    return sys.stdin.read()
+
+
+def _concern_extract(args: argparse.Namespace) -> int:
+    if args.origin not in _EXTRACT_ORIGINS:
+        allowed = ", ".join(_EXTRACT_ORIGINS)
+        print(
+            f"concern extract: --origin must be one of: {allowed}",
+            file=sys.stderr,
+        )
+        return 2
+
+    text_or_rc = _extract_read_text(args)
+    if isinstance(text_or_rc, int):
+        return text_or_rc
+    text = text_or_rc
+
+    params: dict[str, Any] = {"text": text, "origin": args.origin}
+    if args.ref is not None:
+        params["ref"] = args.ref
+    if args.dry_run:
+        params["dry_run"] = True
+
+    client = make_client(args)
+    try:
+        raw = client.call("concern.extract", params)
+    except HttpRpcError as exc:
+        return _emit_rpc_error("concern extract", exc)
+
+    if not isinstance(raw, dict):
+        print(f"concern extract: unexpected response shape: {raw!r}", file=sys.stderr)
+        return 4
+
+    candidates = raw.get("candidates") or []
+    rejected = raw.get("rejected") or []
+    upserted = bool(raw.get("upserted", not args.dry_run))
+
+    if args.json:
+        sys.stdout.write(_pretty(raw) + "\n")
+        return 0
+
+    # Human summary — make the side-effect contract obvious so users
+    # don't go to ``concern list`` and wonder why nothing landed.
+    label = "upserted" if upserted else "dry-run (not stored)"
+    print(
+        f"concern extract: origin={args.origin}, "
+        f"{len(candidates)} candidate(s), "
+        f"{len(rejected)} rejection(s), {label}"
+    )
+    for c in candidates:
+        cid = c.get("id", "?")
+        name = c.get("name", "")
+        gtype = c.get("generated_type") or "-"
+        print(f"  + {cid}  [{gtype}]  {name}")
+    if rejected:
+        print("rejected:")
+        for r in rejected:
+            span = (r.get("span") or "")[:80]
+            reason = r.get("reason") or ""
+            print(f"  - {reason} :: {span}")
+    if not candidates and not rejected:
+        print("  (no rule-shaped spans detected; nothing to upsert)")
+    return 0
+
+
+# ----------------------------------------------------------------------
 # argparse wiring
 # ----------------------------------------------------------------------
 
@@ -254,6 +378,7 @@ _ACTIONS = {
     "import": _concern_import,
     "export": _concern_export,
     "diff": _concern_diff,
+    "extract": _concern_extract,
 }
 
 
@@ -319,6 +444,55 @@ def register(sub: argparse._SubParsersAction) -> None:
             "`import`: load the in-tree demo set "
             "(demo-prompt-prefix / demo-tool-block / demo-memory-tag) "
             "instead of reading a file."
+        ),
+    )
+    p.add_argument(
+        "--from-text",
+        dest="from_text",
+        default=None,
+        help=(
+            "`extract`: natural-language text to mine for Concerns "
+            "(e.g. a user message). Mutually exclusive with --from-file; "
+            "if neither is set and stdin is piped, stdin is used."
+        ),
+    )
+    p.add_argument(
+        "--from-file",
+        dest="from_file",
+        default=None,
+        help=(
+            "`extract`: path to a file whose contents are mined for "
+            "Concerns. Mutually exclusive with --from-text."
+        ),
+    )
+    p.add_argument(
+        "--origin",
+        default="user_input",
+        choices=_EXTRACT_ORIGINS,
+        help=(
+            "`extract`: tag the source of the input. Selects the "
+            "per-origin LLM instruction and the default trust score "
+            "the extractor stamps onto Concern.source (default: "
+            "user_input)."
+        ),
+    )
+    p.add_argument(
+        "--ref",
+        default=None,
+        help=(
+            "`extract`: provenance handle (prompt id, doc ref, tool "
+            "name). Stamped onto Concern.source.ref verbatim."
+        ),
+    )
+    p.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help=(
+            "`extract`: skip the daemon's concern_store.upsert step "
+            "so candidates are previewed but not persisted. Use to "
+            "inspect what `concern extract` would create before "
+            "letting it stick."
         ),
     )
     p.set_defaults(func=_handle)
