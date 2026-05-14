@@ -32,7 +32,7 @@ from ._pidfile import PidFile, PidFileError
 from .config.loader import DaemonConfig
 from .ipc.http_server import HttpServer
 from .ipc.jsonrpc_dispatch import JsonRpcHandler
-from .runtime_builder import BuiltRuntime, build_runtime
+from .runtime_builder import BuiltRuntime, build_runtime, warm_persistent_stores
 
 logger = logging.getLogger("opencoat_runtime_daemon")
 
@@ -105,6 +105,7 @@ class Daemon:
             try:
                 self._acquire_pid_file()
                 self._built = build_runtime(self._config, env=self._env)
+                warm_persistent_stores(self._built.runtime)
                 self._handler = JsonRpcHandler(
                     self._built.runtime,
                     llm_info=self._built.llm_info,
@@ -135,6 +136,7 @@ class Daemon:
                 raise RuntimeError("Daemon is not started")
             old_built = self._built
             new_built = build_runtime(self._config, env=self._env)
+            warm_persistent_stores(new_built.runtime)
             new_handler = JsonRpcHandler(new_built.runtime, llm_info=new_built.llm_info)
             # Swap before closing the old runtime so in-flight RPCs that
             # already grabbed the handler reference keep working; new

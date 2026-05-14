@@ -44,12 +44,14 @@ def test_module_imports(modname: str) -> None:
     importlib.import_module(modname)
 
 
-def test_default_config_loads() -> None:
+def test_default_config_loads(monkeypatch: pytest.MonkeyPatch) -> None:
     from opencoat_runtime_daemon.config import load_config
 
+    monkeypatch.delenv("OPENCOAT_TEST_MEMORY_STORES", raising=False)
     cfg = load_config()
     assert cfg.runtime.schema_version == "0.2"
-    assert cfg.storage.concern_store.kind == "memory"
+    assert cfg.storage.concern_store.kind == "sqlite"
+    assert cfg.storage.dcn_store.kind == "sqlite"
     # Default flipped from "stub" to "auto" so a fresh install picks
     # whichever real provider's creds are present (falling back to
     # stub with a loud warning if none). See ADR 0010 (LLM auto-

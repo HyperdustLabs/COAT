@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from opencoat_runtime_daemon.config.loader import (
     StorageSettings,
     load_config,
 )
+from opencoat_runtime_daemon.runtime_builder import warm_persistent_stores
 from opencoat_runtime_protocol import (
     Advice,
     AdviceType,
@@ -126,6 +128,12 @@ class TestDefaults:
         built = build_runtime(load_config(), env={})
         built.close()
         built.close()
+
+    def test_warm_persistent_stores_logs_counts(self, caplog: pytest.LogCaptureFixture) -> None:
+        caplog.set_level(logging.INFO)
+        with build_runtime(load_config(), env={}) as built:
+            warm_persistent_stores(built.runtime)
+        assert any("warm-up complete" in r.message for r in caplog.records)
 
 
 class TestStorageSqlite:

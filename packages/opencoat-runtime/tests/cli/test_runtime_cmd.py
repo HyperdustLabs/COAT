@@ -283,11 +283,14 @@ def test_up_detached_without_fork_returns_clean_error(
 # ----------------------------------------------------------------------
 
 
-def test_down_without_pid_file_returns_two(capsys: pytest.CaptureFixture[str]) -> None:
+def test_down_default_pid_file_respects_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
     rc = runtime_cmd._handle(_ns(action="down"))
-    err = capsys.readouterr().err
-    assert rc == 2
-    assert "--pid-file" in err
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "no daemon pid" in out
 
 
 def test_down_missing_pid_file_is_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

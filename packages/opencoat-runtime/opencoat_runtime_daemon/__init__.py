@@ -4,7 +4,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 from .daemon import Daemon, DaemonAlreadyStartedError
-from .runtime_builder import BuiltRuntime, LLMInfo, build_runtime
+from .runtime_builder import BuiltRuntime, LLMInfo, build_runtime, warm_persistent_stores
 
 try:
     __version__ = _version("opencoat-runtime")
@@ -17,4 +17,5 @@ __all__ = [
     "DaemonAlreadyStartedError",
     "LLMInfo",
     "build_runtime",
+    "warm_persistent_stores",
 ]
