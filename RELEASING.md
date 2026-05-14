@@ -44,7 +44,7 @@ bash scripts/verify.sh
 
 # 1. bump every pyproject in lockstep (3 files)
 #    pick X.Y.Z per SemVer:
-#      0.1.0 → 0.1.1    patch (bugfix, no API change)
+#      0.1.1 → 0.1.2    patch (CLI `service` + PyPI/doc alignment)
 #      0.1.0 → 0.2.0    minor (additive API)
 #      0.1.0 → 1.0.0    major (breaking)
 $EDITOR packages/opencoat-runtime-protocol/pyproject.toml \
@@ -55,8 +55,8 @@ $EDITOR packages/opencoat-runtime-protocol/pyproject.toml \
 uv lock
 
 # 3. commit + tag + push
-git commit -am "chore(release): v0.1.1"
-git tag v0.1.1
+git commit -am "chore(release): v0.1.2"
+git tag v0.1.2
 git push origin main --tags
 ```
 

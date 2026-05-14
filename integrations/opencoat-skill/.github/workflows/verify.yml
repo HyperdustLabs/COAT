@@ -1,0 +1,90 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    name: skill.json + file integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: skill.json parses as JSON
+        run: |
+          python3 -c "import json,sys; json.load(open('skill.json'))"
+
+      - name: required top-level fields are present
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          required = {
+              "name", "version", "description",
+              "license", "homepage", "repository",
+              "entrypoint", "files", "compatible_with",
+          }
+          data = json.load(open("skill.json"))
+          missing = required - set(data)
+          if missing:
+              print(f"missing keys in skill.json: {sorted(missing)}", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: every file referenced from skill.json exists
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          data = json.load(open("skill.json"))
+          missing = [f for f in [data["entrypoint"], *data["files"]] if not os.path.isfile(f)]
+          if missing:
+              print(f"missing referenced files: {missing}", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: SKILL.md frontmatter is well-formed
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          src = open("SKILL.md").read()
+          m = re.match(r"^---\n(.*?\n)---\n", src, re.DOTALL)
+          if not m:
+              print("SKILL.md is missing YAML frontmatter", file=sys.stderr)
+              sys.exit(1)
+          fm = m.group(1)
+          for key in ("name:", "description:"):
+              if key not in fm:
+                  print(f"SKILL.md frontmatter missing `{key}`", file=sys.stderr)
+                  sys.exit(1)
+          PY
+
+      - name: SKILL.md is under 500 lines (per agent-skill guidance)
+        run: |
+          lines=$(wc -l < SKILL.md)
+          echo "SKILL.md is $lines lines"
+          test "$lines" -lt 500
+
+      - name: every internal link target resolves
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          rx = re.compile(r"\]\(([^)#]+?)(?:#[^)]*)?\)")
+          bad = []
+          for path in ("SKILL.md", "inspection.md", "concerns.md", "rules.md"):
+              src = open(path).read()
+              for target in rx.findall(src):
+                  if target.startswith(("http://", "https://", "mailto:")):
+                      continue
+                  if not os.path.isfile(target):
+                      bad.append((path, target))
+          if bad:
+              for path, target in bad:
+                  print(f"{path}: dead link → {target}", file=sys.stderr)
+              sys.exit(1)
+          PY

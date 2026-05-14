@@ -24,6 +24,7 @@ from .commands import (
     plugin_cmd,
     replay_cmd,
     runtime_cmd,
+    service_cmd,
 )
 
 # Rendered once with ``pyfiglet -f big OpenCOAT`` (author-time only — no
@@ -44,6 +45,7 @@ _SUBTITLE = "Open Concern-Oriented Agent Thinking · opencoat v{ver}"
 CommandRegistrar = Callable[[argparse._SubParsersAction], None]
 COMMANDS: tuple[CommandRegistrar, ...] = (
     runtime_cmd.register,
+    service_cmd.register,
     configure_cmd.register,
     concern_cmd.register,
     dcn_cmd.register,

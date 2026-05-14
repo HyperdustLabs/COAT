@@ -1,0 +1,51 @@
+# Cloudflare Worker — reverse-proxies skill files from
+# raw.githubusercontent.com (HyperdustLabs/opencoat-skill@main) onto
+# https://www.opencoat.ai/ at the *root* path, so URLs match the
+# Moltbook convention (`https://www.<host>/skill.md`,
+# `https://www.<host>/SKILL.md`, etc.).
+#
+# Strikingly continues to serve everything else on www.opencoat.ai —
+# the worker only intercepts the nine skill paths listed in
+# ``routes`` below. Nothing else on the marketing site changes.
+#
+# Deploy via the bundled GitHub Action (.github/workflows/deploy-worker.yml),
+# or manually with `npx wrangler deploy --env production` after
+# logging in.
+
+name = "opencoat-skill-proxy"
+main = "src/worker.ts"
+compatibility_date = "2025-06-01"
+
+# Routes are evaluated by the Cloudflare edge in the order Cloudflare
+# decides — they don't strictly need to be ordered here. Each route
+# is a "specific path" entry (no wildcards on the suffix) so the
+# worker doesn't accidentally intercept e.g. the marketing site's
+# own `/about.md`. Lowercase aliases (skill.md, readme.md) match
+# Moltbook's URL convention; the worker maps them to the canonical
+# uppercase repo paths.
+routes = [
+  { pattern = "www.opencoat.ai/SKILL.md",      zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/skill.md",      zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/skill.json",    zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/concerns.md",   zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/inspection.md", zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/rules.md",      zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/README.md",     zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/readme.md",     zone_name = "opencoat.ai" },
+  { pattern = "www.opencoat.ai/bootstrap_daemon.sh", zone_name = "opencoat.ai" },
+]
+
+# The branch / repo the worker proxies. Pinning to ``main`` means
+# pushes to main reach agents instantly (modulo the 300s edge cache
+# we set on the response). To stage skill changes safely, branch
+# off main, open a PR, merge it — the worker picks it up on the
+# next request after the cache expires.
+[vars]
+GITHUB_OWNER  = "HyperdustLabs"
+GITHUB_REPO   = "opencoat-skill"
+GITHUB_BRANCH = "main"
+
+# Edge cache configuration. 5 minutes is short enough for fast
+# iteration and long enough to absorb a small swarm of agents
+# fetching the same file in a deployment burst.
+EDGE_TTL_SECONDS = "300"

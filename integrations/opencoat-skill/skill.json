@@ -1,0 +1,37 @@
+{
+  "name": "opencoat",
+  "version": "0.5.5",
+  "description": "One-line host prompt: Read https://www.opencoat.ai/SKILL.md to install and use OpenCOAT. Full agent contract is in SKILL.md (run Quick start, autostart, no API keys in chat). Concern-driven joinpoints / weaving for host agents.",
+  "author": "HyperdustLabs",
+  "license": "Apache-2.0",
+  "homepage": "https://www.opencoat.ai",
+  "skill_url": "https://www.opencoat.ai/SKILL.md",
+  "repository": "https://github.com/HyperdustLabs/opencoat-skill",
+  "issues": "https://github.com/HyperdustLabs/OpenCOAT/issues",
+  "tags": [
+    "opencoat",
+    "agent-runtime",
+    "concerns",
+    "aop",
+    "joinpoint",
+    "pointcut",
+    "weaving",
+    "dcn",
+    "tool-guard",
+    "memory-bridge"
+  ],
+  "entrypoint": "SKILL.md",
+  "files": [
+    "SKILL.md",
+    "inspection.md",
+    "concerns.md",
+    "rules.md",
+    "bootstrap_daemon.sh"
+  ],
+  "compatible_with": {
+    "opencoat-runtime": ">=0.1.2",
+    "opencoat-runtime-host": ">=0.1.2",
+    "opencoat-runtime-protocol": ">=0.1.2"
+  },
+  "tracks": "opencoat-runtime@major"
+}

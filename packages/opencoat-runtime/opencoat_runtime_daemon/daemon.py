@@ -250,7 +250,11 @@ class Daemon:
         if not getattr(ipc, "enabled", False):
             return
         host = getattr(ipc, "host", "127.0.0.1") or "127.0.0.1"
-        port = int(getattr(ipc, "port", 7878) or 7878)
+        # Port 0 means "bind an ephemeral port" (tests, multi-instance). Do not
+        # use ``or 7878`` — that would treat 0 as missing and collide with a
+        # real daemon on the default port.
+        _port = getattr(ipc, "port", None)
+        port = int(7878 if _port is None else _port)
         path = getattr(ipc, "path", "/rpc") or "/rpc"
         assert self._handler is not None
         self._http = HttpServer(self._handler, host=host, port=port, path=path)
