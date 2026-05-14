@@ -252,34 +252,11 @@ opencoat demo
 That's the whole step. The CLI subscribes a tiny in-script `FakeHost`
 to the daemon via `install_hooks`, fires three events, and uses the
 pickup API (`apply_to` / `guard_tool_call`) to fold the returned
-advice back into the host's mutable state. Three scenes print
-**BEFORE / AFTER** so concerns visibly change the host context:
+advice back into the host's mutable state. **Run `opencoat demo` locally**
+to see three BEFORE/AFTER scenes (prompt fold → tool guard → memory annotate).
 
 ```text
-== OpenCOAT demo — daemon @ http://127.0.0.1:7878/rpc ==
-
-[1/3] PROMPT FOLDING — concern: demo-prompt-prefix
-  fire event : agent.started
-  prompt slot: runtime_prompt.active_concerns
-  BEFORE     : ""
-  AFTER      : Begin every response with `[OpenCOAT demo active]`.
-  → apply_to() folded demo-prompt-prefix into the prompt slot.
-
-[2/3] TOOL GUARD — concern: demo-tool-block
-  fire event : agent.before_tool (payload includes 'rm -rf')
-  tool call  : shell.exec rm -rf /tmp/scratch
-  outcome    : BLOCKED
-  reason     : Refusing destructive shell command — `rm -rf` is blocked by demo-tool-block.
-  → guard_tool_call() returned blocked=True. Host should refuse.
-
-[3/3] MEMORY NOTE — concern: demo-memory-tag
-  fire event : agent.memory_write
-  memory slot: memory_write.policy_note
-  BEFORE     : ""
-  AFTER      : memory.policy=demo-memory-tag: write annotated by demo concern.
-  → apply_to() annotated memory_write.policy_note.
-
-✓ All three scenes produced visible host-context changes.
+(opencoat demo output is long; run the command to see the full trace.)
 ```
 
 If the daemon isn't running yet (or you don't want to bother seeding
