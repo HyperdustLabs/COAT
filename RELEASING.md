@@ -44,7 +44,7 @@ bash scripts/verify.sh
 
 # 1. bump every pyproject in lockstep (3 files)
 #    pick X.Y.Z per SemVer:
-#      0.1.1 → 0.1.2    patch (CLI `service` + PyPI/doc alignment)
+#      0.1.1 → 0.1.2    patch (ship CLI `service` + PyPI/doc alignment)
 #      0.1.0 → 0.2.0    minor (additive API)
 #      0.1.0 → 1.0.0    major (breaking)
 $EDITOR packages/opencoat-runtime-protocol/pyproject.toml \
