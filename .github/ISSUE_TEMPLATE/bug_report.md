@@ -9,6 +9,17 @@ labels: bug
 
 What you saw vs. what you expected.
 
+**Use case** (if this bug breaks a documented or intended flow)
+
+| Field | |
+|-------|---|
+| Use case title | |
+| Actor | |
+| Expected success criteria | |
+| What actually happened | |
+
+Skip the table if unknown — describe in Summary instead.
+
 **Reproduction**
 
 Minimal `pytest` test, code snippet, or `opencoat` invocation.

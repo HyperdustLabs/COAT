@@ -4,6 +4,25 @@ What does this PR change, and why? Link related issues if any.
 
 ---
 
+## User story & use cases
+
+See [`CONTRIBUTING.md`](../CONTRIBUTING.md) (*Prioritization: user stories → use cases → MVP*).
+
+**User story** (1–2 sentences; skip only for docs/chore/CI)
+
+> 
+
+**Use cases this PR closes or advances** — add/remove rows. Each use case should be testable (success criteria = observable).
+
+| # | Use case (short title) | Actor | Preconditions | Main flow (high level) | Success criteria |
+|---|-------------------------|-------|----------------|-------------------------|------------------|
+| 1 | | | | | |
+| 2 | | | | | |
+
+- [ ] **Not applicable** — docs-only / chore / CI / refactor with no user-visible behaviour (say why in Summary)
+
+---
+
 ## Milestone
 
 Which roadmap slice does this belong to? (See [`docs/design/v0.2-system-design.md`](../docs/design/v0.2-system-design.md) §12.)
