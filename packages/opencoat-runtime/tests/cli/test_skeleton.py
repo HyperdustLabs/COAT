@@ -14,6 +14,7 @@ import pytest
         "opencoat_runtime_cli.main",
         "opencoat_runtime_cli.commands",
         "opencoat_runtime_cli.commands.runtime_cmd",
+        "opencoat_runtime_cli.commands.service_cmd",
         "opencoat_runtime_cli.commands.concern_cmd",
         "opencoat_runtime_cli.commands.dcn_cmd",
         "opencoat_runtime_cli.commands.replay_cmd",

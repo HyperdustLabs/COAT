@@ -10,6 +10,7 @@ runtime config and the operational settings (storage / LLM / IPC).
 
 from __future__ import annotations
 
+import os
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -94,6 +95,20 @@ def load_config(path: Path | None = None) -> DaemonConfig:
     if path is not None:
         user = _read_yaml(Path(path))
         data = _merge(data, user)
+
+    # Hermetic pytest / CI only — forces in-process stores so parallel
+    # ``pytest`` workers never fight over ``~/.opencoat/*.sqlite``. Never
+    # set in production; see ``packages/opencoat-runtime/tests/conftest.py``.
+    if os.environ.get("OPENCOAT_TEST_MEMORY_STORES") == "1":
+        data = _merge(
+            data,
+            {
+                "storage": {
+                    "concern_store": {"kind": "memory"},
+                    "dcn_store": {"kind": "memory"},
+                }
+            },
+        )
 
     return DaemonConfig.model_validate(data)
 

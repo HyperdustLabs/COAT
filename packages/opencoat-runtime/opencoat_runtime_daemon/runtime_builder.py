@@ -22,9 +22,9 @@ Outputs:
 
 Supported backends:
 
-* Storage: ``memory`` (default) and ``sqlite`` (``path:`` field on the
-  backend block). Both stores accept ``:memory:`` and treat the empty
-  / missing path as in-memory.
+* Storage: ``sqlite`` (bundled default under ``~/.opencoat/``) and
+  ``memory`` (hermetic tests / embedded). Both stores accept ``:memory:``
+  and treat the empty / missing path as in-memory.
 * LLM: ``auto`` (default — picks the first provider whose credentials
   are present in the environment, falling back to a stub with a loud
   startup warning), plus the explicit providers ``stub`` /
@@ -193,6 +193,27 @@ def build_runtime(
         llm_label=info.label,
         llm_info=info,
         closers=closers,
+    )
+
+
+def warm_persistent_stores(runtime: OpenCOATRuntime) -> None:
+    """Sequential scan of stores to warm sqlite page cache without O(n) RAM.
+
+    We iterate and discard each row so peak memory stays bounded by one
+    deserialized object at a time. ``list(iter_all())`` would materialize
+    every concern and activation at daemon start and could OOM or push
+    ``runtime up`` past its health deadline on large datasets (Codex P1).
+    """
+    concern_count = 0
+    for _ in runtime.concern_store.iter_all():
+        concern_count += 1
+    activation_count = 0
+    for _ in runtime.dcn_store.activation_log(None, limit=None):
+        activation_count += 1
+    logger.info(
+        "OpenCOAT store warm-up complete (concerns=%d dcn_activations=%d)",
+        concern_count,
+        activation_count,
     )
 
 
@@ -505,4 +526,4 @@ def _build_llm(
     return builder(settings, env, env_explicit)
 
 
-__all__ = ["BuiltRuntime", "LLMInfo", "build_runtime"]
+__all__ = ["BuiltRuntime", "LLMInfo", "build_runtime", "warm_persistent_stores"]

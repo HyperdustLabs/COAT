@@ -33,6 +33,20 @@ from ..transport import HttpRpcCallError, HttpRpcClient, HttpRpcConnectionError,
 _DEFAULT_WAIT_SECONDS = 10.0
 _HEALTH_POLL_INTERVAL_SECONDS = 0.1
 
+# Shared with ``opencoat service`` (launchd / systemd) so PID path matches ``runtime up``.
+DEFAULT_RUNTIME_PID_RELATIVE = Path(".opencoat") / "opencoat.pid"
+
+
+def default_runtime_pid_file() -> Path:
+    """Default ``--pid-file`` location (``~/.opencoat/opencoat.pid``)."""
+    return Path.home() / DEFAULT_RUNTIME_PID_RELATIVE
+
+
+def _effective_pid_file(args: argparse.Namespace) -> Path:
+    if args.pid_file is not None:
+        return Path(args.pid_file)
+    return default_runtime_pid_file()
+
 
 # ----------------------------------------------------------------------
 # PID file helpers
@@ -76,8 +90,7 @@ def _daemon_argv(args: argparse.Namespace) -> list[str]:
     cmd: list[str] = [sys.executable, "-m", "opencoat_runtime_daemon"]
     if args.config is not None:
         cmd += ["--config", str(args.config)]
-    if args.pid_file is not None:
-        cmd += ["--pid-file", str(args.pid_file)]
+    cmd += ["--pid-file", str(_effective_pid_file(args))]
     if args.log_level:
         cmd += ["--log-level", args.log_level]
     return cmd
@@ -199,8 +212,9 @@ def _runtime_up(args: argparse.Namespace) -> int:
                 proc.wait(timeout=2)
         # When detached we cannot terminate via Popen; ask the pid file
         # owner (if any) to drain.
-        if args.detach and args.pid_file is not None:
-            pid = _read_pid_file(Path(args.pid_file))
+        pid_path = _effective_pid_file(args)
+        if args.detach and pid_path.is_file():
+            pid = _read_pid_file(pid_path)
             if pid is not None and _process_alive(pid):
                 with contextlib.suppress(OSError):
                     os.kill(pid, signal.SIGTERM)
@@ -211,10 +225,10 @@ def _runtime_up(args: argparse.Namespace) -> int:
         return 1
 
     pid_suffix = ""
-    if args.pid_file is not None:
-        pid = _read_pid_file(Path(args.pid_file))
-        if pid is not None:
-            pid_suffix = f" pid={pid}"
+    pid_path = _effective_pid_file(args)
+    pid = _read_pid_file(pid_path)
+    if pid is not None:
+        pid_suffix = f" pid={pid}"
     print(f"runtime up: serving at {client.endpoint}{pid_suffix}")
     return 0
 
@@ -266,10 +280,7 @@ def _probe_endpoint(client: HttpRpcClient) -> _EndpointProbe:
 
 
 def _runtime_down(args: argparse.Namespace) -> int:
-    if args.pid_file is None:
-        print("runtime down: --pid-file is required", file=sys.stderr)
-        return 2
-    pid_path = Path(args.pid_file)
+    pid_path = _effective_pid_file(args)
     pid = _read_pid_file(pid_path)
     if pid is None:
         print(f"runtime: no daemon pid recorded at {pid_path} — assuming stopped")
@@ -309,12 +320,11 @@ def _runtime_down(args: argparse.Namespace) -> int:
 
 def _runtime_status(args: argparse.Namespace) -> int:
     client = make_client(args, timeout=2.0)
-    pid: int | None = None
+    pid_path = _effective_pid_file(args)
+    pid = _read_pid_file(pid_path)
     pid_alive: bool | None = None
-    if args.pid_file is not None:
-        pid = _read_pid_file(Path(args.pid_file))
-        if pid is not None:
-            pid_alive = _process_alive(pid)
+    if pid is not None:
+        pid_alive = _process_alive(pid)
 
     try:
         result = client.call("health.ping")
@@ -322,7 +332,7 @@ def _runtime_status(args: argparse.Namespace) -> int:
         print(f"runtime: stopped (endpoint={client.endpoint})")
         if pid is not None:
             state = "alive" if pid_alive else "dead"
-            print(f"  pid-file: {args.pid_file} pid={pid} ({state})")
+            print(f"  pid-file: {pid_path} pid={pid} ({state})")
         return 3
     except HttpRpcCallError as exc:
         print(
@@ -339,7 +349,7 @@ def _runtime_status(args: argparse.Namespace) -> int:
     print(f"runtime: {label} (endpoint={client.endpoint})")
     if pid is not None:
         state = "alive" if pid_alive else "dead"
-        print(f"  pid-file: {args.pid_file} pid={pid} ({state})")
+        print(f"  pid-file: {pid_path} pid={pid} ({state})")
     return 0 if ok else 4
 
 
@@ -390,7 +400,7 @@ def register(sub: argparse._SubParsersAction) -> None:
         "--pid-file",
         type=Path,
         default=None,
-        help="PID file path; required by `down`, optional for `up`/`status`.",
+        help="PID file path (default: ~/.opencoat/opencoat.pid).",
     )
     p.add_argument(
         "--wait-seconds",
@@ -425,4 +435,4 @@ def register(sub: argparse._SubParsersAction) -> None:
     p.set_defaults(func=_handle)
 
 
-__all__ = ["register"]
+__all__ = ["DEFAULT_RUNTIME_PID_RELATIVE", "default_runtime_pid_file", "register"]

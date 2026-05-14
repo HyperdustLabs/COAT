@@ -43,9 +43,9 @@ runtime:
 # 2. Storage — where concerns and DCN history live
 # -----------------------------------------------------------------------------
 #
-# Default is ``memory`` for both stores (great for the M1 demo, useless for
-# production). Flip them to ``sqlite`` and persistence + replay just work
-# (M3 milestone).
+# The bundled default uses sqlite under ~/.opencoat/ (see
+# packages/opencoat-runtime/.../default.yaml). Override paths or use
+# ``kind: memory`` only for hermetic tests / embedded use.
 storage:
   concern_store:
     kind: sqlite

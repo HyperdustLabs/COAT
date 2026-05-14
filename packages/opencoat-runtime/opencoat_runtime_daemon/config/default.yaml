@@ -10,19 +10,20 @@ runtime:
     max_injection_tokens: 800
     max_advice_per_concern: 2
 
-# The bundled default keeps both stores in-process (zero-config CI /
-# examples / unit tests). For a daemon that survives reboots and keeps
-# concerns + DCN history across restarts, generate a user-level YAML
-# with sqlite paths via ``opencoat configure daemon`` (writes
-# ``~/.opencoat/daemon.yaml`` with ``kind: sqlite`` for both stores),
-# then start the daemon with ``--config ~/.opencoat/daemon.yaml``.
-# See docs/config/daemon.yaml.example for the full annotated production
-# config.
+# Production-oriented defaults: sqlite under ~/.opencoat/ so concerns and
+# DCN activation history survive daemon restarts. On startup the daemon
+# performs a one-shot full scan (iter_all + activation_log) to warm OS /
+# sqlite page cache; swap to lazy loading later if data grows large.
+# Hermetic tests set OPENCOAT_TEST_MEMORY_STORES=1 to overlay memory stores.
+# Override paths or switch backends in ~/.opencoat/daemon.yaml or via
+# ``opencoat configure daemon``.
 storage:
   concern_store:
-    kind: memory
+    kind: sqlite
+    path: ~/.opencoat/concerns.sqlite
   dcn_store:
-    kind: memory
+    kind: sqlite
+    path: ~/.opencoat/dcn.sqlite
 
 # LLM provider for the daemon's ConcernExtractor / AdviceGenerator and
 # any host that drives the runtime over HTTP. ``auto`` picks the first
@@ -54,6 +55,7 @@ ipc:
     enabled: true
     host: 127.0.0.1
     port: 7878
+    path: /rpc
   grpc:
     enabled: false
 

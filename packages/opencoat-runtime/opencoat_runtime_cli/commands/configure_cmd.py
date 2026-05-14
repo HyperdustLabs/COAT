@@ -427,20 +427,12 @@ _DEFAULT_PID_REL = Path(".opencoat") / "opencoat.pid"
 
 
 def _configure_daemon(args: argparse.Namespace) -> int:
-    """Write a sqlite-backed daemon profile to the user's YAML.
+    """Write / merge sqlite + HTTP settings into the user's daemon YAML.
 
-    The wizard is intentionally narrow:
-
-    * It flips ``storage.concern_store`` and ``storage.dcn_store`` to
-      ``kind: sqlite`` with files under ``~/.opencoat/`` so concerns
-      and the DCN activation log survive daemon restarts and reboots.
-    * It pins the HTTP listener (``ipc.http``) so ``opencoat runtime``
-      and the host-side SDK / OpenClaw plugins talk to a known
-      endpoint.
-
-    Anything the LLM wizard already wrote (``llm:`` block) is
-    preserved — both wizards target the same ``~/.opencoat/daemon.yaml``
-    and merge their slices, so operators can run them in either order.
+    The bundled ``default.yaml`` already uses sqlite under ``~/.opencoat/``
+    with HTTP on ``127.0.0.1:7878``. This wizard is for **custom** database
+    paths or listener settings; it preserves any ``llm:`` block from
+    ``opencoat configure llm``.
     """
     yaml_path: Path = args.yaml.expanduser()
     concern_db: Path = Path(args.concern_db).expanduser()
@@ -487,11 +479,13 @@ def _configure_daemon(args: argparse.Namespace) -> int:
         "     daemon stays alive after the terminal closes. Just don't run\n"
         "     `runtime down` and it'll keep serving across host-agent sessions:\n"
         f"       opencoat runtime up --config {yaml_path}{pid_arg}\n"
-        "  3. Confirm:\n"
+        "  3. (Optional) install OS autostart so the daemon survives reboots:\n"
+        "       opencoat service install\n"
+        "  4. Confirm:\n"
         f"       opencoat runtime status --config {yaml_path}{pid_arg}\n"
         "\n"
-        "  Stores live at the paths above; restart the daemon any time without\n"
-        "  losing concerns or the DCN activation log.\n",
+        "  The bundled default already uses sqlite under ~/.opencoat/; this\n"
+        "  wizard updates paths and the HTTP bind if you need non-defaults.\n",
         file=sys.stderr,
     )
     return 0
