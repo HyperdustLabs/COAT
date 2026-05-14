@@ -195,10 +195,12 @@ export OPENAI_API_KEY=sk-...
 # 2. (optional) drop a config file — only needed for non-default settings
 mkdir -p ~/.opencoat
 cp docs/config/daemon.yaml.example ~/.opencoat/daemon.yaml
-$EDITOR ~/.opencoat/daemon.yaml      # flip storage to sqlite, set log level, …
+$EDITOR ~/.opencoat/daemon.yaml      # tune paths, log level, HTTP bind, …
 
-# 3. start the daemon — picks up the key automatically
-opencoat runtime up --config ~/.opencoat/daemon.yaml
+# 3. start the daemon — picks up the key automatically (bundled default is sqlite + HTTP)
+opencoat runtime up
+# or with an explicit config:
+# opencoat runtime up --config ~/.opencoat/daemon.yaml
 
 # 4. confirm the right LLM was wired
 opencoat inspect joinpoints | head -1
@@ -219,40 +221,47 @@ both go quiet for that explicit choice.
 
 ### Make the daemon long-running + persistent
 
-The bundled default keeps both concern + DCN stores in-process so
-`pytest` / examples stay hermetic. Real users want the opposite: a
-daemon that survives restarts and remembers concerns across host-agent
-sessions. One command takes you there:
+The bundled daemon config persists concerns and the DCN to sqlite files under
+`~/.opencoat/` and enables HTTP JSON-RPC on `127.0.0.1:7878/rpc`. On startup
+the daemon reads the full concern set and activation log once to warm caches
+(larger deployments can narrow this later).
+
+Use `opencoat configure daemon` when you want to **customize** sqlite paths or
+the HTTP bind address; it merges into `~/.opencoat/daemon.yaml` alongside
+whatever `opencoat configure llm` wrote (either order is fine).
+
+Start the daemon and leave it running independently of any host agent:
 
 ```bash
-opencoat configure daemon
-```
-
-That writes `storage.concern_store` and `storage.dcn_store` blocks
-pointing at sqlite files under `~/.opencoat/` (and pins the HTTP
-endpoint) into the same `~/.opencoat/daemon.yaml` the LLM wizard writes
-— the two can run in either order.
-
-Then start the daemon and *leave it alone*:
-
-```bash
-opencoat runtime up --config ~/.opencoat/daemon.yaml \
-                    --pid-file ~/.opencoat/opencoat.pid
+opencoat runtime up
+# optional explicit paths — same defaults as above:
+# opencoat runtime up --config ~/.opencoat/daemon.yaml --pid-file ~/.opencoat/opencoat.pid
 ```
 
 `runtime up` double-forks by default so the daemon is owned by init,
 not your terminal. Close the terminal, switch host-agent sessions, run
 `opencoat concern …` / `opencoat inspect …` from anywhere — the daemon
-just stays up. The only way to stop it is to deliberately run:
+just stays up. Stop it deliberately with:
 
 ```bash
-opencoat runtime down --pid-file ~/.opencoat/opencoat.pid
+opencoat runtime down
 ```
 
-If you need it to survive reboots too, hook `opencoat runtime up`
-into your usual startup mechanism (`launchctl`, `systemd --user`,
-crontab `@reboot`, …) — it's a single command, so a one-line wrapper
-is plenty; no first-party service installer needed.
+For **login / boot autostart** (independent of Cursor or OpenClaw), install a
+user service once:
+
+```bash
+opencoat service install
+opencoat service status
+# opencoat service stop | start | restart
+# opencoat service uninstall
+```
+
+On Linux, `systemd --user` units follow your login session; for headless
+hosts use `loginctl enable-linger $USER` so the user manager runs at boot.
+LLM keys are not embedded in the unit files — use `opencoat configure llm`
+(inline YAML or `~/.opencoat/opencoat.env`) and extend the unit with
+`EnvironmentFile` when needed.
 
 ---
 
