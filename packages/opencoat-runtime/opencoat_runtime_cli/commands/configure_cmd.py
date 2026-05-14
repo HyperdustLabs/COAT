@@ -7,9 +7,10 @@ by default, a ``~/.opencoat/opencoat.env`` file with provider API keys so
 ``python -m opencoat_runtime_daemon`` (and thus ``opencoat runtime up``)
 calls :func:`~opencoat_runtime_daemon.config.loader.merge_user_llm_env_file`
 before loading config so keys from ``opencoat.env`` are merged into the
-daemon process (via ``os.environ.setdefault``). Shell exports still win
-when set. Operators who prefer not to use the file can delete it and rely
-on ``export`` / systemd ``EnvironmentFile`` only.
+daemon process (via ``os.environ.setdefault``), limited to an LLM-related
+allow-list so arbitrary keys cannot reconfigure the runtime. Shell exports
+still win when set. Operators who prefer not to use the file can delete it
+and rely on ``export`` / systemd ``EnvironmentFile`` only.
 """
 
 from __future__ import annotations
@@ -67,7 +68,7 @@ def _write_env_file(path: Path, updates: dict[str, str]) -> None:
     merged.update({k: v for k, v in updates.items() if v})
     lines = [
         "# OpenCOAT daemon LLM credentials — chmod 600; do not commit.",
-        "# The daemon merges this file on startup (setdefault); optional for shells:",
+        "# The daemon merges allow-listed LLM keys on startup (setdefault); optional for shells:",
         "#   set -a && source ~/.opencoat/opencoat.env && set +a",
         "",
     ]

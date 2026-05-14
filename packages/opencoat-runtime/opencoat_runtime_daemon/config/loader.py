@@ -83,6 +83,30 @@ def _read_yaml(path: Path) -> dict[str, Any]:
         return yaml.safe_load(fh) or {}
 
 
+# Keys ``merge_user_llm_env_file`` may pull from ``~/.opencoat/opencoat.env``.
+# Keep this aligned with :mod:`opencoat_runtime_daemon.runtime_builder`
+# (LLM credential / endpoint resolution) and ``opencoat configure llm``.
+# Arbitrary keys are rejected so the env file cannot flip unrelated daemon
+# toggles (e.g. ``OPENCOAT_TEST_MEMORY_STORES``).
+_MERGEABLE_OPENCOAT_ENV_KEYS: frozenset[str] = frozenset(
+    {
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_MODEL",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_API_VERSION",
+        "AZURE_OPENAI_DEPLOYMENT",
+        "AZURE_OPENAI_ENDPOINT",
+        "OPENAI_API_BASE",
+        "OPENAI_API_KEY",
+        "OPENAI_API_VERSION",
+        "OPENAI_BASE_URL",
+        "OPENAI_MODEL",
+        "OPENCOAT_AZURE_DEPLOYMENT",
+    }
+)
+
+
 def merge_user_llm_env_file() -> None:
     """Load ``~/.opencoat/opencoat.env`` into :data:`os.environ` (``setdefault`` only).
 
@@ -92,6 +116,10 @@ def merge_user_llm_env_file() -> None:
     ``source`` the file first.  Merging here makes the wizard's env-file
     mode work without an extra shell step.  Keys already present in the
     process environment win (explicit ``export`` / launchd overrides).
+
+    Only a fixed allow-list of LLM-related variable names is merged;
+    other entries in the file are ignored so the file cannot act as a
+    generic config-injection channel.
     """
     path = Path.home() / ".opencoat" / "opencoat.env"
     if not path.is_file():
@@ -106,7 +134,7 @@ def merge_user_llm_env_file() -> None:
             continue
         key, val = line.split("=", 1)
         key = key.strip()
-        if not key:
+        if not key or key not in _MERGEABLE_OPENCOAT_ENV_KEYS:
             continue
         val = val.strip().strip('"').strip("'")
         if not val:
