@@ -31,10 +31,16 @@ Design constraints
   full :file:`concern.schema.json` (pointcut + advice + weaving + …).
   We hand it a focused subset (:attr:`ConcernExtractor.LLM_SCHEMA`)
   covering the bits that genuinely need natural-language understanding:
-  ``name`` / ``description`` / ``generated_type`` / ``generated_tags``
-  / optional ``scope``. The :class:`ConcernBuilder` (PR-11+) and the
-  weaver attach pointcut / advice / lifecycle defaults later. Less
-  surface = less hallucination.
+  ``name`` / ``description`` / ``generated_type`` / ``generated_tags``.
+  ``scope`` is intentionally omitted from the wire schema: OpenAI
+  ``json_schema`` with ``strict: true`` rejects nested objects whose
+  ``required`` does not list every property when
+  ``additionalProperties: false``. The wire schema also keeps
+  top-level ``required`` empty so ``{}`` signals "no concern"; the
+  :class:`~opencoat_runtime_llm.openai_client.OpenAILLMClient` adapter
+  therefore passes ``strict: false`` while still using ``json_schema``.
+  The :class:`ConcernBuilder` (PR-11+) and the weaver attach ``scope`` /
+  pointcut / advice / lifecycle defaults later. Less surface = less hallucination.
 * **Provenance is authoritative** — even if the model emits a
   ``source`` block, the extractor overwrites it. The host knows where
   the text came from; the model is just helping shape it.
@@ -122,6 +128,9 @@ class ExtractionResult:
 # ``name`` are still rejected at envelope time by pydantic
 # (``Concern.name: str = Field(min_length=1)``), so the wire-level
 # loosening doesn't weaken the eventual envelope guarantees.
+#
+# Do **not** add optional nested objects here unless their nested
+# ``required`` lists every property (OpenAI strict rejects otherwise).
 _LLM_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -136,17 +145,6 @@ _LLM_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string", "minLength": 1, "maxLength": 60},
             "maxItems": 16,
-        },
-        "scope": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "duration": {
-                    "type": "string",
-                    "enum": ["transient", "turn", "session", "long_term"],
-                },
-                "crosscutting": {"type": "boolean"},
-            },
         },
     },
 }
@@ -182,15 +180,25 @@ _INSTRUCTION_GOVERNANCE = (
     "or two sentences. ``generated_type`` is a snake_case category "
     "(e.g. ``safety_rule``, ``style_constraint``, ``role_persona``, "
     "``tool_policy``). ``generated_tags`` are 0–8 lowercase keywords. "
+    "Obligations (MUST / SHALL / required / forbidden / must never / "
+    "do not) are rules — emit a Concern unless the span is only a bare "
+    "heading, boilerplate, or small talk with no requirement. "
     "If the span is not a rule (e.g. front-matter, prose, an aside), "
-    "return an empty object."
+    "return an empty object. "
+    "Never return {} when the span states a prohibition or duty the "
+    "assistant must follow."
 )
 _INSTRUCTION_USER = (
     "Extract Concerns implied by the user's request. ``name`` "
     "captures what the user wants treated as a constraint. Use "
     "``generated_type`` to tag the kind (e.g. ``user_preference``, "
-    "``user_constraint``, ``persona``). Return an empty object if "
-    "the span is purely informational."
+    "``user_constraint``, ``persona``). Treat explicit safety, "
+    "privacy, security, or compliance requirements as constraints worth "
+    "extracting, not as disposable chit-chat. Return an empty object "
+    "only if the span is purely informational with no behavioural "
+    "expectation. "
+    "Never return {} when the span states a prohibition, duty, or "
+    "constraint the assistant must honour."
 )
 _INSTRUCTION_TOOL = (
     "Extract Concerns implied by a tool result. ``generated_type`` "
@@ -451,7 +459,10 @@ class ConcernExtractor:
                     messages=self._messages(instruction, span),
                     schema=self.LLM_SCHEMA,
                     max_tokens=self._max_tokens_per_span,
-                    temperature=0.0,
+                    # Slightly above zero so small models (e.g. gpt-4o-mini)
+                    # don't collapse to ``{}`` on every span while extraction
+                    # remains near-deterministic.
+                    temperature=0.15,
                 )
             except Exception as exc:
                 rejected.append(

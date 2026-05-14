@@ -34,7 +34,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    from .config.loader import load_config
+    from .config.loader import load_config, merge_user_llm_env_file
+
+    # So detached ``runtime up`` picks up ``opencoat configure llm`` keys
+    # without requiring a manual ``source ~/.opencoat/opencoat.env``.
+    merge_user_llm_env_file()
 
     cfg = load_config(args.config)
 
