@@ -83,6 +83,65 @@ def _read_yaml(path: Path) -> dict[str, Any]:
         return yaml.safe_load(fh) or {}
 
 
+# Keys ``merge_user_llm_env_file`` may pull from ``~/.opencoat/opencoat.env``.
+# Keep this aligned with :mod:`opencoat_runtime_daemon.runtime_builder`
+# (LLM credential / endpoint resolution) and ``opencoat configure llm``.
+# Arbitrary keys are rejected so the env file cannot flip unrelated daemon
+# toggles (e.g. ``OPENCOAT_TEST_MEMORY_STORES``).
+_MERGEABLE_OPENCOAT_ENV_KEYS: frozenset[str] = frozenset(
+    {
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_MODEL",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_API_VERSION",
+        "AZURE_OPENAI_DEPLOYMENT",
+        "AZURE_OPENAI_ENDPOINT",
+        "OPENAI_API_BASE",
+        "OPENAI_API_KEY",
+        "OPENAI_API_VERSION",
+        "OPENAI_BASE_URL",
+        "OPENAI_MODEL",
+        "OPENCOAT_AZURE_DEPLOYMENT",
+    }
+)
+
+
+def merge_user_llm_env_file() -> None:
+    """Load ``~/.opencoat/opencoat.env`` into :data:`os.environ` (``setdefault`` only).
+
+    ``opencoat configure llm`` writes provider API keys to this file.
+    Detached daemons (the default ``opencoat runtime up``) only inherit
+    the spawning process's environment — operators often forget to
+    ``source`` the file first.  Merging here makes the wizard's env-file
+    mode work without an extra shell step.  Keys already present in the
+    process environment win (explicit ``export`` / launchd overrides).
+
+    Only a fixed allow-list of LLM-related variable names is merged;
+    other entries in the file are ignored so the file cannot act as a
+    generic config-injection channel.
+    """
+    path = Path.home() / ".opencoat" / "opencoat.env"
+    if not path.is_file():
+        return
+    try:
+        raw_text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    for raw in raw_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        if not key or key not in _MERGEABLE_OPENCOAT_ENV_KEYS:
+            continue
+        val = val.strip().strip('"').strip("'")
+        if not val:
+            continue
+        os.environ.setdefault(key, val)
+
+
 def load_config(path: Path | None = None) -> DaemonConfig:
     """Load and validate the daemon config.
 

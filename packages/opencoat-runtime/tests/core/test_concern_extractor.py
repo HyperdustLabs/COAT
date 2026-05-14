@@ -674,12 +674,12 @@ class TestLLMCall:
         assert "governance" in msgs[0]["content"].lower()
         assert "long enough rule" in msgs[1]["content"]
 
-    def test_temperature_is_zero(self) -> None:
-        # Extraction must be deterministic per-call — no creative
-        # rephrasing of policy text.
+    def test_temperature_is_low_for_stable_extraction(self) -> None:
+        # Low but non-zero so small models don't always emit ``{}``;
+        # still stable enough for policy mining.
         llm = _ScriptedLLM(replies=[_emit("rule")])
         _make_extractor(llm).extract_from_governance_doc("A long enough rule statement here.")
-        assert llm.calls[0]["temperature"] == 0.0
+        assert llm.calls[0]["temperature"] == pytest.approx(0.15)
 
     def test_max_tokens_forwarded(self) -> None:
         llm = _ScriptedLLM(replies=[_emit("rule")])

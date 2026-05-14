@@ -17,6 +17,15 @@
 #     CLI flags  >  OPENCOAT_* env vars  >  this file  >  bundled default
 #
 # So any field you omit here just falls through to the bundled default.
+#
+# LLM credentials file: on startup ``python -m opencoat_runtime_daemon``
+# (including ``opencoat runtime up`` and the ``opencoat service`` unit)
+# merges an **allow-list** of LLM-related keys from ``~/.opencoat/opencoat.env``
+# into the process environment via ``os.environ.setdefault`` **before** YAML
+# is loaded. Values already exported in the shell win over the file. Keys in
+# the file that are not on the allow-list are ignored (they cannot reconfigure
+# unrelated daemon toggles). See ``merge_user_llm_env_file`` in
+# ``opencoat_runtime_daemon.config.loader``.
 
 # -----------------------------------------------------------------------------
 # 1. Runtime — turn-loop budgets and the heartbeat cadence

@@ -4,10 +4,13 @@ Writes a small ``~/.opencoat/daemon.yaml`` fragment (``llm.*`` only) and,
 by default, a ``~/.opencoat/opencoat.env`` file with provider API keys so
 ``provider: auto`` can resolve without pasting secrets into YAML.
 
-The daemon does **not** auto-load ``opencoat.env`` — the operator must
-``source`` it in the same shell before ``opencoat runtime up`` (or export
-the vars in their shell profile / systemd unit). The wizard prints the
-exact commands at the end.
+``python -m opencoat_runtime_daemon`` (and thus ``opencoat runtime up``)
+calls :func:`~opencoat_runtime_daemon.config.loader.merge_user_llm_env_file`
+before loading config so keys from ``opencoat.env`` are merged into the
+daemon process (via ``os.environ.setdefault``), limited to an LLM-related
+allow-list so arbitrary keys cannot reconfigure the runtime. Shell exports
+still win when set. Operators who prefer not to use the file can delete it
+and rely on ``export`` / systemd ``EnvironmentFile`` only.
 """
 
 from __future__ import annotations
@@ -65,7 +68,7 @@ def _write_env_file(path: Path, updates: dict[str, str]) -> None:
     merged.update({k: v for k, v in updates.items() if v})
     lines = [
         "# OpenCOAT daemon LLM credentials — chmod 600; do not commit.",
-        "# Load before `opencoat runtime up`:",
+        "# The daemon merges allow-listed LLM keys on startup (setdefault); optional for shells:",
         "#   set -a && source ~/.opencoat/opencoat.env && set +a",
         "",
     ]
@@ -393,12 +396,13 @@ def _configure_llm(args: argparse.Namespace) -> int:
     print("\n--- Next steps ---", file=sys.stderr)
     if wrote_any_env:
         print(
-            f"  1. Load env vars into your shell (same terminal you use for `runtime up`):\n"
-            f"       set -a && source {env_path} && set +a\n"
-            f"  2. Start the daemon with the new config:\n"
+            f"  1. Start the daemon — it merges allow-listed LLM keys from {env_path} on startup "
+            f"(no `source` required for the daemon process):\n"
             f"       opencoat runtime up --config {yaml_path} --pid-file ~/.opencoat/opencoat.pid\n"
-            f"  3. Confirm the real provider:\n"
-            f"       opencoat runtime status --config {yaml_path} --pid-file ~/.opencoat/opencoat.pid\n",
+            f"  2. Confirm the real provider:\n"
+            f"       opencoat runtime status --config {yaml_path} --pid-file ~/.opencoat/opencoat.pid\n"
+            f"  Optional: `set -a && source {env_path} && set +a` if you want the same exports in "
+            f"your interactive shell for other tools.\n",
             file=sys.stderr,
         )
     else:

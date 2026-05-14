@@ -201,7 +201,7 @@ class TestStructured:
         rf = mock_create.call_args.kwargs["response_format"]
         assert rf["type"] == "json_schema"
         assert rf["json_schema"]["schema"] == self.SCHEMA
-        assert rf["json_schema"]["strict"] is True
+        assert rf["json_schema"]["strict"] is False
 
     def test_empty_response_raises(self) -> None:
         client, _ = _build_client(reply="")

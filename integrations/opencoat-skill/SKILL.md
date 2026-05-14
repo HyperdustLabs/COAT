@@ -207,6 +207,12 @@ After Step 2, confirm the daemon is not stuck on a **stub** LLM (no real
 provider credentials). **Do not** ask the user to paste API keys into this
 chat — use a local terminal and `opencoat configure llm` instead.
 
+The wizard's **env-file** mode writes `~/.opencoat/opencoat.env`. The daemon
+merges **allow-listed** LLM keys from that file on startup (same for
+`opencoat runtime up` and `opencoat service`), so operators usually do **not**
+need to `source` it before starting the daemon. Optional: `source` it in your
+shell if you want matching exports for other local commands.
+
 **Quick probe** (default JSON-RPC URL):
 
 ```bash

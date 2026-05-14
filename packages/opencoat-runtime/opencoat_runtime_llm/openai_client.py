@@ -193,12 +193,20 @@ class OpenAILLMClient(BaseLLMClient):
         max_tokens: int | None = None,
         temperature: float | None = None,
     ) -> dict[str, Any]:
-        # JSON-schema mode is the strict path. The SDK rejects schemas
-        # with unknown keys, so we always wrap the user's schema under
-        # the ``json_schema`` envelope it expects.
+        # JSON-schema ``response_format`` guides the completion. The SDK
+        # rejects unknown keys, so we wrap the caller schema under the
+        # ``json_schema`` envelope it expects.
+        # ``strict: true`` rejects schemas where any listed ``properties``
+        # key is absent from ``required`` — a rule our
+        # :class:`~opencoat_runtime_core.concern.ConcernExtractor` wire
+        # contract deliberately violates: top-level ``required`` is empty
+        # so the model can return ``{}`` for "no concern in this span".
+        # Keep ``json_schema`` for guided JSON output; use ``strict: false``
+        # so the API accepts that optional-field shape (fixes OpenAI 400
+        # ``Missing 'id'`` / invalid schema on ``concern.extract``).
         response_format = {
             "type": "json_schema",
-            "json_schema": {"name": "response", "schema": schema, "strict": True},
+            "json_schema": {"name": "response", "schema": schema, "strict": False},
         }
         kwargs = self._call_kwargs(max_tokens=max_tokens, temperature=temperature)
         response = self._client.chat.completions.create(
