@@ -197,19 +197,23 @@ def build_runtime(
 
 
 def warm_persistent_stores(runtime: OpenCOATRuntime) -> None:
-    """Eager-read all concerns and DCN activation rows into this process.
+    """Sequential scan of stores to warm sqlite page cache without O(n) RAM.
 
-    Sqlite backends benefit from a one-shot sequential read at daemon
-    startup (page cache + fewer cold reads on first RPC). Memory backends
-    are cheap no-ops. When datasets grow large, replace this with a
-    narrower warm-up or true lazy loading.
+    We iterate and discard each row so peak memory stays bounded by one
+    deserialized object at a time. ``list(iter_all())`` would materialize
+    every concern and activation at daemon start and could OOM or push
+    ``runtime up`` past its health deadline on large datasets (Codex P1).
     """
-    concerns = list(runtime.concern_store.iter_all())
-    activations = list(runtime.dcn_store.activation_log(None, limit=None))
+    concern_count = 0
+    for _ in runtime.concern_store.iter_all():
+        concern_count += 1
+    activation_count = 0
+    for _ in runtime.dcn_store.activation_log(None, limit=None):
+        activation_count += 1
     logger.info(
         "OpenCOAT store warm-up complete (concerns=%d dcn_activations=%d)",
-        len(concerns),
-        len(activations),
+        concern_count,
+        activation_count,
     )
 
 
