@@ -19,7 +19,7 @@ def test_merge_fills_missing_keys(fake_home: Path, monkeypatch: pytest.MonkeyPat
     env_file = fake_home / ".opencoat" / "opencoat.env"
     env_file.parent.mkdir(parents=True, exist_ok=True)
     env_file.write_text(
-        '# comment\nOPENAI_API_KEY=sk-from-file\nEMPTY=\n',
+        "# comment\nOPENAI_API_KEY=sk-from-file\nEMPTY=\n",
         encoding="utf-8",
     )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
