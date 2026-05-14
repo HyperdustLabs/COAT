@@ -1,0 +1,133 @@
+name: Deploy Cloudflare Worker
+
+# Deploy the opencoat-skill-proxy worker whenever:
+#   * the worker source itself changes (push to ``main``)
+#   * any of the skill files change — content-update pushes already
+#     reach agents through the worker's cache invalidation, but
+#     deploying the worker again is cheap and guarantees the
+#     deployment manifest reflects the freshest content link.
+#
+# Secrets required (set under Settings → Secrets and variables →
+# Actions → New repository secret):
+#
+#   CLOUDFLARE_API_TOKEN  — token with "Edit Cloudflare Workers"
+#                           permission scoped to the opencoat.ai
+#                           zone. See ../DEPLOY.md for the exact
+#                           Cloudflare dashboard path.
+#   CLOUDFLARE_ACCOUNT_ID — the account id Cloudflare shows in the
+#                           sidebar of any zone view.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "SKILL.md"
+      - "README.md"
+      - "skill.json"
+      - "concerns.md"
+      - "inspection.md"
+      - "rules.md"
+      - "bootstrap_daemon.sh"
+      - ".github/workflows/deploy-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          # Node 24 is the GHA default from 2026-06-02. Anything
+          # below v5 of checkout / setup-node and below v4 of
+          # wrangler-action still declares ``runs: node20`` in its
+          # action.yml, so the runner forces them to Node 24 with
+          # a deprecation warning. The versions here are the
+          # Node-24-native majors.
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy
+
+      - name: Verify routes serve fresh content
+        # Smoke-check every route lands a 200 + the right Content-
+        # Type. Each path retries up to six times with backoff
+        # because ``wrangler deploy`` returns the instant the
+        # control-plane has the new bundle, but Cloudflare's edge
+        # can take 5-30s to propagate a freshly-created route to
+        # every PoP — observed empirically when SKILL.md / skill.md
+        # passed at T+4s but skill.json hadn't propagated yet and
+        # the script bailed under ``set -e``. The total worst-case
+        # wait per route is 2+4+8+16+32 = 62s.
+        #
+        # We also resolve the hostname to a Cloudflare anycast IP
+        # explicitly via ``curl --resolve`` so this step works even
+        # when the runner's recursive DNS resolver hasn't picked
+        # up the NS migration yet (e.g. just after the very first
+        # deploy from a freshly-pointed zone).
+        run: |
+          set -u
+          BASE=https://www.opencoat.ai
+          # Pick a Cloudflare anycast IP via dig; fall back to a
+          # well-known CF IP block if dig is unavailable.
+          CF_IP=$(dig +short A www.opencoat.ai @1.1.1.1 | head -1 || true)
+          if [ -z "$CF_IP" ]; then CF_IP=104.21.86.95; fi
+          echo "resolving www.opencoat.ai → $CF_IP for smoke-tests"
+
+          probe() {
+            curl -sSL --resolve "www.opencoat.ai:443:$CF_IP" \
+              -o /dev/null -w '%{http_code} %{content_type}' "$1"
+          }
+
+          fail=0
+          for path in SKILL.md skill.md skill.json concerns.md inspection.md rules.md README.md readme.md bootstrap_daemon.sh; do
+            ok=0
+            delay=2
+            for attempt in 1 2 3 4 5 6; do
+              ct=$(probe "$BASE/$path")
+              case "$ct" in
+                "200 text/markdown; charset=utf-8"|"200 application/json; charset=utf-8"|"200 text/plain; charset=utf-8")
+                  echo "  $path  →  $ct  (attempt $attempt)"
+                  ok=1
+                  break
+                  ;;
+                *)
+                  if [ "$attempt" -lt 6 ]; then
+                    echo "  $path  →  $ct  (attempt $attempt, retry in ${delay}s)"
+                    sleep "$delay"
+                    delay=$((delay * 2))
+                  fi
+                  ;;
+              esac
+            done
+            if [ "$ok" -eq 0 ]; then
+              echo "FAIL: $path never returned a healthy response (last: '$ct')"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "all 9 skill routes healthy"
