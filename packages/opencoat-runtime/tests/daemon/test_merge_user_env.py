@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from opencoat_runtime_daemon.config.loader import merge_user_llm_env_file
 
 
