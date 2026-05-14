@@ -3,7 +3,8 @@
 Thank you for working on OpenCOAT. This document captures **how we change the
 codebase** so the milestones in
 [`docs/design/v0.2-system-design.md`](docs/design/v0.2-system-design.md) §12
-land cleanly and reviewably.
+land cleanly and reviewably, while **feature priority** stays grounded in
+user-visible outcomes (see *Prioritization: user stories → use cases* below).
 
 > Audience: humans and AI coding agents collaborating on this repo.
 > Active from **M1 onwards**. M0 was a one-shot scaffold.
@@ -22,6 +23,49 @@ git push -u origin HEAD             # opens PR on GitHub
 
 Direct pushes to `main` are no longer permitted from M1 on. Even single
 commits go through a PR — that's our paper trail and CI gate.
+
+---
+
+## Prioritization: user stories → use cases → MVP (over full-architecture stubs)
+
+The v0.2 layout maps every `opencoat_runtime_core/` module to a **design**
+section (§20 / §22). The **milestone table** (§12 / [`docs/07-mvp/milestones.md`](docs/07-mvp/milestones.md))
+phases delivery (daemon, persistence, hosts, soak, …). Those two are **not**
+the same as a per-file implementation checklist: some modules stay stubs until
+a story needs them.
+
+**How we decide what to build next**
+
+1. **User story first** — one or two sentences: who (host operator / integrator
+   / end user), what observable behaviour changes, why it matters. Prefer a
+   runnable example or skill path over abstract completeness.
+2. **Split the story into use cases** — each **use case** is a concrete slice
+   you can implement and test on its own. Prefer a small table or bullet list
+   in the issue / PR description, each row containing:
+   - **Title** — short verb phrase (e.g. “Operator sees activation in DCN log”).
+   - **Actor** — who drives the flow (same as or narrower than the story’s “who”).
+   - **Preconditions** — daemon up, concern imported, host plugin installed, …
+   - **Main flow** — 3–7 steps (CLI commands, RPC methods, or UI/host actions).
+   - **Success criteria** — observable outcome (log line, JSON field, blocked
+     tool, prompt prefix present, test assertion).
+   Stories that are too big for one PR should break across **multiple use
+   cases**; the **MVP** picks one use case (or a minimal chain) to ship first,
+   not the whole story at once.
+3. **MVP slice** — the smallest change that closes **at least one use case**
+   end-to-end (often one joinpoint surface, one store path, or one CLI/RPC
+   affordance). If the design doc lists ten modules for a pipeline, ship the
+   **narrow vertical** that satisfies that use case’s success criteria before
+   filling every sibling stub.
+4. **Feedback** — issues, PR discussion, or dogfood notes; capture regressions
+   and “almost works” gaps per use case.
+5. **Enhance** — add further use cases from the same story, then generalise,
+   harden, or align with the broader §20 plan once the MVP path is proven.
+
+**Milestones still matter** for cross-cutting gates (CI, persistence, daemon,
+host adapters, soak). When a milestone row and a user story (or a specific **use
+case**) disagree on priority, **the story / use case wins for product
+behaviour**; update the milestone text or open a scoped follow-up PR rather
+than deferring user-visible fixes to “when the whole §20 tree is done.”
 
 ---
 
@@ -160,6 +204,10 @@ These changes always need an explicit reviewer sign-off:
   Architecture decisions are binding — supersede an ADR with a new ADR,
   don't silently rewrite history.
 - Anything that affects a milestone's exit criteria.
+- **Feature scope** defaults to the **Prioritization: user stories → use cases → MVP**
+  section above — if a change closes a user-visible gap ahead of a broad
+  milestone row, say so in the PR description (name the **use case** and its
+  success criteria when helpful).
 
 For purely additive changes inside a single package (e.g. a new private
 helper module), reviewer scrutiny is lighter.
