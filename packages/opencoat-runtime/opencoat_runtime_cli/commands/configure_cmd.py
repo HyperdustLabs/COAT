@@ -396,12 +396,13 @@ def _configure_llm(args: argparse.Namespace) -> int:
     print("\n--- Next steps ---", file=sys.stderr)
     if wrote_any_env:
         print(
-            f"  1. Load env vars into your shell (same terminal you use for `runtime up`):\n"
-            f"       set -a && source {env_path} && set +a\n"
-            f"  2. Start the daemon with the new config:\n"
+            f"  1. Start the daemon — it merges allow-listed LLM keys from {env_path} on startup "
+            f"(no `source` required for the daemon process):\n"
             f"       opencoat runtime up --config {yaml_path} --pid-file ~/.opencoat/opencoat.pid\n"
-            f"  3. Confirm the real provider:\n"
-            f"       opencoat runtime status --config {yaml_path} --pid-file ~/.opencoat/opencoat.pid\n",
+            f"  2. Confirm the real provider:\n"
+            f"       opencoat runtime status --config {yaml_path} --pid-file ~/.opencoat/opencoat.pid\n"
+            f"  Optional: `set -a && source {env_path} && set +a` if you want the same exports in "
+            f"your interactive shell for other tools.\n",
             file=sys.stderr,
         )
     else:

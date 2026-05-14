@@ -178,12 +178,14 @@ The fastest path from "just installed" to "real provider":
 ```bash
 # Guided (writes ~/.opencoat/daemon.yaml + ~/.opencoat/opencoat.env, then prints next steps)
 opencoat configure llm
-# In the same shell before `runtime up`, load the env file the wizard created:
-#   set -a && source ~/.opencoat/opencoat.env && set +a
+# The daemon merges allow-listed LLM keys from ~/.opencoat/opencoat.env on
+# startup (before YAML is read). You do not need to `source` that file for
+# `opencoat runtime up` / `python -m opencoat_runtime_daemon` to see API keys.
+# Optional: `set -a && source ~/.opencoat/opencoat.env && set +a` if you want
+# the same variables in your interactive shell for other tools.
 
-# Or non-interactive / CI:
+# Or non-interactive / CI (wizard still writes opencoat.env; daemon reads it):
 opencoat configure llm --non-interactive --provider openai --openai-api-key "$OPENAI_API_KEY"
-set -a && source ~/.opencoat/opencoat.env && set +a
 ```
 
 Manual path (same end state if you prefer not to use the wizard):
@@ -260,8 +262,9 @@ opencoat service status
 On Linux, `systemd --user` units follow your login session; for headless
 hosts use `loginctl enable-linger $USER` so the user manager runs at boot.
 LLM keys are not embedded in the unit files — use `opencoat configure llm`
-(inline YAML or `~/.opencoat/opencoat.env`) and extend the unit with
-`EnvironmentFile` when needed.
+(inline YAML or `~/.opencoat/opencoat.env`). The daemon merges allow-listed
+LLM keys from that env file at startup; add `EnvironmentFile=` only if you
+need variables outside that allow-list or a non-default env file path.
 
 ---
 

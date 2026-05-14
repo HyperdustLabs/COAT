@@ -80,10 +80,9 @@ deleting the stale file is safe before `runtime up`.
 Coding agents following this skill **must not** ask the human to paste
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, Azure secrets, or any bearer token
 into the chat transcript. Keys belong in the operator's **local shell**
-(`opencoat configure llm`, `~/.opencoat/opencoat.env`, shell profile, or
+(`opencoat configure llm`, `~/.opencoat/opencoat.env` — the daemon merges
+allow-listed LLM keys from that file at startup — shell profile, or
 inline YAML via the same wizard) — never in a shared agent thread.
-
----
 
 ## When in doubt
 

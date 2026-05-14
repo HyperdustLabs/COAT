@@ -104,6 +104,12 @@ opencoat configure llm          # wizard: ~/.opencoat/opencoat.env or inline YAM
 opencoat service restart        # or: runtime down && runtime up
 ```
 
+The daemon entrypoint merges **allow-listed** LLM variables from
+`~/.opencoat/opencoat.env` into its process environment on startup (before
+YAML), so `runtime up` / `opencoat service` pick up wizard env-file keys
+without a manual `source`. Optional: `source` the file in your shell if you
+want the same exports for other local tools.
+
 **Non-interactive** (human runs in a shell that **already** exports the key — the
 agent never pastes the secret):
 
@@ -111,10 +117,12 @@ agent never pastes the secret):
 opencoat configure llm --non-interactive --provider openai --openai-api-key "$OPENAI_API_KEY"
 ```
 
-**`opencoat service install` + env-file mode:** the generated LaunchAgent / systemd
-unit does not load `~/.opencoat/opencoat.env` automatically. Prefer **inline**
-wizard mode for unattended services, or extend the plist/unit with the same
-variables the wizard prints. See `opencoat configure llm` footer text after it runs.
+**`opencoat service install` + env-file mode:** the LaunchAgent / systemd unit
+runs `python -m opencoat_runtime_daemon`, which performs the same env-file
+merge as `runtime up`. You only need extra `EnvironmentFile=` lines if you
+keep secrets **outside** `~/.opencoat/opencoat.env` or use non-allow-listed
+variable names (then export them in the service environment yourself).
+See `opencoat configure llm` footer text after it runs.
 
 ## Daemon health
 
