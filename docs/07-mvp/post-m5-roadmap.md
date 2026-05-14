@@ -65,9 +65,11 @@ Three sub-deliverables, each a small PR (no new packages):
 
 ### 2C. External skill repo — `HyperdustLabs/opencoat-skill`
 
+Canonical **working copy** in the OpenCOAT monorepo: [`integrations/opencoat-skill/`](../integrations/opencoat-skill/) (SKILL + `bootstrap_daemon.sh`). After editing there, open a PR to [`HyperdustLabs/opencoat-skill`](https://github.com/HyperdustLabs/opencoat-skill) and redeploy the CDN worker so `https://www.opencoat.ai/` picks up the same files.
+
 - Single GitHub repo (no `opencoat.ai` DNS yet — see §7).
 - Contents: `SKILL.md`, `inspection.md`, `concerns.md`, `rules.md`,
-  `skill.json`, `LICENSE` (Apache-2.0), `.github/workflows/verify.yml`.
+  `skill.json`, `bootstrap_daemon.sh`, `LICENSE` (Apache-2.0), `.github/workflows/verify.yml`.
 - Skill body wraps thread 2B: instructs the host agent to run
   `pipx install opencoat-runtime && opencoat plugin install openclaw`
   and points at the demo concerns from 2B.
