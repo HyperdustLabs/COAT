@@ -13,6 +13,11 @@ opencoat runtime status
 
 case "$(uname -s)" in
 Darwin | Linux)
+  # `runtime up` already has a daemon on 7878; `service install` then starts the
+  # OS-managed instance on the same port (notably Linux `systemctl restart`).
+  # Stop the ad-hoc daemon first so autostart registration does not fail under `set -e`.
+  echo "==> opencoat runtime down (free default port before OS service)"
+  opencoat runtime down || true
   echo "==> opencoat service install (login / boot autostart)"
   opencoat service install
   echo "==> opencoat service status"

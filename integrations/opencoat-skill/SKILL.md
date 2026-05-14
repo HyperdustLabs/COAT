@@ -150,6 +150,9 @@ survives terminal closes **and** host-agent (Cursor / OpenClaw / …) restarts.
 mkdir -p ~/.opencoat
 opencoat runtime up
 opencoat runtime status
+# Free the default listen port before the OS service starts its own daemon
+# (otherwise Linux `systemctl restart` can collide with the ad-hoc `runtime up`).
+opencoat runtime down || true
 opencoat service install    # macOS LaunchAgent · Linux systemd --user
 opencoat service status
 ```
@@ -179,6 +182,8 @@ optionally `opencoat configure llm`), then:
 
 ```bash
 opencoat runtime up --config ~/.opencoat/daemon.yaml
+opencoat runtime status
+opencoat runtime down || true
 opencoat service install --config ~/.opencoat/daemon.yaml
 ```
 
@@ -480,7 +485,8 @@ venv. Both paths give the same CLI surface.
 | `concern.upsert` returns `ValidationError` | concern JSON missing `pointcut.joinpoints` or unknown `AdviceType` — see [concerns.md](concerns.md) |
 | `bootstrap_opencoat.install()` does nothing visible | host loop never calls `installed.apply_to(prompt_ctx)` / `installed.guard_tool_call(call)` — see Step 4b for the canonical loop and [concerns.md](concerns.md) for the cookbook |
 | daemon refuses to start because PID file exists | stale PID → `rm ~/.opencoat/opencoat.pid && opencoat runtime up …` |
-| `opencoat service install` fails on Linux | ensure `systemctl --user` exists; for boot-without-login run `loginctl enable-linger "$USER"` once |
+| `opencoat service install` fails on Linux (bind / address already in use) | A daemon from `runtime up` is still holding 7878 — `opencoat runtime down` then re-run `service install` (the bundled `bootstrap_daemon.sh` does this). |
+| `opencoat service install` fails on Linux (other) | ensure `systemctl --user` exists; for boot-without-login run `loginctl enable-linger "$USER"` once |
 | `opencoat service install` skipped in CI | intentional — only run on a real macOS / Linux user desktop or server |
 
 Anything else: `opencoat inspect joinpoints` and

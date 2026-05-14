@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
+import shlex
 import shutil
 import subprocess
 import sys
@@ -90,11 +91,23 @@ def _plist_bytes(payload: dict[str, Any]) -> bytes:
     return plistlib.dumps(payload, fmt=fmt)
 
 
+def _systemd_dq(s: str) -> str:
+    """Escape a string for use inside systemd unit double quotes."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def _systemd_unit_text(*, home: Path, python_exe: str, config: Path | None) -> str:
-    cfg = ""
+    pid = str(_pid_at_home(home).resolve())
+    py = str(Path(python_exe).expanduser())
+    cmd: list[str] = [py, "-m", "opencoat_runtime_daemon"]
     if config is not None:
-        cfg = f" --config {config.resolve()}"
-    pid = _pid_at_home(home).resolve()
+        cmd.extend(["--config", str(config.resolve())])
+    cmd.extend(["--pid-file", pid])
+    # systemd parses ExecStart like a shell argv; quote so paths with spaces work.
+    exec_start = "ExecStart=" + shlex.join(cmd)
+    env = f'Environment="OPENCOAT_PID_FILE={_systemd_dq(pid)}"'
+    wd_home = str(home.resolve())
+    wd = f'WorkingDirectory="{_systemd_dq(wd_home)}"'
     lines = [
         "[Unit]",
         "Description=OpenCOAT runtime daemon (HTTP JSON-RPC)",
@@ -102,12 +115,12 @@ def _systemd_unit_text(*, home: Path, python_exe: str, config: Path | None) -> s
         "",
         "[Service]",
         "Type=simple",
-        f"Environment=OPENCOAT_PID_FILE={pid}",
+        env,
         "# Optional: uncomment after `opencoat configure llm` created the file",
         "# EnvironmentFile=-%h/.opencoat/opencoat.env",
-        f"ExecStart={python_exe} -m opencoat_runtime_daemon{cfg} --pid-file {pid}",
+        exec_start,
         "Restart=no",
-        f"WorkingDirectory={home.resolve()}",
+        wd,
         "",
         "[Install]",
         "WantedBy=default.target",
