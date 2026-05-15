@@ -87,9 +87,12 @@ def _process_alive(pid: int) -> bool:
 
 
 def _daemon_argv(args: argparse.Namespace) -> list[str]:
+    from opencoat_runtime_daemon.config.loader import resolve_daemon_config_path
+
     cmd: list[str] = [sys.executable, "-m", "opencoat_runtime_daemon"]
-    if args.config is not None:
-        cmd += ["--config", str(args.config)]
+    cfg_path = resolve_daemon_config_path(getattr(args, "config", None))
+    if cfg_path is not None:
+        cmd += ["--config", str(cfg_path)]
     cmd += ["--pid-file", str(_effective_pid_file(args))]
     if args.log_level:
         cmd += ["--log-level", args.log_level]

@@ -18,18 +18,52 @@ from __future__ import annotations
 import argparse
 import contextlib
 import getpass
+import json
 import os
 import stat
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+from opencoat_runtime_llm.openai_client import OpenAILLMClient
 
 Mode = Literal["env-file", "inline"]
 
 _DEFAULT_YAML_REL = Path(".opencoat") / "daemon.yaml"
 _DEFAULT_ENV_REL = Path(".opencoat") / "opencoat.env"
+
+_DEFAULT_OPENAI_MODEL = OpenAILLMClient.DEFAULT_MODEL
+_OPENAI_MODELS_URL = "https://api.openai.com/v1/models"
+_OPENAI_MODEL_PAGE_SIZE = 20
+
+# Substrings that mark non-chat-completion model ids from GET /v1/models.
+_OPENAI_MODEL_EXCLUDE_FRAGMENTS: tuple[str, ...] = (
+    "embed",
+    "whisper",
+    "tts",
+    "dall-e",
+    "davinci",
+    "babbage",
+    "realtime",
+    "transcribe",
+    "moderation",
+    "search",
+    "audio",
+    "image",
+    "computer",
+)
+
+_OPENAI_MODEL_PREFERRED_ORDER: tuple[str, ...] = (
+    "gpt-4o-mini",
+    "gpt-4o",
+    "gpt-4.1-mini",
+    "gpt-4.1",
+    "o4-mini",
+    "o3-mini",
+)
 
 
 def _default_yaml_path() -> Path:
@@ -43,6 +77,80 @@ def _default_env_path() -> Path:
 def _chmod_secret(path: Path) -> None:
     with contextlib.suppress(OSError):
         path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+
+def _env_key(name: str, env_path: Path, yaml_path: Path) -> str | None:
+    """Resolve a credential from env file, process env, or inline ``llm.api_key``."""
+    from_file = _parse_env_file(env_path).get(name)
+    if from_file:
+        return from_file
+    from_os = os.environ.get(name)
+    if from_os:
+        return from_os
+    llm = _load_yaml_dict(yaml_path).get("llm")
+    if not isinstance(llm, dict):
+        return None
+    inline = llm.get("api_key")
+    if not isinstance(inline, str) or not inline.strip():
+        return None
+    provider = llm.get("provider")
+    if name == "OPENAI_API_KEY" and provider in ("openai", "auto"):
+        return inline.strip()
+    if name == "ANTHROPIC_API_KEY" and provider in ("anthropic", "auto"):
+        return inline.strip()
+    if name == "AZURE_OPENAI_API_KEY" and provider in ("azure", "auto"):
+        return inline.strip()
+    return None
+
+
+def _credential_source_label(name: str, env_path: Path, yaml_path: Path) -> str:
+    if _parse_env_file(env_path).get(name):
+        return str(env_path)
+    if os.environ.get(name):
+        return "environment"
+    llm = _load_yaml_dict(yaml_path).get("llm")
+    if isinstance(llm, dict) and isinstance(llm.get("api_key"), str) and llm.get("api_key"):
+        return str(yaml_path)
+    return "saved config"
+
+
+def _azure_credential_parts(
+    env_path: Path,
+    yaml_path: Path,
+    updates: dict[str, str] | None = None,
+) -> tuple[str | None, str | None, str | None]:
+    """Resolve Azure OpenAI key, endpoint, and deployment from disk or env."""
+    merged = updates or {}
+    env_file = _parse_env_file(env_path)
+    llm = _load_yaml_dict(yaml_path).get("llm")
+    llm_dict = llm if isinstance(llm, dict) else {}
+
+    def _pick(name: str, yaml_field: str | None = None) -> str | None:
+        val = merged.get(name) or env_file.get(name) or os.environ.get(name)
+        if not val and yaml_field and isinstance(llm_dict.get(yaml_field), str):
+            val = llm_dict[yaml_field]
+        if not val and name == "AZURE_OPENAI_API_KEY":
+            val = _env_key(name, env_path, yaml_path)
+        return val.strip() if isinstance(val, str) and val.strip() else None
+
+    return (
+        _pick("AZURE_OPENAI_API_KEY"),
+        _pick("AZURE_OPENAI_ENDPOINT", "endpoint"),
+        _pick("AZURE_OPENAI_DEPLOYMENT", "deployment"),
+    )
+
+
+def _existing_openai_model(env_path: Path, yaml_path: Path) -> str | None:
+    llm = _load_yaml_dict(yaml_path).get("llm")
+    if isinstance(llm, dict):
+        model = llm.get("model")
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+    from_env = _parse_env_file(env_path).get("OPENAI_MODEL")
+    if from_env:
+        return from_env
+    from_os = os.environ.get("OPENAI_MODEL")
+    return from_os.strip() if from_os else None
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -117,6 +225,168 @@ def _write_yaml_llm(
         _chmod_secret(path)
 
 
+def _is_openai_chat_model_id(model_id: str) -> bool:
+    """Heuristic filter for ids usable with chat.completions."""
+    mid = model_id.strip()
+    if not mid:
+        return False
+    lower = mid.lower()
+    if any(frag in lower for frag in _OPENAI_MODEL_EXCLUDE_FRAGMENTS):
+        return False
+    return lower.startswith(("gpt-", "chatgpt-", "o1", "o3", "o4"))
+
+
+def _sort_openai_model_ids(ids: list[str], *, default: str) -> list[str]:
+    """Stable order: default + common picks first, then alphabetical."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for candidate in (default, *_OPENAI_MODEL_PREFERRED_ORDER, *sorted(ids)):
+        if candidate in ids and candidate not in seen:
+            ordered.append(candidate)
+            seen.add(candidate)
+    return ordered
+
+
+def fetch_openai_model_ids(
+    api_key: str,
+    *,
+    base_url: str | None = None,
+    timeout_seconds: float = 15.0,
+) -> list[str]:
+    """Return chat-oriented model ids from the OpenAI (or compatible) Models API."""
+    root = (base_url or _OPENAI_MODELS_URL.rsplit("/models", 1)[0]).rstrip("/")
+    url = f"{root}/models"
+    req = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("models response is not a JSON object")
+    raw = payload.get("data")
+    if not isinstance(raw, list):
+        raise ValueError("models response missing data[]")
+    ids: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            mid = item.get("id")
+            if isinstance(mid, str) and mid:
+                ids.append(mid)
+    filtered = [m for m in ids if _is_openai_chat_model_id(m)]
+    return _sort_openai_model_ids(filtered, default=_DEFAULT_OPENAI_MODEL)
+
+
+def _choose_openai_model_from_list(models: list[str], *, default: str) -> str:
+    """Paginated menu over a pre-fetched model id list."""
+    page_size = _OPENAI_MODEL_PAGE_SIZE
+    total_pages = max(1, (len(models) + page_size - 1) // page_size)
+    page = 0
+
+    while True:
+        start = page * page_size
+        chunk = models[start : start + page_size]
+        page_no = page + 1
+        header = (
+            f"\nOpenAI models (page {page_no}/{total_pages}; "
+            "from your API key; chat-capable, filtered):"
+        )
+        print(header, file=sys.stderr)
+        for i, mid in enumerate(chunk, start=1):
+            global_idx = start + i
+            hint = ""
+            if mid == default and global_idx == 1:
+                hint = " (recommended default)"
+            elif mid == default:
+                hint = " (current default)"
+            print(f"  [{i}] {mid}{hint}", file=sys.stderr)
+        print("  [0] Enter a custom model id", file=sys.stderr)
+        if page < total_pages - 1:
+            print("  [n] Next page", file=sys.stderr)
+        if page > 0:
+            print("  [p] Previous page", file=sys.stderr)
+
+        if total_pages == 1:
+            prompt = f"Model choice (1-{len(chunk)}, 0=custom) [1]: "
+        else:
+            nav = []
+            if page < total_pages - 1:
+                nav.append("n=next")
+            if page > 0:
+                nav.append("p=prev")
+            nav_s = ", ".join(nav)
+            prompt = f"Model choice (1-{len(chunk)}, 0=custom, {nav_s}): "
+        choice = input(prompt).strip().lower()
+        if not choice and page == 0 and total_pages == 1:
+            choice = "1"
+        if not choice and page == 0 and total_pages > 1:
+            choice = "1"
+
+        if choice in ("n", "next") and page < total_pages - 1:
+            page += 1
+            continue
+        if choice in ("p", "prev", "back") and page > 0:
+            page -= 1
+            continue
+        if choice == "0":
+            custom = input(f"OpenAI model id [{default}]: ").strip()
+            return custom or default
+        try:
+            idx = int(choice)
+            if 1 <= idx <= len(chunk):
+                selected = chunk[idx - 1]
+                print(f"configure llm: selected model {selected}", file=sys.stderr)
+                return selected
+            print(
+                f"configure llm: invalid choice {choice!r} "
+                f"(this page has {len(chunk)} items); try again.",
+                file=sys.stderr,
+            )
+            continue
+        except ValueError:
+            pass
+        if choice:
+            print(f"configure llm: selected model {choice}", file=sys.stderr)
+            return choice
+        if not choice:
+            continue
+        return default
+
+
+def _prompt_openai_model(
+    api_key: str,
+    *,
+    default: str = _DEFAULT_OPENAI_MODEL,
+    base_url: str | None = None,
+) -> str:
+    """Interactive model picker backed by GET /v1/models, with manual fallback."""
+    try:
+        models = fetch_openai_model_ids(api_key, base_url=base_url)
+    except (
+        OSError,
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        TimeoutError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as exc:
+        print(
+            f"configure llm: could not list OpenAI models ({exc}); enter a model id manually.",
+            file=sys.stderr,
+        )
+        return input(f"OpenAI model [{default}]: ").strip() or default
+
+    if not models:
+        print(
+            "configure llm: no chat-capable models returned — enter a model id manually.",
+            file=sys.stderr,
+        )
+        return input(f"OpenAI model [{default}]: ").strip() or default
+
+    return _choose_openai_model_from_list(models, default=default)
+
+
 def _write_yaml_section(
     path: Path,
     *,
@@ -143,7 +413,11 @@ def _write_yaml_section(
     path.write_text(text, encoding="utf-8")
 
 
-def _collect_interactive() -> tuple[str, Mode, dict[str, str], dict[str, Any]]:
+def _collect_interactive(
+    *,
+    env_path: Path,
+    yaml_path: Path,
+) -> tuple[str, Mode, dict[str, str], dict[str, Any]]:
     print("OpenCOAT — configure daemon LLM\n", file=sys.stderr)
     print(
         "The runtime resolves credentials in this order when provider is `auto`:\n"
@@ -191,26 +465,42 @@ def _collect_interactive() -> tuple[str, Mode, dict[str, str], dict[str, Any]]:
         return getpass.getpass(prompt)
 
     if provider in ("auto", "openai"):
-        key = gp("OpenAI API key (Enter to skip): ").strip()
+        existing_openai = _env_key("OPENAI_API_KEY", env_path, yaml_path)
+        if existing_openai:
+            src = _credential_source_label("OPENAI_API_KEY", env_path, yaml_path)
+            openai_prompt = f"OpenAI API key (Enter to keep existing from {src}): "
+        else:
+            openai_prompt = "OpenAI API key (Enter to skip): "
+        key = gp(openai_prompt).strip()
+        effective_openai = key or existing_openai
         if key:
             env_updates["OPENAI_API_KEY"] = key
-        if provider == "openai" and not key:
+        if provider == "openai" and not effective_openai:
             print("configure llm: openai provider requires an API key", file=sys.stderr)
             sys.exit(2)
-        model = input("OpenAI model [gpt-4o-mini]: ").strip() or "gpt-4o-mini"
+        default_model = _existing_openai_model(env_path, yaml_path) or _DEFAULT_OPENAI_MODEL
+        if effective_openai:
+            model = _prompt_openai_model(effective_openai, default=default_model)
+        else:
+            model = input(f"OpenAI model [{default_model}]: ").strip() or default_model
         if provider == "openai":
             llm_inline["model"] = model
-        elif key:
-            # auto + openai key: optional model still useful when forcing openai branch
-            m = input("OPENAI_MODEL override (Enter to skip): ").strip()
-            if m:
-                env_updates["OPENAI_MODEL"] = m
+        elif key or existing_openai:
+            llm_inline["model"] = model
+            env_updates["OPENAI_MODEL"] = model
 
     if provider in ("auto", "anthropic"):
-        key = gp("Anthropic API key (Enter to skip): ").strip()
+        existing_anthropic = _env_key("ANTHROPIC_API_KEY", env_path, yaml_path)
+        if existing_anthropic:
+            src = _credential_source_label("ANTHROPIC_API_KEY", env_path, yaml_path)
+            anthropic_prompt = f"Anthropic API key (Enter to keep existing from {src}): "
+        else:
+            anthropic_prompt = "Anthropic API key (Enter to skip): "
+        key = gp(anthropic_prompt).strip()
+        effective_anthropic = key or existing_anthropic
         if key:
             env_updates["ANTHROPIC_API_KEY"] = key
-        if provider == "anthropic" and not key:
+        if provider == "anthropic" and not effective_anthropic:
             print("configure llm: anthropic provider requires an API key", file=sys.stderr)
             sys.exit(2)
         if provider == "anthropic":
@@ -225,34 +515,83 @@ def _collect_interactive() -> tuple[str, Mode, dict[str, str], dict[str, Any]]:
                 env_updates["ANTHROPIC_MODEL"] = m
 
     if provider in ("auto", "azure"):
-        key = gp("Azure OpenAI API key (Enter to skip): ").strip()
-        endpoint = input("Azure endpoint URL (Enter to skip): ").strip()
-        deployment = input("Azure deployment name (Enter to skip): ").strip()
+        az_key_existing, az_ep_existing, az_dep_existing = _azure_credential_parts(
+            env_path, yaml_path
+        )
+        if az_key_existing:
+            az_src = _credential_source_label("AZURE_OPENAI_API_KEY", env_path, yaml_path)
+            az_key_prompt = f"Azure OpenAI API key (Enter to keep existing from {az_src}): "
+        else:
+            az_key_prompt = "Azure OpenAI API key (Enter to skip): "
+        key = gp(az_key_prompt).strip() or (az_key_existing or "")
+        if az_ep_existing:
+            endpoint = (
+                input(f"Azure endpoint URL (Enter to keep [{az_ep_existing}]): ").strip()
+                or az_ep_existing
+            )
+        else:
+            endpoint = input("Azure endpoint URL (Enter to skip): ").strip()
+        if az_dep_existing:
+            deployment = (
+                input(f"Azure deployment name (Enter to keep [{az_dep_existing}]): ").strip()
+                or az_dep_existing
+            )
+        else:
+            deployment = input("Azure deployment name (Enter to skip): ").strip()
+        az_key, az_ep, az_dep = _azure_credential_parts(
+            env_path,
+            yaml_path,
+            {
+                **env_updates,
+                **(
+                    {
+                        "AZURE_OPENAI_API_KEY": key,
+                        "AZURE_OPENAI_ENDPOINT": endpoint,
+                        "AZURE_OPENAI_DEPLOYMENT": deployment,
+                    }
+                    if key or endpoint or deployment
+                    else {}
+                ),
+            },
+        )
         if provider == "azure":
-            if not (key and endpoint and deployment):
+            if not (az_key and az_ep and az_dep):
                 print(
                     "configure llm: azure provider requires API key, endpoint, and deployment",
                     file=sys.stderr,
                 )
                 sys.exit(2)
-            env_updates["AZURE_OPENAI_API_KEY"] = key
-            env_updates["AZURE_OPENAI_ENDPOINT"] = endpoint
-            env_updates["AZURE_OPENAI_DEPLOYMENT"] = deployment
+            if key:
+                env_updates["AZURE_OPENAI_API_KEY"] = key
+            if endpoint:
+                env_updates["AZURE_OPENAI_ENDPOINT"] = endpoint
+            if deployment:
+                env_updates["AZURE_OPENAI_DEPLOYMENT"] = deployment
         elif key or endpoint or deployment:
-            if not (key and endpoint and deployment):
+            if not (az_key and az_ep and az_dep):
                 print(
                     "configure llm: for auto + Azure, provide all three: "
                     "API key, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT",
                     file=sys.stderr,
                 )
                 sys.exit(2)
-            env_updates["AZURE_OPENAI_API_KEY"] = key
-            env_updates["AZURE_OPENAI_ENDPOINT"] = endpoint
-            env_updates["AZURE_OPENAI_DEPLOYMENT"] = deployment
+            if key:
+                env_updates["AZURE_OPENAI_API_KEY"] = key
+            if endpoint:
+                env_updates["AZURE_OPENAI_ENDPOINT"] = endpoint
+            if deployment:
+                env_updates["AZURE_OPENAI_DEPLOYMENT"] = deployment
 
-    if provider == "auto" and not any(
-        k in env_updates for k in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AZURE_OPENAI_API_KEY")
-    ):
+    has_openai = bool(
+        "OPENAI_API_KEY" in env_updates or _env_key("OPENAI_API_KEY", env_path, yaml_path)
+    )
+    has_anthropic = bool(
+        "ANTHROPIC_API_KEY" in env_updates or _env_key("ANTHROPIC_API_KEY", env_path, yaml_path)
+    )
+    az_key, az_ep, az_dep = _azure_credential_parts(env_path, yaml_path, env_updates)
+    has_azure = bool(az_key and az_ep and az_dep)
+
+    if provider == "auto" and not (has_openai or has_anthropic or has_azure):
         print(
             "configure llm: provider=auto needs at least one of: "
             "OPENAI_API_KEY, ANTHROPIC_API_KEY, or Azure triple",
@@ -315,11 +654,24 @@ def _collect_non_interactive(
     if args.azure_deployment:
         env_updates["AZURE_OPENAI_DEPLOYMENT"] = args.azure_deployment
 
-    if provider == "openai" and not args.openai_api_key:
-        print("configure llm: --provider openai requires --openai-api-key", file=sys.stderr)
+    env_path = args.env.expanduser()
+    yaml_path = args.yaml.expanduser()
+    openai_key = args.openai_api_key or _env_key("OPENAI_API_KEY", env_path, yaml_path)
+    anthropic_key = args.anthropic_api_key or _env_key("ANTHROPIC_API_KEY", env_path, yaml_path)
+
+    if provider == "openai" and not openai_key:
+        print(
+            "configure llm: --provider openai requires --openai-api-key "
+            "(or an existing key in opencoat.env / daemon.yaml)",
+            file=sys.stderr,
+        )
         sys.exit(2)
-    if provider == "anthropic" and not args.anthropic_api_key:
-        print("configure llm: --provider anthropic requires --anthropic-api-key", file=sys.stderr)
+    if provider == "anthropic" and not anthropic_key:
+        print(
+            "configure llm: --provider anthropic requires --anthropic-api-key "
+            "(or an existing key in opencoat.env / daemon.yaml)",
+            file=sys.stderr,
+        )
         sys.exit(2)
     if provider == "azure" and not (
         args.azure_api_key and args.azure_endpoint and args.azure_deployment
@@ -331,9 +683,22 @@ def _collect_non_interactive(
         )
         sys.exit(2)
     if provider == "auto":
-        has_openai = bool(args.openai_api_key)
-        has_anthropic = bool(args.anthropic_api_key)
-        has_azure = bool(args.azure_api_key and args.azure_endpoint and args.azure_deployment)
+        has_openai = bool(openai_key)
+        has_anthropic = bool(anthropic_key)
+        az_key, az_ep, az_dep = _azure_credential_parts(
+            env_path,
+            yaml_path,
+            {
+                k: v
+                for k, v in (
+                    ("AZURE_OPENAI_API_KEY", args.azure_api_key),
+                    ("AZURE_OPENAI_ENDPOINT", args.azure_endpoint),
+                    ("AZURE_OPENAI_DEPLOYMENT", args.azure_deployment),
+                )
+                if v
+            },
+        )
+        has_azure = bool(az_key and az_ep and az_dep)
         if not (has_openai or has_anthropic or has_azure):
             print(
                 "configure llm: --provider auto needs at least one credential set "
@@ -377,13 +742,19 @@ def _configure_llm(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
-        provider, _mode, env_updates, llm = _collect_interactive()
+        provider, _mode, env_updates, llm = _collect_interactive(
+            env_path=env_path,
+            yaml_path=yaml_path,
+        )
 
     # Strip empty optional llm keys for cleaner yaml
     llm_out = {k: v for k, v in llm.items() if v not in ("", None)}
 
     _write_yaml_llm(yaml_path, llm=llm_out)
     print(f"configure llm: wrote {yaml_path}", file=sys.stderr)
+    model_written = llm_out.get("model")
+    if isinstance(model_written, str) and model_written:
+        print(f"configure llm: llm.model = {model_written}", file=sys.stderr)
 
     wrote_any_env = False
     if env_updates:

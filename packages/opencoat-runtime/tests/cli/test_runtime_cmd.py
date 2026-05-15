@@ -30,6 +30,27 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
+def test_daemon_argv_uses_user_daemon_yaml_when_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    coat = home / ".opencoat"
+    coat.mkdir(parents=True)
+    (coat / "daemon.yaml").write_text("llm:\n  provider: openai\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    argv = runtime_cmd._daemon_argv(_ns(action="up", config=None))
+    assert "--config" in argv
+    assert str(coat / "daemon.yaml") in argv
+
+
+def test_daemon_argv_no_config_flag_when_user_yaml_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    argv = runtime_cmd._daemon_argv(_ns(action="up", config=None))
+    assert "--config" not in argv
+
+
 def _ns(**kw: object) -> argparse.Namespace:
     defaults: dict[str, object] = {
         "action": "status",

@@ -56,11 +56,13 @@ def add_endpoint_args(parser: argparse.ArgumentParser) -> None:
 
 def resolve_endpoint(args: argparse.Namespace) -> tuple[str, int, str]:
     """Resolve ``(host, port, path)`` from CLI args → config → defaults."""
+    from opencoat_runtime_daemon.config.loader import resolve_daemon_config_path
+
     host = getattr(args, "host", None)
     port = getattr(args, "port", None)
     path = getattr(args, "path", None)
 
-    cfg_path = getattr(args, "config", None)
+    cfg_path = resolve_daemon_config_path(getattr(args, "config", None))
     if (host is None or port is None or path is None) and cfg_path is not None:
         try:
             from opencoat_runtime_daemon.config import load_config  # type: ignore[import-not-found]

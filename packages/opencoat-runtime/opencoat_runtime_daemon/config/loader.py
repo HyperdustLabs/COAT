@@ -142,11 +142,28 @@ def merge_user_llm_env_file() -> None:
         os.environ.setdefault(key, val)
 
 
+def resolve_daemon_config_path(explicit: Path | None) -> Path | None:
+    """Config file path for daemon / CLI when ``--config`` is omitted.
+
+  ``opencoat configure llm`` writes ``~/.opencoat/daemon.yaml``.  Runtime
+  commands use that file automatically when it exists so operators are not
+  required to pass ``--config`` on every ``runtime up``.
+    """
+    if explicit is not None:
+        return Path(explicit).expanduser()
+    user = Path.home() / ".opencoat" / "daemon.yaml"
+    return user if user.is_file() else None
+
+
 def load_config(path: Path | None = None) -> DaemonConfig:
     """Load and validate the daemon config.
 
     Always starts from the bundled ``default.yaml`` and overlays the user's
     file (if any) on top.  Env / CLI overlays land at M4.
+
+    Pass an explicit ``path`` (or call :func:`resolve_daemon_config_path`
+    first) to load ``~/.opencoat/daemon.yaml``.  ``load_config()`` with no
+    argument loads only the bundled defaults — used by hermetic tests.
     """
     bundled = files("opencoat_runtime_daemon.config").joinpath("default.yaml").read_text()
     data: dict[str, Any] = yaml.safe_load(bundled) or {}
