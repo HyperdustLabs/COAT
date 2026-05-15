@@ -9,6 +9,11 @@ There is **no** upstream OpenClaw SDK in this repo. The example uses a
 ~30-line in-memory `subscribe` / `fire` host so CI stays hermetic while
 still exercising the real hook wiring.
 
+For a **real** OpenClaw gateway (Telegram, CLI, …), use the TypeScript bridge
+in [`integrations/openclaw-opencoat-bridge/`](../../integrations/openclaw-opencoat-bridge/README.md)
+— it calls `joinpoint.submit` on the daemon from `message_received`,
+`before_prompt_build`, and `before_tool_call`.
+
 ## What it does
 
 1. Builds an in-process `OpenCOATRuntime` (memory stores + stub LLM).

@@ -1,0 +1,22 @@
+{
+  "name": "@hyperdust/opencoat-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenClaw gateway plugin — forwards lifecycle hooks to OpenCOAT daemon joinpoint.submit",
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2",
+      "minGatewayVersion": "2026.3.24-beta.2"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  }
+}

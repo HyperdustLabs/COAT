@@ -158,6 +158,8 @@ def _merge_preserve_customizations(existing: Concern, enriched: Concern) -> Conc
             "relations": existing.relations,
         }
     )
+    if existing.created_at is not None:
+        merged = merged.model_copy(update={"created_at": existing.created_at})
     if existing.pointcut is not None:
         merged = merged.model_copy(update={"pointcut": existing.pointcut})
     if existing.advice is not None:

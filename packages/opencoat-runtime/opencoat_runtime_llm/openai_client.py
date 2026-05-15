@@ -255,7 +255,7 @@ class OpenAILLMClient(BaseLLMClient):
             "temperature": 0.0,
         }
         if self._score_max_tokens is not None:
-            kwargs["max_tokens"] = self._score_max_tokens
+            _apply_output_token_limit(kwargs, self._model, self._score_max_tokens)
 
         response = self._client.chat.completions.create(
             model=self._model,
@@ -296,7 +296,7 @@ class OpenAILLMClient(BaseLLMClient):
             kwargs["temperature"] = effective_temp
         effective_max = max_tokens if max_tokens is not None else self._default_max_tokens
         if effective_max is not None:
-            kwargs["max_tokens"] = effective_max
+            _apply_output_token_limit(kwargs, self._model, effective_max)
         if stop:
             kwargs["stop"] = list(stop)
         return kwargs
@@ -305,6 +305,20 @@ class OpenAILLMClient(BaseLLMClient):
 # ---------------------------------------------------------------------------
 # Helpers + error type
 # ---------------------------------------------------------------------------
+
+
+def _uses_max_completion_tokens(model: str) -> bool:
+    """OpenAI reasoning / gpt-5+ chat models reject ``max_tokens`` on the wire."""
+    mid = model.strip().lower()
+    return mid.startswith(("o1", "o2", "o3", "o4", "gpt-5", "chatgpt-5"))
+
+
+def _apply_output_token_limit(kwargs: dict[str, Any], model: str, limit: int) -> None:
+    """Set ``max_tokens`` or ``max_completion_tokens`` for the target model family."""
+    if limit < 0:
+        raise OpenAIClientError(f"output token limit must be >= 0; got {limit!r}")
+    key = "max_completion_tokens" if _uses_max_completion_tokens(model) else "max_tokens"
+    kwargs[key] = limit
 
 
 class OpenAIClientError(RuntimeError):

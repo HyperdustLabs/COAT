@@ -1,0 +1,39 @@
+export type BridgeConfig = {
+  daemonUrl: string;
+  enabled: boolean;
+  logActivations: boolean;
+};
+
+export type ConcernInjection = {
+  turn_id: string;
+  agent_session_id?: string | null;
+  injections: InjectionRow[];
+};
+
+export type InjectionRow = {
+  concern_id: string;
+  advice_type: string;
+  target: string;
+  mode: string;
+  level?: string;
+  content: string;
+  priority?: number;
+};
+
+export type JoinpointWire = {
+  id: string;
+  level: number;
+  name: string;
+  host: string;
+  agent_session_id?: string;
+  turn_id?: string;
+  ts: string;
+  payload: Record<string, unknown>;
+};
+
+export type AgentHookCtx = {
+  runId?: string;
+  sessionId?: string;
+  sessionKey?: string;
+  agentId?: string;
+};

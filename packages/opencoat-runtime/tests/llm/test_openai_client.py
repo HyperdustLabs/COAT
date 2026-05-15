@@ -149,6 +149,21 @@ class TestComplete:
         assert kwargs["temperature"] == 0.7
         assert kwargs["stop"] == ["\n", "###"]
 
+    def test_gpt5_uses_max_completion_tokens(self) -> None:
+        mock_create = MagicMock(return_value=_fake_response("ok"))
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=mock_create))
+        )
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "k"}, clear=False),
+            patch("openai.OpenAI", MagicMock(return_value=fake_client)),
+        ):
+            client = OpenAILLMClient(model="gpt-5.4")
+        client.complete("hi", max_tokens=42)
+        kwargs = mock_create.call_args.kwargs
+        assert kwargs["max_completion_tokens"] == 42
+        assert "max_tokens" not in kwargs
+
     def test_omits_max_tokens_when_default_is_none(self) -> None:
         # ``default_max_tokens=None`` lets the SDK / model pick. We
         # must NOT pass ``max_tokens=None`` down — the SDK would 400.
@@ -218,6 +233,25 @@ class TestStructured:
         client, _ = _build_client(reply=json.dumps(payload))
         out = client.structured([{"role": "user", "content": "x"}], schema=self.SCHEMA)
         assert out == payload
+
+    def test_gpt5_uses_max_completion_tokens(self) -> None:
+        mock_create = MagicMock(return_value=_fake_response('{"x": 1}'))
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=mock_create))
+        )
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "k"}, clear=False),
+            patch("openai.OpenAI", MagicMock(return_value=fake_client)),
+        ):
+            client = OpenAILLMClient(model="gpt-5.4")
+        client.structured(
+            [{"role": "user", "content": "x"}],
+            schema=self.SCHEMA,
+            max_tokens=512,
+        )
+        kwargs = mock_create.call_args.kwargs
+        assert kwargs["max_completion_tokens"] == 512
+        assert "max_tokens" not in kwargs
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +368,22 @@ class TestScore:
             )
         client.score("p", "c")
         assert "max_tokens" not in mock_create.call_args.kwargs
+        assert "max_completion_tokens" not in mock_create.call_args.kwargs
+
+    def test_gpt5_score_uses_max_completion_tokens(self) -> None:
+        mock_create = MagicMock(return_value=_fake_response("0.5"))
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=mock_create))
+        )
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "k"}, clear=False),
+            patch("openai.OpenAI", MagicMock(return_value=fake_client)),
+        ):
+            client = OpenAILLMClient(model="gpt-5.4")
+        client.score("p", "c")
+        kwargs = mock_create.call_args.kwargs
+        assert kwargs["max_completion_tokens"] == 8
+        assert "max_tokens" not in kwargs
 
     def test_score_does_not_inherit_default_temperature(self) -> None:
         # Even when the host wires a high default temperature for

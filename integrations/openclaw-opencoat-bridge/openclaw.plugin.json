@@ -1,0 +1,31 @@
+{
+  "id": "@hyperdust/opencoat-bridge",
+  "name": "@hyperdust/opencoat-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "daemonUrl": {
+        "type": "string",
+        "description": "OpenCOAT daemon JSON-RPC URL (default http://127.0.0.1:7878/rpc)"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Master switch for daemon calls"
+      },
+      "logActivations": {
+        "type": "boolean",
+        "description": "Log concern ids when injections are non-empty"
+      }
+    }
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2",
+      "minGatewayVersion": "2026.3.24-beta.2"
+    }
+  }
+}

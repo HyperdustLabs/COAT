@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from opencoat_runtime_core.concern.builder import ConcernBuilder
 from opencoat_runtime_core.concern.builder_templates import resolve_activation
 from opencoat_runtime_protocol import Advice, AdviceType, Concern, Pointcut
@@ -79,6 +81,32 @@ def test_build_or_update_preserves_store_pointcut_on_reextract() -> None:
     assert second.pointcut == custom_pc
     assert second.advice is not None
     assert second.advice.type == AdviceType.TOOL_GUARD
+
+
+def test_build_or_update_preserves_created_at_on_reextract() -> None:
+    store = MemoryConcernStore()
+    builder = ConcernBuilder(store=store)
+    created = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+    first = builder.build_or_update(_candidate().model_copy(update={"created_at": created}))
+    assert first.created_at == created
+
+    reextract = _candidate().model_copy(update={"description": "Updated description only."})
+    second = builder.build_or_update(reextract)
+    assert second.created_at == created
+    assert second.updated_at is not None
+    assert second.updated_at >= created
+
+
+def test_build_or_update_sets_created_at_when_store_lacks_it() -> None:
+    store = MemoryConcernStore()
+    builder = ConcernBuilder(store=store)
+    raw = _candidate()
+    store.upsert(raw.model_copy(update={"pointcut": Pointcut(joinpoints=["before_response"])}))
+    before = datetime.now(UTC)
+    built = builder.build_or_update(_candidate())
+    after = datetime.now(UTC)
+    assert built.created_at is not None
+    assert before <= built.created_at <= after + timedelta(seconds=1)
 
 
 def test_build_many_upserts_to_store() -> None:
