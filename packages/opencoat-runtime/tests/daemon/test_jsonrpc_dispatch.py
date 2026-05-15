@@ -340,10 +340,14 @@ class TestConcernExtract:
         assert c["name"] == "be brief"
         assert c["source"]["origin"] == "user_input"
         assert c["source"]["ref"] == "prompt-42"
+        assert c.get("pointcut") is not None
+        assert c.get("advice") is not None
+        assert c.get("weaving_policy") is not None
         # The candidate must now also be visible via concern.get.
         got = h.handle(_req("concern.get", {"concern_id": c["id"]}))
         assert got["result"] is not None
         assert got["result"]["name"] == "be brief"
+        assert got["result"].get("pointcut") is not None
 
     def test_dry_run_skips_store_upsert(self) -> None:
         h = _scripted_extract_handler({"name": "be brief"})

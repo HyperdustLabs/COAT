@@ -55,7 +55,7 @@ from datetime import datetime
 from typing import Any
 
 from opencoat_runtime_core import OpenCOATRuntime
-from opencoat_runtime_core.concern import ConcernExtractor
+from opencoat_runtime_core.concern import ConcernBuilder, ConcernExtractor
 from opencoat_runtime_protocol import Concern, ConcernInjection, JoinpointEvent
 from pydantic import ValidationError
 
@@ -329,12 +329,14 @@ class JsonRpcHandler:
 
         result = self._extractor.extract(text, origin=origin, ref=ref)
 
-        if not dry_run:
-            for candidate in result.candidates:
-                self._rt.concern_store.upsert(candidate)
+        builder = ConcernBuilder(store=self._rt.concern_store)
+        if dry_run:
+            built = [builder.enrich(c) for c in result.candidates]
+        else:
+            built = builder.build_many(list(result.candidates))
 
         return {
-            "candidates": [c.model_dump(mode="json") for c in result.candidates],
+            "candidates": [c.model_dump(mode="json") for c in built],
             "rejected": [{"span": r.span, "reason": r.reason} for r in result.rejected],
             "upserted": not dry_run,
         }
