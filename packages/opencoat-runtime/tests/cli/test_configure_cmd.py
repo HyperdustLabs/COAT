@@ -80,6 +80,26 @@ def test_choose_openai_model_paginates() -> None:
     assert picked == "gpt-page-22"
 
 
+def test_choose_openai_model_rejects_prev_on_first_page() -> None:
+    models = [f"gpt-page-{i:02d}" for i in range(25)]
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.input",
+        side_effect=["p", "1"],
+    ):
+        picked = configure_cmd._choose_openai_model_from_list(models, default=models[0])
+    assert picked == "gpt-page-00"
+
+
+def test_choose_openai_model_rejects_next_on_last_page() -> None:
+    models = [f"gpt-page-{i:02d}" for i in range(25)]
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.input",
+        side_effect=["n", "n", "1"],
+    ):
+        picked = configure_cmd._choose_openai_model_from_list(models, default=models[0])
+    assert picked == "gpt-page-20"
+
+
 def test_choose_openai_model_prev_page() -> None:
     models = [f"gpt-page-{i:02d}" for i in range(25)]
     with patch(
@@ -216,6 +236,30 @@ def test_non_interactive_openai_env_file_writes_yaml_and_env(tmp_path: Path) -> 
     text = e.read_text(encoding="utf-8")
     assert "OPENAI_API_KEY=sk-test-openai" in text
     assert "sk-test-openai" not in y.read_text()
+
+
+def test_non_interactive_inline_openai_model_only_keeps_existing_inline_key(
+    tmp_path: Path,
+) -> None:
+    y = tmp_path / "d.yaml"
+    e = tmp_path / "e.env"
+    y.write_text(
+        "llm:\n  provider: openai\n  model: gpt-4o-mini\n"
+        "  api_key: sk-inline-saved\n  timeout_seconds: 30.0\n",
+        encoding="utf-8",
+    )
+    args = _ns(
+        yaml=y,
+        env=e,
+        mode="inline",
+        provider="openai",
+        openai_api_key=None,
+        model="gpt-4o",
+    )
+    assert configure_cmd._configure_llm(args) == 0
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["llm"]["api_key"] == "sk-inline-saved"
+    assert data["llm"]["model"] == "gpt-4o"
 
 
 def test_non_interactive_inline_openai_embeds_key_in_yaml(tmp_path: Path) -> None:

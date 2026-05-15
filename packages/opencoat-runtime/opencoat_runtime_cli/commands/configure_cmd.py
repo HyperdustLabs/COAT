@@ -323,11 +323,17 @@ def _choose_openai_model_from_list(models: list[str], *, default: str) -> str:
         if not choice and page == 0 and total_pages > 1:
             choice = "1"
 
-        if choice in ("n", "next") and page < total_pages - 1:
-            page += 1
+        if choice in ("n", "next"):
+            if page < total_pages - 1:
+                page += 1
+                continue
+            print("configure llm: already on the last page", file=sys.stderr)
             continue
-        if choice in ("p", "prev", "back") and page > 0:
-            page -= 1
+        if choice in ("p", "prev", "back"):
+            if page > 0:
+                page -= 1
+                continue
+            print("configure llm: already on the first page", file=sys.stderr)
             continue
         if choice == "0":
             custom = input(f"OpenAI model id [{default}]: ").strip()
@@ -709,13 +715,33 @@ def _collect_non_interactive(
 
     if mode == "inline":
         if provider == "openai":
-            llm["api_key"] = args.openai_api_key
+            llm["api_key"] = openai_key
         elif provider == "anthropic":
-            llm["api_key"] = args.anthropic_api_key
+            llm["api_key"] = anthropic_key
         elif provider == "azure":
-            llm["api_key"] = args.azure_api_key
-            llm["endpoint"] = args.azure_endpoint
-            llm["deployment"] = args.azure_deployment
+            az_key, az_ep, az_dep = _azure_credential_parts(
+                env_path,
+                yaml_path,
+                {
+                    k: v
+                    for k, v in (
+                        ("AZURE_OPENAI_API_KEY", args.azure_api_key),
+                        ("AZURE_OPENAI_ENDPOINT", args.azure_endpoint),
+                        ("AZURE_OPENAI_DEPLOYMENT", args.azure_deployment),
+                    )
+                    if v
+                },
+            )
+            if not (az_key and az_ep and az_dep):
+                print(
+                    "configure llm: --provider azure requires --azure-api-key, --azure-endpoint, "
+                    "--azure-deployment (or existing values in opencoat.env / daemon.yaml)",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            llm["api_key"] = az_key
+            llm["endpoint"] = az_ep
+            llm["deployment"] = az_dep
         elif provider == "auto":
             print(
                 "configure llm: --mode inline does not support --provider auto "
