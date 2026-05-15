@@ -44,7 +44,8 @@ def test_daemon_argv_uses_user_daemon_yaml_when_present(
 
 
 def test_daemon_argv_no_config_flag_when_user_yaml_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     argv = runtime_cmd._daemon_argv(_ns(action="up", config=None))

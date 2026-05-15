@@ -145,9 +145,9 @@ def merge_user_llm_env_file() -> None:
 def resolve_daemon_config_path(explicit: Path | None) -> Path | None:
     """Config file path for daemon / CLI when ``--config`` is omitted.
 
-  ``opencoat configure llm`` writes ``~/.opencoat/daemon.yaml``.  Runtime
-  commands use that file automatically when it exists so operators are not
-  required to pass ``--config`` on every ``runtime up``.
+    ``opencoat configure llm`` writes ``~/.opencoat/daemon.yaml``.  Runtime
+    commands use that file automatically when it exists so operators are not
+    required to pass ``--config`` on every ``runtime up``.
     """
     if explicit is not None:
         return Path(explicit).expanduser()

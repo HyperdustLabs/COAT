@@ -62,7 +62,9 @@ def test_fetch_openai_model_ids_parses_and_filters() -> None:
         def __exit__(self, *args: object) -> None:
             return None
 
-    with patch("opencoat_runtime_cli.commands.configure_cmd.urllib.request.urlopen", return_value=_Resp()):
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.urllib.request.urlopen", return_value=_Resp()
+    ):
         ids = configure_cmd.fetch_openai_model_ids("sk-test")
 
     assert ids[0] == "gpt-4o-mini"
