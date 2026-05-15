@@ -65,7 +65,7 @@ Three sub-deliverables, each a small PR (no new packages):
 
 ### 2C. External skill repo — `HyperdustLabs/opencoat-skill`
 
-Canonical **working copy** in the OpenCOAT monorepo: [`integrations/opencoat-skill/`](../integrations/opencoat-skill/) (SKILL + `bootstrap_daemon.sh`). After editing there, open a PR to [`HyperdustLabs/opencoat-skill`](https://github.com/HyperdustLabs/opencoat-skill) and redeploy the CDN worker so `https://www.opencoat.ai/` picks up the same files.
+The installable skill lives **only** in [`HyperdustLabs/opencoat-skill`](https://github.com/HyperdustLabs/opencoat-skill); **this monorepo does not vendor a copy** under `integrations/`. Work in that repository (clone it locally), open PRs there, and redeploy the `www.opencoat.ai` worker per upstream [`DEPLOY.md`](https://github.com/HyperdustLabs/opencoat-skill/blob/main/DEPLOY.md) so CDN URLs stay fresh.
 
 - Single GitHub repo (no `opencoat.ai` DNS yet — see §7).
 - Contents: `SKILL.md`, `inspection.md`, `concerns.md`, `rules.md`,

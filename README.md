@@ -74,6 +74,8 @@ opencoat/
 └── scripts/                      # dev_up.sh, format.sh, release.sh
 ```
 
+The Cursor / Codex **agent skill** (`SKILL.md`, bootstrap scripts, CDN worker) lives in [`HyperdustLabs/opencoat-skill`](https://github.com/HyperdustLabs/opencoat-skill) — it is **not** vendored under this monorepo.
+
 Detailed layout, module breakdown, schemas, protocol, and milestones are in
 [`docs/design/v0.2-system-design.md`](docs/design/v0.2-system-design.md).
 
