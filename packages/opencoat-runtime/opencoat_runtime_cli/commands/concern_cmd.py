@@ -263,6 +263,12 @@ _EXTRACT_ORIGINS: tuple[str, ...] = (
     "feedback",
 )
 
+# ``concern.extract`` runs LLM extraction inside the daemon (often 10–60s+).
+# The startup banner only ``health.ping``\\ s with a 0.4s client timeout, so a
+# healthy banner does not imply extract will finish within the default 5s RPC
+# budget used by ``concern.list`` / ``concern.get``.
+_EXTRACT_RPC_TIMEOUT_SECONDS = 90.0
+
 
 def _extract_read_text(args: argparse.Namespace) -> str | int:
     """Resolve ``--from-text`` / ``--from-file`` / stdin into one string.
@@ -325,10 +331,18 @@ def _concern_extract(args: argparse.Namespace) -> int:
     if args.dry_run:
         params["dry_run"] = True
 
-    client = make_client(args)
+    timeout = float(getattr(args, "timeout", _EXTRACT_RPC_TIMEOUT_SECONDS))
+    client = make_client(args, timeout=timeout)
     try:
         raw = client.call("concern.extract", params)
     except HttpRpcError as exc:
+        if isinstance(exc, HttpRpcConnectionError) and "timed out" in str(exc).lower():
+            print(
+                "concern extract: daemon RPC timed out — extraction runs an LLM call "
+                f"in the daemon (try --timeout {int(timeout * 2)} or check daemon logs)",
+                file=sys.stderr,
+            )
+            return 3
         return _emit_rpc_error("concern extract", exc)
 
     if not isinstance(raw, dict):
@@ -493,6 +507,16 @@ def register(sub: argparse._SubParsersAction) -> None:
             "so candidates are previewed but not persisted. Use to "
             "inspect what `concern extract` would create before "
             "letting it stick."
+        ),
+    )
+    p.add_argument(
+        "--timeout",
+        type=float,
+        default=_EXTRACT_RPC_TIMEOUT_SECONDS,
+        help=(
+            "`extract`: HTTP RPC timeout in seconds while the daemon runs "
+            f"LLM extraction (default: {int(_EXTRACT_RPC_TIMEOUT_SECONDS)}). "
+            "Ignored by list/show/import/export/diff."
         ),
     )
     p.set_defaults(func=_handle)
