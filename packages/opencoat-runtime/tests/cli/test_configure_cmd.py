@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from opencoat_runtime_cli.commands import configure_cmd
@@ -32,6 +34,198 @@ def _ns(**kwargs: object) -> Namespace:
     return Namespace(**defaults)
 
 
+def test_is_openai_chat_model_id_filters_non_chat() -> None:
+    assert configure_cmd._is_openai_chat_model_id("gpt-4o-mini")
+    assert configure_cmd._is_openai_chat_model_id("o3-mini")
+    assert not configure_cmd._is_openai_chat_model_id("text-embedding-3-small")
+    assert not configure_cmd._is_openai_chat_model_id("whisper-1")
+    assert not configure_cmd._is_openai_chat_model_id("dall-e-3")
+
+
+def test_fetch_openai_model_ids_parses_and_filters() -> None:
+    payload = {
+        "data": [
+            {"id": "gpt-4o"},
+            {"id": "gpt-4o-mini"},
+            {"id": "text-embedding-3-small"},
+            {"id": "whisper-1"},
+        ]
+    }
+
+    class _Resp:
+        def read(self) -> bytes:
+            return json.dumps(payload).encode()
+
+        def __enter__(self) -> _Resp:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.urllib.request.urlopen", return_value=_Resp()
+    ):
+        ids = configure_cmd.fetch_openai_model_ids("sk-test")
+
+    assert ids[0] == "gpt-4o-mini"
+    assert "gpt-4o" in ids
+    assert "text-embedding-3-small" not in ids
+
+
+def test_choose_openai_model_paginates() -> None:
+    models = [f"gpt-page-{i:02d}" for i in range(25)]
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.input",
+        side_effect=["n", "3"],
+    ):
+        picked = configure_cmd._choose_openai_model_from_list(models, default=models[0])
+    assert picked == "gpt-page-22"
+
+
+def test_choose_openai_model_rejects_prev_on_first_page() -> None:
+    models = [f"gpt-page-{i:02d}" for i in range(25)]
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.input",
+        side_effect=["p", "1"],
+    ):
+        picked = configure_cmd._choose_openai_model_from_list(models, default=models[0])
+    assert picked == "gpt-page-00"
+
+
+def test_choose_openai_model_rejects_next_on_last_page() -> None:
+    models = [f"gpt-page-{i:02d}" for i in range(25)]
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.input",
+        side_effect=["n", "n", "1"],
+    ):
+        picked = configure_cmd._choose_openai_model_from_list(models, default=models[0])
+    assert picked == "gpt-page-20"
+
+
+def test_choose_openai_model_prev_page() -> None:
+    models = [f"gpt-page-{i:02d}" for i in range(25)]
+    with patch(
+        "opencoat_runtime_cli.commands.configure_cmd.input",
+        side_effect=["n", "p", "1"],
+    ):
+        picked = configure_cmd._choose_openai_model_from_list(models, default=models[0])
+    assert picked == "gpt-page-00"
+
+
+def test_prompt_openai_model_menu_selection() -> None:
+    with (
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.fetch_openai_model_ids",
+            return_value=["gpt-4o-mini", "gpt-4o"],
+        ),
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.input",
+            side_effect=["2", ""],
+        ),
+    ):
+        assert configure_cmd._prompt_openai_model("sk-test") == "gpt-4o"
+
+
+def test_env_key_reads_from_opencoat_env(tmp_path: Path) -> None:
+    env_path = tmp_path / "opencoat.env"
+    yaml_path = tmp_path / "daemon.yaml"
+    env_path.write_text("OPENAI_API_KEY=sk-on-disk\n", encoding="utf-8")
+    assert configure_cmd._env_key("OPENAI_API_KEY", env_path, yaml_path) == "sk-on-disk"
+
+
+def test_collect_interactive_auto_writes_model_to_yaml(tmp_path: Path) -> None:
+    env_path = tmp_path / "opencoat.env"
+    yaml_path = tmp_path / "daemon.yaml"
+    env_path.write_text("OPENAI_API_KEY=sk-existing\n", encoding="utf-8")
+    with (
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.getpass.getpass",
+            return_value="",
+        ),
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.input",
+            side_effect=["1", "1", "2", "", "", "", ""],
+        ),
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.fetch_openai_model_ids",
+            return_value=["gpt-4o-mini", "gpt-4o"],
+        ),
+    ):
+        provider, _mode, env_updates, llm = configure_cmd._collect_interactive(
+            env_path=env_path,
+            yaml_path=yaml_path,
+        )
+    assert provider == "auto"
+    assert llm["model"] == "gpt-4o"
+    assert env_updates["OPENAI_MODEL"] == "gpt-4o"
+
+
+def test_collect_interactive_openai_keeps_existing_key_and_updates_model(
+    tmp_path: Path,
+) -> None:
+    env_path = tmp_path / "opencoat.env"
+    yaml_path = tmp_path / "daemon.yaml"
+    env_path.write_text("OPENAI_API_KEY=sk-existing\n", encoding="utf-8")
+    yaml_path.write_text(
+        "llm:\n  provider: openai\n  model: gpt-4o-mini\n  timeout_seconds: 30.0\n",
+        encoding="utf-8",
+    )
+    with (
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.getpass.getpass",
+            return_value="",
+        ),
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.input",
+            side_effect=["1", "2", "2"],
+        ),
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.fetch_openai_model_ids",
+            return_value=["gpt-4o-mini", "gpt-4o"],
+        ),
+    ):
+        provider, mode, env_updates, llm = configure_cmd._collect_interactive(
+            env_path=env_path,
+            yaml_path=yaml_path,
+        )
+    assert provider == "openai"
+    assert mode == "env-file"
+    assert "OPENAI_API_KEY" not in env_updates
+    assert llm["model"] == "gpt-4o"
+
+
+def test_non_interactive_openai_model_only_uses_existing_env_key(tmp_path: Path) -> None:
+    y = tmp_path / "daemon.yaml"
+    e = tmp_path / "opencoat.env"
+    e.write_text("OPENAI_API_KEY=sk-stored\n", encoding="utf-8")
+    args = _ns(
+        yaml=y,
+        env=e,
+        mode="env-file",
+        provider="openai",
+        openai_api_key=None,
+        model="gpt-4o",
+    )
+    assert configure_cmd._configure_llm(args) == 0
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["llm"]["model"] == "gpt-4o"
+    assert "OPENAI_API_KEY=sk-stored" in e.read_text(encoding="utf-8")
+
+
+def test_prompt_openai_model_fallback_on_fetch_error() -> None:
+    with (
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.fetch_openai_model_ids",
+            side_effect=OSError("network down"),
+        ),
+        patch(
+            "opencoat_runtime_cli.commands.configure_cmd.input",
+            return_value="gpt-4o",
+        ),
+    ):
+        assert configure_cmd._prompt_openai_model("sk-test") == "gpt-4o"
+
+
 def test_non_interactive_openai_env_file_writes_yaml_and_env(tmp_path: Path) -> None:
     y = tmp_path / "daemon.yaml"
     e = tmp_path / "opencoat.env"
@@ -44,6 +238,30 @@ def test_non_interactive_openai_env_file_writes_yaml_and_env(tmp_path: Path) -> 
     text = e.read_text(encoding="utf-8")
     assert "OPENAI_API_KEY=sk-test-openai" in text
     assert "sk-test-openai" not in y.read_text()
+
+
+def test_non_interactive_inline_openai_model_only_keeps_existing_inline_key(
+    tmp_path: Path,
+) -> None:
+    y = tmp_path / "d.yaml"
+    e = tmp_path / "e.env"
+    y.write_text(
+        "llm:\n  provider: openai\n  model: gpt-4o-mini\n"
+        "  api_key: sk-inline-saved\n  timeout_seconds: 30.0\n",
+        encoding="utf-8",
+    )
+    args = _ns(
+        yaml=y,
+        env=e,
+        mode="inline",
+        provider="openai",
+        openai_api_key=None,
+        model="gpt-4o",
+    )
+    assert configure_cmd._configure_llm(args) == 0
+    data = yaml.safe_load(y.read_text(encoding="utf-8"))
+    assert data["llm"]["api_key"] == "sk-inline-saved"
+    assert data["llm"]["model"] == "gpt-4o"
 
 
 def test_non_interactive_inline_openai_embeds_key_in_yaml(tmp_path: Path) -> None:

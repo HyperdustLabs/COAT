@@ -34,13 +34,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    from .config.loader import load_config, merge_user_llm_env_file
+    from .config.loader import load_config, merge_user_llm_env_file, resolve_daemon_config_path
 
     # So detached ``runtime up`` picks up ``opencoat configure llm`` keys
     # without requiring a manual ``source ~/.opencoat/opencoat.env``.
     merge_user_llm_env_file()
 
-    cfg = load_config(args.config)
+    cfg = load_config(resolve_daemon_config_path(args.config))
 
     if args.check_config:
         sys.stdout.write(f"config OK: schema_version={cfg.runtime.schema_version}\n")
